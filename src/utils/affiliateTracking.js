@@ -47,21 +47,22 @@ export function getRememberedAffiliate() {
   try { return localStorage.getItem(STORAGE_KEY) || null } catch { return null }
 }
 
-export function trackAffiliateAccess(affiliate) {
+export function trackAffiliateAccess(affiliate, target = 'checkout') {
   if (!affiliate?.id) return
   const slug = String(affiliate.slug || '').toLowerCase()
   const path = window.location.pathname
   const visitorId = getVisitorId()
   const day = new Date().toISOString().slice(0, 10)
-  postTracking({
+  return postTracking({
     affiliateId: affiliate.id,
     affiliateSlug: slug,
     type: 'access',
-    target: 'page',
+    target,
     visitorId,
     path,
     referrer: document.referrer || '',
     day,
+    eventId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
   })
 }
 

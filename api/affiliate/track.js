@@ -20,9 +20,12 @@ module.exports = async function handler(req, res) {
       return json(res, 404, { error: 'Afiliada não encontrada.' });
     }
 
-    // Idempotency key: the browser generates one visitor/session identifier.
+    // Checkout access is generated only when the visitor clicks "Finalizar compra".
+    // Each checkout click receives its own eventId so it is recorded as an access event.
     const eventKey = type === 'access'
-      ? `access:${id}:${String(visitorId || '').slice(0,100)}:${String(path || '').slice(0,300)}:${String(day || new Date().toISOString().slice(0,10))}`
+      ? (target === 'checkout'
+          ? `access:checkout:${id}:${String(eventId || `${Date.now()}-${Math.random()}`).slice(0,100)}`
+          : `access:${id}:${String(visitorId || '').slice(0,100)}:${String(path || '').slice(0,300)}:${String(day || new Date().toISOString().slice(0,10))}`)
       : `click:${id}:${String(eventId || `${Date.now()}-${Math.random()}`).slice(0,100)}`;
     const existing = await supabaseFetch(
       `/rest/v1/affiliate_events?event_key=eq.${encodeURIComponent(eventKey)}&select=id&limit=1`
