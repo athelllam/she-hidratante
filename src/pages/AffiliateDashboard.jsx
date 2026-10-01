@@ -30,9 +30,8 @@ export default function AffiliateDashboard() {
 
   const load = async ({ sync = false } = {}) => {
     try {
-      const me = await api('/api/affiliate/me')
-      setAffiliate(me.affiliate)
       const data = await api('/api/affiliate/dashboard')
+      setAffiliate(data.affiliate)
       setDashboard(data)
       setLoading(false)
 
