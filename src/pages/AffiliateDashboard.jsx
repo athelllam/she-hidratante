@@ -68,7 +68,7 @@ export default function AffiliateDashboard() {
     setTestingYampi(true)
     setYampiTest(null)
     try {
-      const result = await api('/api/affiliate/yampi-test')
+      const result = await api('/api/affiliate/yampi-sync')
       setYampiTest(result)
     } catch (e) {
       setYampiTest({ ok: false, error: e.message || 'Não foi possível testar a Yampi.' })
