@@ -1,4 +1,4 @@
-const { supabaseFetch, json } = require('../_lib/supabase');
+const { supabaseFetch, json } = require('../../_lib/supabase');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') return json(res, 405, { error: 'Método não permitido.' });
