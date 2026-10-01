@@ -614,7 +614,7 @@ function CartProduct({ image, name, description, price, oldPrice, quantity, onMi
   )
 }
 
-function SheCart({ open, onClose, affiliateId = null }) {
+function SheCart({ open, onClose, affiliateId = null, affiliate = null }) {
   const [hydrantQty, setHydrantQty] = useState(1)
   const [blisterQty, setBlisterQty] = useState(1)
   const [bumps, setBumps] = useState({
@@ -680,6 +680,7 @@ function SheCart({ open, onClose, affiliateId = null }) {
 
   
 
+  // O checkout é montado com metadata[affiliate_id] através de buildYampiCheckoutUrl.
   const buildCheckoutUrl = () => {
     const products = []
 
@@ -934,11 +935,19 @@ function SheCart({ open, onClose, affiliateId = null }) {
                   type="button"
                   disabled={!hasProducts}
                   whileTap={hasProducts ? { scale: 0.985 } : undefined}
-                  onClick={() => {
-                    if (hasProducts) {
-                      trackAffiliateClick({ id: affiliateId }, 'checkout')
-                      window.location.href = buildCheckoutUrl()
-                    }
+                  onClick={async () => {
+                    if (!hasProducts) return
+
+                    const affiliateRef = affiliate || (affiliateId ? { id: affiliateId } : null)
+
+                    // Registra o acesso ao checkout e o clique antes de sair para a Yampi.
+                    await Promise.allSettled([
+                      Promise.resolve(trackAffiliateAccess(affiliateRef)),
+                      Promise.resolve(trackAffiliateClick(affiliateRef, 'checkout')),
+                    ])
+
+                    // buildYampiCheckoutUrl mantém o affiliate_id no metadata do checkout.
+                    window.location.href = buildCheckoutUrl()
                   }}
                   className="mt-5 w-full rounded-full bg-black px-6 py-4 text-sm font-black text-white shadow-[0_15px_35px_rgba(0,0,0,0.16)] transition-all hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(0,0,0,0.22)] disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:shadow-none"
                 >
@@ -1224,8 +1233,6 @@ function ScrollDrivenIntroVideo() {
 }
 
 export default function Hidratante({ affiliateId = null, affiliate = null }) {
-  useEffect(() => { if (affiliate) trackAffiliateAccess(affiliate) }, [affiliate])
-
   useLayoutEffect(() => {
     window.scrollTo(0, 0)
     const frame = window.requestAnimationFrame(() => window.scrollTo(0, 0))
@@ -1843,7 +1850,7 @@ export default function Hidratante({ affiliateId = null, affiliate = null }) {
 
 </section>
 
-      <SheCart open={cartOpen} onClose={() => setCartOpen(false)} affiliateId={affiliateId} />
+      <SheCart open={cartOpen} onClose={() => setCartOpen(false)} affiliateId={affiliateId} affiliate={affiliate} />
 
       <footer className="relative overflow-hidden bg-[#0b0b0d] text-white px-6 pt-16 pb-8 md:pt-24 md:pb-10">
         <div
