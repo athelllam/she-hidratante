@@ -1,0 +1,70 @@
+const { supabaseFetch, authFetch, setAuthCookie, json } = require('../_lib/supabase');
+
+function slugify(value) {
+  return String(value || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().trim().replace(/[^a-z0-9-]+/g, '-')
+    .replace(/^-+|-+$/g, '').slice(0, 50);
+}
+
+module.exports = async function handler(req, res) {
+  if (req.method !== 'POST') return json(res, 405, { error: 'Método não permitido.' });
+
+  try {
+    const { name, slug, email, password } = req.body || {};
+    const cleanName = String(name || '').trim();
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    const cleanSlug = slugify(slug || name);
+
+    if (!cleanName || !cleanSlug || !cleanEmail || String(password || '').length < 8) {
+      return json(res, 400, { error: 'Informe nome, slug, e-mail e senha com pelo menos 8 caracteres.' });
+    }
+
+    const existing = await supabaseFetch(
+      `/rest/v1/affiliates?or=(slug.eq.${encodeURIComponent(cleanSlug)},email.eq.${encodeURIComponent(cleanEmail)})&select=id,slug,email&limit=1`
+    );
+    if (existing?.length) return json(res, 409, { error: 'Slug ou e-mail já cadastrado.' });
+
+    // Creates the Auth user with e-mail already confirmed, so the affiliate can log in immediately.
+    const created = await supabaseFetch('/auth/v1/admin/users', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: cleanEmail,
+        password,
+        email_confirm: true,
+        user_metadata: { role: 'affiliate', name: cleanName },
+      }),
+    });
+
+    try {
+      const rows = await supabaseFetch('/rest/v1/affiliates', {
+        method: 'POST',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({
+          auth_user_id: created.id,
+          name: cleanName,
+          slug: cleanSlug,
+          email: cleanEmail,
+          active: true,
+          commission_rate: 0.10,
+        }),
+      });
+
+      const session = await authFetch('/auth/v1/token?grant_type=password', {
+        method: 'POST',
+        body: JSON.stringify({ email: cleanEmail, password }),
+      });
+
+      setAuthCookie(res, session.access_token);
+      return json(res, 201, { affiliate: rows[0], user: { id: created.id, email: cleanEmail } });
+    } catch (error) {
+      // Best-effort rollback if the affiliate row could not be created.
+      try {
+        await supabaseFetch(`/auth/v1/admin/users/${created.id}`, { method: 'DELETE' });
+      } catch {}
+      throw error;
+    }
+  } catch (error) {
+    return json(res, error.statusCode || 500, { error: error.message || 'Erro ao criar afiliada.' });
+  }
+};

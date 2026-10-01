@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { rememberAffiliate, trackAffiliateAccess } from '../utils/affiliateTracking'
 import logo from '../assets/she-logo.webp'
 
 const options = [
@@ -18,8 +19,9 @@ const options = [
   },
 ]
 
-export default function Welcome() {
+export default function Welcome({ affiliateSlug = null, affiliate = null }) {
   const navigate = useNavigate()
+  useEffect(() => { if (affiliateSlug) rememberAffiliate(affiliateSlug); if (affiliate) trackAffiliateAccess(affiliate) }, [affiliateSlug, affiliate])
   const [name, setName] = useState('')
   const [isLoading, setIsLoading] = useState(true)
 
@@ -34,7 +36,8 @@ export default function Welcome() {
   const handleChoice = (path) => {
     const cleanName = name.trim()
     if (cleanName) localStorage.setItem('sheVisitorName', cleanName)
-    navigate(path)
+    const affiliatePath = affiliateSlug && path !== '/home' ? `/${affiliateSlug}${path}` : path
+    navigate(affiliatePath)
   }
 
   if (isLoading) {

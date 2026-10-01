@@ -1,6 +1,7 @@
-import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { lazy, Suspense, useEffect, useState } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import Welcome from './pages/Welcome'
+import AffiliateDashboard from './pages/AffiliateDashboard'
 
 const Home = lazy(() => import('./pages/Home'))
 const Hidratante = lazy(() => import('./pages/Hidratante'))
@@ -10,6 +11,36 @@ const Ovinhos = lazy(() => import('./pages/Ovinhos'))
 
 function PageFallback() {
   return <div className="min-h-screen bg-[#fffafc]" />
+}
+
+function AffiliateGuard({ children }) {
+  const { affiliateSlug } = useParams()
+  const [state, setState] = useState({ loading: true, affiliate: null })
+
+  useEffect(() => {
+    let active = true
+    fetch(`/api/affiliate/public/${encodeURIComponent(affiliateSlug || '')}`)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => active && setState({ loading: false, affiliate: data.affiliate }))
+      .catch(() => active && setState({ loading: false, affiliate: null }))
+    return () => { active = false }
+  }, [affiliateSlug])
+
+  if (state.loading) return <PageFallback />
+  if (!state.affiliate?.active) return <Navigate to="/" replace />
+  return children(state.affiliate)
+}
+
+function AffiliateRoot() {
+  return <AffiliateGuard>{affiliate => <Navigate to={`/${affiliate.slug}/welcome`} replace />}</AffiliateGuard>
+}
+
+function AffiliateWelcome() {
+  return <AffiliateGuard>{affiliate => <Welcome affiliateSlug={affiliate.slug} affiliate={affiliate} />}</AffiliateGuard>
+}
+
+function AffiliateProduct({ Product }) {
+  return <AffiliateGuard>{affiliate => <Product affiliateId={affiliate.id} affiliate={affiliate} />}</AffiliateGuard>
 }
 
 export default function App() {
@@ -23,6 +54,12 @@ export default function App() {
           <Route path="/stick" element={<Stick />} />
           <Route path="/gummies" element={<Gummies />} />
           <Route path="/ovinhos" element={<Ovinhos />} />
+          <Route path="/afiliado" element={<AffiliateDashboard />} />
+          <Route path="/afiliadas/*" element={<AffiliateDashboard />} />
+          <Route path="/:affiliateSlug/welcome" element={<AffiliateWelcome />} />
+          <Route path="/:affiliateSlug/hidratante" element={<AffiliateProduct Product={Hidratante} />} />
+          <Route path="/:affiliateSlug/stick" element={<AffiliateProduct Product={Stick} />} />
+          <Route path="/:affiliateSlug" element={<AffiliateRoot />} />
         </Routes>
       </Suspense>
     </BrowserRouter>
