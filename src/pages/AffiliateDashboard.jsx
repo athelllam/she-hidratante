@@ -27,8 +27,6 @@ export default function AffiliateDashboard() {
   const [busy, setBusy] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState('')
-  const [yampiTest, setYampiTest] = useState(null)
-  const [testingYampi, setTestingYampi] = useState(false)
 
   const load = async ({ sync = false } = {}) => {
     try {
@@ -64,18 +62,6 @@ export default function AffiliateDashboard() {
 
   useEffect(() => { load({ sync: true }) }, [])
 
-  const testYampi = async () => {
-    setTestingYampi(true)
-    setYampiTest(null)
-    try {
-      const result = await api('/api/affiliate/yampi-sync')
-      setYampiTest(result)
-    } catch (e) {
-      setYampiTest({ ok: false, error: e.message || 'Não foi possível testar a Yampi.' })
-    } finally {
-      setTestingYampi(false)
-    }
-  }
 
   const submitLogin = async (event) => {
     event.preventDefault()
@@ -170,13 +156,6 @@ export default function AffiliateDashboard() {
           <div className="flex flex-wrap gap-2 items-center">
             {syncMessage && <span className="text-xs font-semibold text-zinc-400">{syncMessage}</span>}
             <button
-              onClick={testYampi}
-              disabled={testingYampi}
-              className="rounded-xl bg-white px-4 py-2 text-sm font-bold text-zinc-800 shadow-sm border border-zinc-200 disabled:opacity-60"
-            >
-              {testingYampi ? 'Testando…' : 'Testar Yampi'}
-            </button>
-            <button
               onClick={() => load({ sync: true })}
               disabled={syncing}
               className="rounded-xl bg-pink-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
@@ -197,21 +176,6 @@ export default function AffiliateDashboard() {
           ))}
         </section>
 
-        {yampiTest && (
-          <section className="mt-4 rounded-[1.5rem] bg-white p-5 border border-pink-100">
-            <p className="text-xs uppercase tracking-[.18em] text-zinc-400">Diagnóstico Yampi</p>
-            {yampiTest.ok ? (
-              <div className="mt-3 text-sm text-zinc-700">
-                <p><strong>API autenticada:</strong> sim</p>
-                <p><strong>Pedidos retornados:</strong> {yampiTest.ordersReturned || 0}</p>
-                <p><strong>ID desta afiliada:</strong> {yampiTest.currentAffiliateId}</p>
-                <p className="mt-2 text-xs text-zinc-400">A consulta é somente leitura e não cria compra nem dispara webhook.</p>
-              </div>
-            ) : (
-              <p className="mt-3 text-sm text-red-500">{yampiTest.error || yampiTest.message || 'Falha no teste.'}</p>
-            )}
-          </section>
-        )}
 
         <section className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
           <div className="rounded-[1.5rem] bg-white p-6 border border-pink-100">
