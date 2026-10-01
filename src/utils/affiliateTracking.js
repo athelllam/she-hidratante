@@ -61,9 +61,10 @@ export function getRememberedAffiliate() {
   try { return localStorage.getItem(STORAGE_KEY) || null } catch { return null }
 }
 
-export function trackAffiliateAccess(affiliate, target = 'checkout') {
-  if (!affiliate?.id) return
-  const slug = String(affiliate.slug || '').toLowerCase()
+export function trackAffiliateAccess(affiliateOrId, target = 'checkout', affiliateSlug = '') {
+  const affiliate = typeof affiliateOrId === 'object' ? affiliateOrId : { id: affiliateOrId, slug: affiliateSlug }
+  if (!affiliate?.id) return Promise.resolve({ ok: false, skipped: true, error: 'Affiliate ID ausente.' })
+  const slug = String(affiliate.slug || affiliateSlug || '').toLowerCase()
   const path = window.location.pathname
   const visitorId = getVisitorId()
   const day = new Date().toISOString().slice(0, 10)

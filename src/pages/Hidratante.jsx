@@ -936,7 +936,7 @@ function SheCart({ open, onClose, affiliateId = null }) {
                   whileTap={hasProducts ? { scale: 0.985 } : undefined}
                   onClick={async () => {
                     if (hasProducts) {
-                      await trackAffiliateAccess({ id: affiliateId }, 'checkout')
+                      await trackAffiliateAccess(affiliateId, 'checkout')
                       window.location.href = buildCheckoutUrl()
                     }
                   }}
