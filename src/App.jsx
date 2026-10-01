@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
+import { trackAffiliateAccess } from './utils/affiliateTracking'
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import Welcome from './pages/Welcome'
 import AffiliateDashboard from './pages/AffiliateDashboard'
@@ -32,7 +33,21 @@ function AffiliateGuard({ children }) {
 }
 
 function AffiliateRoot() {
-  return <AffiliateGuard>{affiliate => <Navigate to={`/${affiliate.slug}/welcome`} replace />}</AffiliateGuard>
+  return <AffiliateGuard>{affiliate => <AffiliateRootTracker affiliate={affiliate} />}</AffiliateGuard>
+}
+
+function AffiliateRootTracker({ affiliate }) {
+  const [done, setDone] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    trackAffiliateAccess(affiliate, 'access')
+      .finally(() => { if (active) setDone(true) })
+    return () => { active = false }
+  }, [affiliate])
+
+  if (!done) return <PageFallback />
+  return <Navigate to={`/${affiliate.slug}/welcome`} replace />
 }
 
 function AffiliateWelcome() {

@@ -20,11 +20,9 @@ module.exports = async function handler(req, res) {
       return json(res, 404, { error: 'Afiliada não encontrada.' });
     }
 
-    // Checkout access is generated only when the visitor clicks "Finalizar compra".
-    // Each checkout click receives its own eventId so it is recorded as an access event.
-    const eventKey = target === 'checkout'
-      ? `access:checkout:${id}:${String(eventId || `${Date.now()}-${Math.random()}`).slice(0,100)}`
-      : `access:${id}:${String(visitorId || '').slice(0,100)}:${String(path || '').slice(0,300)}:${String(day || new Date().toISOString().slice(0,10))}`;
+    // Cada visita à URL da afiliada recebe seu próprio evento.
+    // O eventId evita que uma única visita seja registrada duas vezes por acidente.
+    const eventKey = `access:${id}:${String(eventId || `${Date.now()}-${Math.random()}`).slice(0,100)}`;
     const existing = await supabaseFetch(
       `/rest/v1/affiliate_events?event_key=eq.${encodeURIComponent(eventKey)}&select=id&limit=1`
     );

@@ -1,7 +1,7 @@
 import { AnimatePresence, motion, useMotionValue, useScroll, useTransform, useSpring } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import Navbar from '../components/Navbar'
-import { buildYampiCheckoutUrl, trackAffiliateAccess } from '../utils/affiliateTracking'
+import { buildYampiCheckoutUrl } from '../utils/affiliateTracking'
 import hero from '../assets/stick/hero.webp'
 import stickCaixa from '../assets/stick/stick-caixa.webp'
 
@@ -626,8 +626,7 @@ function SheCart({ open, onClose, affiliateId = null }) {
                   whileTap={hasProducts ? { scale: 0.985 } : undefined}
                   onClick={async () => {
                     if (hasProducts) {
-                      await trackAffiliateAccess(affiliateId, 'checkout')
-                      window.location.href = buildCheckoutUrl()
+                                        window.location.href = buildCheckoutUrl()
                     }
                   }}
                   className="mt-5 w-full rounded-full bg-black px-6 py-4 text-sm font-black text-white shadow-[0_15px_35px_rgba(0,0,0,0.16)] transition-all hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(0,0,0,0.22)] disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:shadow-none"
