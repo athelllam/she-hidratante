@@ -18,7 +18,6 @@ module.exports = async function handler(req, res) {
     ]);
 
     const accessEvents = (events || []).filter((e) => e.type === 'access');
-    const clickEvents = (events || []).filter((e) => e.type === 'click');
     const paidStatuses = new Set(['paid','approved','payment_approved','processing','shipped','delivered','completed']);
     const cancelledStatuses = new Set(['cancelled','canceled','refunded','chargeback','payment_refunded']);
 
@@ -32,13 +31,12 @@ module.exports = async function handler(req, res) {
     const byDay = {};
     for (const e of events || []) {
       const day = String(e.created_at).slice(0,10);
-      byDay[day] ||= { date: day, access: 0, clicks: 0, revenue: 0, sales: 0 };
+      byDay[day] ||= { date: day, access: 0, revenue: 0, sales: 0 };
       if (e.type === 'access') byDay[day].access++;
-      if (e.type === 'click') byDay[day].clicks++;
     }
     for (const o of paidOrders) {
       const day = String(o.created_at).slice(0,10);
-      byDay[day] ||= { date: day, access: 0, clicks: 0, revenue: 0, sales: 0 };
+      byDay[day] ||= { date: day, access: 0, revenue: 0, sales: 0 };
       byDay[day].revenue += Number(o.total || 0);
       byDay[day].sales++;
     }
@@ -47,7 +45,6 @@ module.exports = async function handler(req, res) {
       affiliate,
       metrics: {
         accesses: accessEvents.length,
-        clicks: clickEvents.length,
         sales: paidOrders.length,
         revenue: money(revenue),
         averageTicket: money(paidOrders.length ? revenue / paidOrders.length : 0),

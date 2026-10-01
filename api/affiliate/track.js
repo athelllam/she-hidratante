@@ -11,7 +11,7 @@ module.exports = async function handler(req, res) {
     const { affiliateId, affiliateSlug, type, target, visitorId, path, referrer, day, eventId } = req.body || {};
     const id = validId(affiliateId);
 
-    if (!id || !['access', 'click'].includes(type)) {
+    if (!id || type !== 'access') {
       return json(res, 400, { error: 'Evento inválido.' });
     }
 
@@ -22,11 +22,9 @@ module.exports = async function handler(req, res) {
 
     // Checkout access is generated only when the visitor clicks "Finalizar compra".
     // Each checkout click receives its own eventId so it is recorded as an access event.
-    const eventKey = type === 'access'
-      ? (target === 'checkout'
-          ? `access:checkout:${id}:${String(eventId || `${Date.now()}-${Math.random()}`).slice(0,100)}`
-          : `access:${id}:${String(visitorId || '').slice(0,100)}:${String(path || '').slice(0,300)}:${String(day || new Date().toISOString().slice(0,10))}`)
-      : `click:${id}:${String(eventId || `${Date.now()}-${Math.random()}`).slice(0,100)}`;
+    const eventKey = target === 'checkout'
+      ? `access:checkout:${id}:${String(eventId || `${Date.now()}-${Math.random()}`).slice(0,100)}`
+      : `access:${id}:${String(visitorId || '').slice(0,100)}:${String(path || '').slice(0,300)}:${String(day || new Date().toISOString().slice(0,10))}`;
     const existing = await supabaseFetch(
       `/rest/v1/affiliate_events?event_key=eq.${encodeURIComponent(eventKey)}&select=id&limit=1`
     );

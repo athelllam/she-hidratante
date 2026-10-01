@@ -16,21 +16,35 @@ function getVisitorId() {
 
 async function postTracking(payload) {
   try {
-    await fetch('/api/affiliate/track', {
+    const response = await fetch('/api/affiliate/track', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       keepalive: true,
       body: JSON.stringify(payload),
     })
-  } catch {
-    // Tracking nunca deve bloquear a navegação ou o checkout.
+
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      throw new Error(data?.error || `Tracking HTTP ${response.status}`)
+    }
+    return data
+  } catch (error) {
+    console.error('[She Afiliadas] Falha ao registrar acesso:', error)
+    return { ok: false, error: error?.message || 'Falha no tracking.' }
   }
 }
 
 export function withAffiliateMetadata(url, affiliateId) {
   if (!url || !affiliateId) return url
-  const separator = url.includes('?') ? '&' : '?'
-  return `${url}${separator}metadata[affiliate_id]=${encodeURIComponent(String(affiliateId))}`
+
+  try {
+    const target = new URL(url)
+    target.searchParams.set('metadata[affiliate_id]', String(affiliateId))
+    return target.toString()
+  } catch {
+    const separator = url.includes('?') ? '&' : '?'
+    return `${url}${separator}metadata%5Baffiliate_id%5D=${encodeURIComponent(String(affiliateId))}`
+  }
 }
 
 export function buildYampiCheckoutUrl({ tokens, affiliateId }) {
@@ -62,20 +76,6 @@ export function trackAffiliateAccess(affiliate, target = 'checkout') {
     path,
     referrer: document.referrer || '',
     day,
-    eventId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-  })
-}
-
-export function trackAffiliateClick(affiliate, target = 'checkout') {
-  if (!affiliate?.id) return
-  postTracking({
-    affiliateId: affiliate.id,
-    affiliateSlug: String(affiliate.slug || '').toLowerCase(),
-    type: 'click',
-    target,
-    visitorId: getVisitorId(),
-    path: window.location.pathname,
-    referrer: document.referrer || '',
     eventId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
   })
 }
