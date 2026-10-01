@@ -207,7 +207,7 @@ async function syncAffiliateOrders(affiliateId, commissionRate) {
   let pages = 0;
 
   while (scanned < config.maxOrders) {
-    const params = new URLSearchParams({ scroll: 'true', limit: '100' });
+    const params = new URLSearchParams({ scroll: 'true', limit: '100', include: 'metadata' });
     if (scrollId) params.set('scroll_id', scrollId);
 
     const response = await yampiFetch(`/orders?${params.toString()}`);
@@ -227,6 +227,9 @@ async function syncAffiliateOrders(affiliateId, commissionRate) {
         // chegamos ao corte, não precisamos percorrer o histórico inteiro.
         return { configured: true, synced, scanned, pages, cutoff: cutoff.toISOString() };
       }
+
+      const status = getStatus(order);
+      if (status !== 'payment_approved') continue;
 
       const metadataId = Number(getMetadata(order, 'affiliate_id'));
       if (!metadataId || metadataId !== Number(affiliateId)) continue;

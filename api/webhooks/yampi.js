@@ -80,6 +80,9 @@ module.exports = async function handler(req, res) {
     if (!affiliates?.[0]) return json(res, 200, { ok: true, ignored: true, reason: 'Afiliada inexistente.' });
 
     const status = getStatus(payload) || 'created';
+    if (status !== 'payment_approved') {
+      return json(res, 200, { ok: true, ignored: true, reason: 'Status não é payment_approved.' });
+    }
     const total = getTotal(payload);
     const commission = total * Number(affiliates[0].commission_rate || 0);
 

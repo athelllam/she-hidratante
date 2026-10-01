@@ -18,7 +18,7 @@ module.exports = async function handler(req, res) {
     ]);
 
     const accessEvents = (events || []).filter((e) => e.type === 'access');
-    const paidStatuses = new Set(['paid','approved','payment_approved','processing','shipped','delivered','completed']);
+    const paidStatuses = new Set(['payment_approved']);
     const cancelledStatuses = new Set(['cancelled','canceled','refunded','chargeback','payment_refunded']);
 
     const validOrders = (orders || []).filter((o) => !cancelledStatuses.has(String(o.status || '').toLowerCase()));

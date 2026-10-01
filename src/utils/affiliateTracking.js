@@ -61,7 +61,7 @@ export function getRememberedAffiliate() {
   try { return localStorage.getItem(STORAGE_KEY) || null } catch { return null }
 }
 
-export function trackAffiliateAccess(affiliateOrId, target = 'checkout', affiliateSlug = '') {
+export function trackAffiliateAccess(affiliateOrId, target = 'access', affiliateSlug = '') {
   const affiliate = typeof affiliateOrId === 'object' ? affiliateOrId : { id: affiliateOrId, slug: affiliateSlug }
   if (!affiliate?.id) return Promise.resolve({ ok: false, skipped: true, error: 'Affiliate ID ausente.' })
   const slug = String(affiliate.slug || affiliateSlug || '').toLowerCase()
