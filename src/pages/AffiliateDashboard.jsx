@@ -25,28 +25,49 @@ export default function AffiliateDashboard() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMessage, setSyncMessage] = useState('')
 
-  const load = async () => {
+  const load = async ({ sync = false } = {}) => {
     try {
       const me = await api('/api/affiliate/me')
       setAffiliate(me.affiliate)
       const data = await api('/api/affiliate/dashboard')
       setDashboard(data)
+      setLoading(false)
+
+      if (sync) {
+        setSyncing(true)
+        setSyncMessage('Atualizando vendas da Yampi…')
+        try {
+          const result = await api('/api/affiliate/yampi-sync', { method: 'POST', body: '{}' })
+          if (result.configured === false) {
+            setSyncMessage('Yampi ainda não configurada no Vercel.')
+          } else {
+            setSyncMessage(`${result.synced || 0} pedido(s) da Yampi sincronizado(s).`)
+            const refreshed = await api('/api/affiliate/dashboard')
+            setDashboard(refreshed)
+          }
+        } catch (e) {
+          setSyncMessage(e.message || 'Não foi possível atualizar a Yampi.')
+        } finally {
+          setSyncing(false)
+        }
+      }
     } catch {
       setAffiliate(null)
-    } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load({ sync: true }) }, [])
 
   const submitLogin = async (event) => {
     event.preventDefault()
     setBusy(true); setError('')
     try {
       await api('/api/affiliate/login', { method: 'POST', body: JSON.stringify(login) })
-      await load()
+      await load({ sync: true })
     } catch (e) {
       setError(e.message)
     } finally { setBusy(false) }
@@ -57,7 +78,7 @@ export default function AffiliateDashboard() {
     setBusy(true); setError('')
     try {
       await api('/api/affiliate/register', { method: 'POST', body: JSON.stringify(form) })
-      await load()
+      await load({ sync: true })
     } catch (e) {
       setError(e.message)
     } finally { setBusy(false) }
@@ -132,7 +153,15 @@ export default function AffiliateDashboard() {
             <p className="text-xs font-bold uppercase tracking-[.28em] text-pink-500">She Afiliadas</p>
             <h1 className="mt-1 text-3xl md:text-4xl font-black text-zinc-950">Olá, {affiliate.name}.</h1>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 items-center">
+            {syncMessage && <span className="text-xs font-semibold text-zinc-400">{syncMessage}</span>}
+            <button
+              onClick={() => load({ sync: true })}
+              disabled={syncing}
+              className="rounded-xl bg-pink-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
+            >
+              {syncing ? 'Atualizando…' : 'Atualizar Yampi'}
+            </button>
             <Link to={`/${affiliate.slug}`} className="rounded-xl bg-white px-4 py-2 text-sm font-bold text-zinc-800 shadow-sm border border-zinc-200">Ver página</Link>
             <button onClick={logout} className="rounded-xl bg-zinc-950 px-4 py-2 text-sm font-bold text-white">Sair</button>
           </div>

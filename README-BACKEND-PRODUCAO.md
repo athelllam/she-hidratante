@@ -11,6 +11,7 @@
 - Acessos e cliques gravados no banco.
 - Checkout Yampi com `metadata[affiliate_id]`.
 - Webhook Yampi para criar/atualizar pedidos atribuídos.
+- Sincronização por API da Yampi para o dashboard, sem exigir um novo webhook.
 - Comissão calculada pela taxa da afiliada.
 - Cancelamento/reembolso deixa de compor o faturamento/comissão disponível.
 - Solicitação de saque.
@@ -38,34 +39,35 @@ SUPABASE_URL=https://SEU-PROJETO.supabase.co
 SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
 YAMPI_WEBHOOK_SECRET=...
+YAMPI_ALIAS=... # opcional
+YAMPI_USER_TOKEN=...
+YAMPI_USER_SECRET_KEY=...
+YAMPI_SYNC_DAYS=365
+YAMPI_SYNC_MAX_ORDERS=2000
 ADMIN_EMAILS=seu-email@dominio.com
 ```
 
 ## 3. Yampi
 
-No painel Yampi, crie um webhook em Configurações → Webhooks.
+A integração principal do painel usa a API da Yampi, então você **não precisa apagar nem alterar os 3 webhooks atuais**.
 
-URL:
+A API usa `User-Token` + `User-Secret-Key` e o endpoint de pedidos retorna o `metadata` do pedido. Se `YAMPI_ALIAS` ficar vazio, o backend descobre automaticamente o alias da loja através de `POST /v2/auth/me`. O site já envia `metadata[affiliate_id]=ID_DA_AFILIADA` nos links de checkout.
 
-```text
-https://SEU-DOMINIO/api/webhooks/yampi
-```
-
-Ative pelo menos:
-- Pedido criado
-- Pedido atualizado
-- Pedido aprovado
-- Status do pedido atualizado
-
-A URL de checkout já usa:
+Configure no Vercel:
 
 ```text
-?metadata[affiliate_id]=ID_DA_AFILIADA
+YAMPI_ALIAS= # opcional
+YAMPI_USER_TOKEN=...
+YAMPI_USER_SECRET_KEY=...
+YAMPI_SYNC_DAYS=365
+YAMPI_SYNC_MAX_ORDERS=2000
 ```
 
-A Yampi documenta que metadata é salva no pedido e fica disponível por API/webhook.
+Depois de salvar as variáveis e fazer novo deploy, o painel passa a ter o botão **Atualizar Yampi**. Ao atualizar, o backend consulta os pedidos da Yampi, procura `affiliate_id` no metadata e grava/atualiza somente os pedidos daquela afiliada em `affiliate_orders`.
 
-Configure no webhook a mesma chave usada em `YAMPI_WEBHOOK_SECRET` se a sua configuração de webhook expuser essa chave no header.
+O webhook existente continua compatível e pode ser usado futuramente para atualização em tempo real; a sincronização por API funciona como fonte de reconciliação sem consumir uma nova vaga de webhook.
+
+A Yampi documenta que metadata é salvo no pedido e pode ser consultado via API/webhooks, e que `GET /{alias}/orders` suporta paginação por `scroll_id`.
 
 ## 4. Deploy
 
