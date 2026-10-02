@@ -5,6 +5,80 @@ function header(req, name) {
   return req.headers[name.toLowerCase()] || req.headers[name] || '';
 }
 
+async function readRawBody(req) {
+  if (req.body !== undefined && req.body !== null && req.body !== '') return req.body;
+  if (typeof req.on !== 'function') return null;
+
+  return await new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', chunk => {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
+      size += buffer.length;
+      if (size <= 4.5 * 1024 * 1024) chunks.push(buffer);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+}
+
+function parseIncomingBody(rawBody, contentType = '') {
+  if (rawBody == null) return {};
+  if (Buffer.isBuffer(rawBody)) rawBody = rawBody.toString('utf8');
+  if (typeof rawBody === 'object') return rawBody;
+  if (typeof rawBody !== 'string') return {};
+  const text = rawBody.trim();
+  if (!text) return {};
+
+  const type = String(contentType).toLowerCase();
+  if (type.includes('application/x-www-form-urlencoded')) {
+    const params = new URLSearchParams(text);
+    const out = {};
+    for (const [key, value] of params.entries()) out[key] = value;
+    return out;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {};
+  }
+}
+
+function collectInterestingFields(value, path = '$', depth = 0, out = []) {
+  if (depth > 6 || out.length >= 80 || value == null) return out;
+  if (Array.isArray(value)) {
+    value.slice(0, 20).forEach((item, index) => collectInterestingFields(item, `${path}[${index}]`, depth + 1, out));
+    return out;
+  }
+  if (typeof value !== 'object') return out;
+
+  for (const [key, child] of Object.entries(value)) {
+    const lower = key.toLowerCase();
+    const childPath = `${path}.${key}`;
+    if (['event', 'status', 'slug', 'alias', 'metadata', 'affiliate_id', 'order_id', 'number', 'code'].includes(lower)) {
+      let safeValue = child;
+      if (lower === 'metadata' && child && typeof child === 'object') {
+        if (Array.isArray(child)) {
+          safeValue = child.map(item => ({
+            key: item?.key ?? item?.name ?? null,
+            value: item?.key === 'affiliate_id' || item?.name === 'affiliate_id' ? item?.value ?? item?.content ?? null : '[omitted]',
+          }));
+        } else {
+          safeValue = Object.fromEntries(Object.entries(child).map(([k, v]) => [
+            k,
+            String(k).toLowerCase() === 'affiliate_id' ? v : '[omitted]'
+          ]));
+        }
+      }
+      out.push({ path: childPath, key, value: safeValue });
+    }
+    collectInterestingFields(child, childPath, depth + 1, out);
+    if (out.length >= 80) break;
+  }
+  return out;
+}
+
 function getMetadata(payload) {
   const candidates = [
     payload?.data?.order,
@@ -103,12 +177,24 @@ module.exports = async function handler(req, res) {
       if (!safeEqual(received, secret)) return json(res, 401, { error: 'Webhook não autorizado.' });
     }
 
-    const payload = req.body || {};
+    const contentType = header(req, 'content-type');
+    const incomingBody = req.body;
+    const rawBody = incomingBody === undefined || incomingBody === null || incomingBody === ''
+      ? await readRawBody(req)
+      : incomingBody;
+    const payload = parseIncomingBody(rawBody, contentType);
     const diagnostics = getStatusDiagnostics(payload);
+    const bodyDiagnostics = {
+      contentType: contentType || null,
+      bodyType: rawBody == null ? null : Buffer.isBuffer(rawBody) ? 'buffer' : typeof rawBody,
+      parsedKeys: Object.keys(payload || {}).slice(0, 80),
+      interestingFields: collectInterestingFields(payload),
+    };
 
     // DIAGNÓSTICO TEMPORÁRIO:
     // Não registra PII nem o payload inteiro. O objetivo é descobrir exatamente
     // qual status/alias a Yampi envia e onde o metadata[affiliate_id] aparece.
+    console.log('[YAMPI WEBHOOK BODY]', JSON.stringify(bodyDiagnostics));
     console.log('[YAMPI WEBHOOK DIAGNOSTIC]', JSON.stringify(diagnostics));
 
     const affiliateId = Number(getMetadata(payload));
