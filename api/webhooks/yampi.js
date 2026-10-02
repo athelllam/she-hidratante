@@ -178,15 +178,32 @@ module.exports = async function handler(req, res) {
     }
 
     const contentType = header(req, 'content-type');
-    const incomingBody = req.body;
-    const rawBody = incomingBody === undefined || incomingBody === null || incomingBody === ''
-      ? await readRawBody(req)
-      : incomingBody;
+    let rawBody = null;
+
+    // O body parser do Vercel está desativado abaixo para este endpoint.
+    // Preferimos sempre ler o stream bruto para descobrir exatamente o que a Yampi enviou.
+    if (typeof req.on === 'function') {
+      rawBody = await readRawBody(req);
+    }
+
+    // Fallback caso o runtime entregue o body já parseado.
+    if (rawBody == null || rawBody === '') {
+      try {
+        rawBody = req.body;
+      } catch {
+        rawBody = null;
+      }
+    }
+
     const payload = parseIncomingBody(rawBody, contentType);
     const diagnostics = getStatusDiagnostics(payload);
     const bodyDiagnostics = {
       contentType: contentType || null,
+      contentLength: header(req, 'content-length') || null,
+      contentEncoding: header(req, 'content-encoding') || null,
       bodyType: rawBody == null ? null : Buffer.isBuffer(rawBody) ? 'buffer' : typeof rawBody,
+      rawLength: Buffer.isBuffer(rawBody) ? rawBody.length : typeof rawBody === 'string' ? Buffer.byteLength(rawBody, 'utf8') : null,
+      rawStartsWith: typeof rawBody === 'string' ? rawBody.trim().slice(0, 1) || null : null,
       parsedKeys: Object.keys(payload || {}).slice(0, 80),
       interestingFields: collectInterestingFields(payload),
     };
@@ -257,4 +274,12 @@ module.exports = async function handler(req, res) {
   } catch (error) {
     return json(res, error.statusCode || 500, { error: error.message || 'Erro no webhook.' });
   }
+};
+
+// Importante para webhooks: precisamos do stream bruto da requisição.
+// A própria documentação da Vercel recomenda desativar o body parser para isso.
+module.exports.config = {
+  api: {
+    bodyParser: false,
+  },
 };
