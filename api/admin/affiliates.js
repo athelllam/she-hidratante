@@ -9,13 +9,13 @@ module.exports = async function handler(req, res) {
     await requireAdmin(req);
 
     if (req.method === 'GET' && String(req.query?.videos || '') === '1') {
-      const rows = await supabaseFetch('/rest/v1/affiliate_video_submissions?select=id,affiliate_id,video_url,status,note,terms_version,terms_accepted_at,created_at,reviewed_at,affiliates(id,name,slug,email,whatsapp)&order=created_at.desc&limit=1000');
+      const rows = await supabaseFetch('/rest/v1/affiliate_video_submissions?select=id,affiliate_id,video_url,status,note,terms_version,terms_accepted_at,created_at,reviewed_at,affiliates(id,name,slug,email,cpf,whatsapp)&order=created_at.desc&limit=1000');
       return json(res, 200, { videos: rows || [] });
     }
 
     if (req.method === 'GET') {
       const [affiliates, orders, withdrawals, events, statusHistory, settingRows] = await Promise.all([
-        supabaseFetch('/rest/v1/affiliates?select=id,slug,name,email,whatsapp,pix_key,active,admin_active,commission_rate,created_at,team_parent_id&order=created_at.desc'),
+        supabaseFetch('/rest/v1/affiliates?select=id,slug,name,email,cpf,whatsapp,pix_key,active,admin_active,commission_rate,created_at,team_parent_id&order=created_at.desc'),
         supabaseFetch('/rest/v1/affiliate_orders?select=affiliate_id,status,total,commission,created_at&order=created_at.desc&limit=20000'),
         supabaseFetch('/rest/v1/affiliate_withdrawals?select=affiliate_id,amount,status,source,requested_at&order=requested_at.desc&limit=10000'),
         supabaseFetch('/rest/v1/affiliate_events?select=affiliate_id,type,created_at&order=created_at.desc&limit=20000'),

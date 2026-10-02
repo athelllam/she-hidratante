@@ -1016,9 +1016,15 @@ export default function AdminDashboard() {
             </div>
 
             <div className="mt-6 space-y-3">
-              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
-                <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">E-mail</p>
-                <p className="mt-1 break-all font-bold text-zinc-900">{credentialsAffiliate.email || '—'}</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                  <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">E-mail</p>
+                  <p className="mt-1 break-all font-bold text-zinc-900">{credentialsAffiliate.email || '—'}</p>
+                </div>
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                  <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">CPF</p>
+                  <p className="mt-1 font-bold text-zinc-900">{credentialsAffiliate.cpf || '—'}</p>
+                </div>
               </div>
               <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
                 <p className="text-[10px] font-black uppercase tracking-[.15em] text-amber-600">Senha atual</p>

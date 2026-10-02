@@ -8,6 +8,7 @@ create table if not exists public.affiliates (
   name text not null,
   slug text not null unique,
   email text not null unique,
+  cpf text,
   whatsapp text,
   pix_key text,
   active boolean not null default true,
@@ -89,6 +90,13 @@ alter table public.affiliate_admin_status_history enable row level security;
 -- Dados de contato e recebimento da afiliada.
 -- O WhatsApp é usado apenas para o contato administrativo.
 -- O PIX atual pode ser substituído pela afiliada a qualquer momento.
+alter table public.affiliates
+  add column if not exists cpf text;
+
+create unique index if not exists affiliates_cpf_unique_idx
+  on public.affiliates(cpf)
+  where cpf is not null;
+
 alter table public.affiliates
   add column if not exists whatsapp text;
 
