@@ -85,11 +85,6 @@ export default function AdminDashboard() {
   const [message, setMessage] = useState('')
   const [affiliateFilter, setAffiliateFilter] = useState('all')
   const [affiliateSearch, setAffiliateSearch] = useState('')
-  const [affiliateSort, setAffiliateSort] = useState('sales_desc')
-  const [detailAffiliate, setDetailAffiliate] = useState(null)
-  const [detailMonth, setDetailMonth] = useState('all')
-  const [detailData, setDetailData] = useState(null)
-  const [detailLoading, setDetailLoading] = useState(false)
   const [withdrawalFilter, setWithdrawalFilter] = useState('all')
   const [credentialsAffiliate, setCredentialsAffiliate] = useState(null)
   const [newPassword, setNewPassword] = useState('')
@@ -105,12 +100,6 @@ export default function AdminDashboard() {
   const [availableMonths, setAvailableMonths] = useState([])
   const [selectedMonths, setSelectedMonths] = useState([])
   const [monthFilterOpen, setMonthFilterOpen] = useState(false)
-  const [videoSubmissions, setVideoSubmissions] = useState([])
-  const [videoFilter, setVideoFilter] = useState('pending')
-  const [videoBusyId, setVideoBusyId] = useState(null)
-  const [videoReview, setVideoReview] = useState(null)
-  const [videoLinkPreview, setVideoLinkPreview] = useState(null)
-  const [videoNote, setVideoNote] = useState('')
 
   const loadPanel = async () => {
     const [affiliateData, withdrawalData] = await Promise.all([
@@ -121,7 +110,6 @@ export default function AdminDashboard() {
     setWithdrawals(withdrawalData.withdrawals || [])
     setGlobalStatsData(affiliateData.globalStats || { all: { sales: 0, revenue: 0, averageTicket: 0, accesses: 0 }, byMonth: {}, snapshots: {} })
     setAvailableMonths(affiliateData.availableMonths || [])
-    try { const videoData = await api('/api/admin/videos'); setVideoSubmissions(videoData.videos || []) } catch { setVideoSubmissions([]) }
     const nextSettings = affiliateData.settings || { ticketThreshold: 170, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 } }
     setSettings(nextSettings)
     setSettingsForm({
@@ -143,28 +131,6 @@ export default function AdminDashboard() {
       .catch(() => setAuthenticated(false))
       .finally(() => setLoading(false))
   }, [])
-
-  useEffect(() => {
-    if (!detailAffiliate) return
-    let cancelled = false
-    setDetailLoading(true)
-    setDetailData(null)
-    api(`/api/admin/affiliates?detail=${encodeURIComponent(detailAffiliate.id)}&month=${encodeURIComponent(detailMonth)}`)
-      .then(data => { if (!cancelled) setDetailData(data) })
-      .catch(error => { if (!cancelled) setMessage(error.message || 'Não foi possível carregar o desempenho.') })
-      .finally(() => { if (!cancelled) setDetailLoading(false) })
-    return () => { cancelled = true }
-  }, [detailAffiliate, detailMonth])
-
-  const reviewVideo = async (video, status) => {
-    setVideoBusyId(video.id)
-    try {
-      const result = await api('/api/admin/videos', { method: 'PATCH', body: JSON.stringify({ id: video.id, status, adminNote: videoNote }) })
-      setVideoSubmissions(current => current.map(item => item.id === video.id ? { ...item, ...(result.video || {}), affiliate: item.affiliate } : item))
-      setVideoReview(null); setVideoNote('')
-      setMessage(status === 'approved' ? 'Vídeo aprovado. A afiliada já verá a aprovação no painel.' : 'Vídeo recusado e atualizado no painel da afiliada.')
-    } catch (e) { setMessage(e.message || 'Não foi possível atualizar o vídeo.') } finally { setVideoBusyId(null) }
-  }
 
   const submitLogin = async (event) => {
     event.preventDefault()
@@ -421,16 +387,11 @@ export default function AdminDashboard() {
     })
 
     return [...filtered].sort((a, b) => {
-      const nameCompare = String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR', { sensitivity: 'base' })
-      if (affiliateSort === 'days_desc') return Number(b.daysWithoutSales || 0) - Number(a.daysWithoutSales || 0) || nameCompare
-      if (affiliateSort === 'revenue_desc') return Number(b.revenue || 0) - Number(a.revenue || 0) || nameCompare
-      if (affiliateSort === 'accesses_desc') return Number(b.accesses || 0) - Number(a.accesses || 0) || nameCompare
-      if (affiliateSort === 'ticket_desc') return Number(b.averageTicket || 0) - Number(a.averageTicket || 0) || nameCompare
-      if (affiliateSort === 'name_asc') return nameCompare
-      if (affiliateSort === 'created_desc') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime() || nameCompare
-      return Number(b.sales || 0) - Number(a.sales || 0) || nameCompare
+      const salesDifference = Number(b.sales || 0) - Number(a.sales || 0)
+      if (salesDifference !== 0) return salesDifference
+      return String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR', { sensitivity: 'base' })
     })
-  }, [affiliates, affiliateFilter, affiliateSearch, affiliateSort])
+  }, [affiliates, affiliateFilter, affiliateSearch])
 
   const filteredWithdrawals = useMemo(() => {
     if (withdrawalFilter === 'pending') return withdrawals.filter(item => item.status === 'pending' || item.status === 'approved')
@@ -604,18 +565,7 @@ export default function AdminDashboard() {
               )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <label className="flex items-center gap-2 text-xs font-semibold text-zinc-400">
-                <span>Ordenar por</span>
-                <select value={affiliateSort} onChange={event => setAffiliateSort(event.target.value)} className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-black text-zinc-700 outline-none focus:border-pink-400">
-                  <option value="days_desc">Mais dias sem vendas</option>
-                  <option value="sales_desc">Mais vendas</option>
-                  <option value="revenue_desc">Maior faturamento</option>
-                  <option value="accesses_desc">Mais acessos</option>
-                  <option value="ticket_desc">Maior ticket médio</option>
-                  <option value="created_desc">Mais novas</option>
-                  <option value="name_asc">Nome A–Z</option>
-                </select>
-              </label>
+              <p className="text-xs font-semibold text-zinc-400">Ordenado por maior número de vendas</p>
               <button
                 type="button"
                 onClick={openDeleteConfirmation}
@@ -639,8 +589,6 @@ export default function AdminDashboard() {
                   <th className="pb-3 pr-4">Saldo</th>
                   <th className="pb-3 pr-4">ID</th>
                   <th className="pb-3 pr-4">Ativa/Inativa</th>
-                  <th className="pb-3 pr-4">Sem vendas</th>
-                  <th className="pb-3 pr-4">Desempenho</th>
                   <th className="pb-3 pr-4">Dados de acesso</th>
                   <th className="pb-3">Selecionar</th>
                 </tr>
@@ -681,20 +629,6 @@ export default function AdminDashboard() {
                       </div>
                     </td>
                     <td className="py-4 pr-4">
-                      <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black ${Number(affiliate.daysWithoutSales || 0) >= 7 ? 'bg-amber-100 text-amber-800' : 'bg-zinc-100 text-zinc-600'}`}>
-                        {Number(affiliate.daysWithoutSales || 0)} {Number(affiliate.daysWithoutSales || 0) === 1 ? 'dia' : 'dias'} sem vendas
-                      </span>
-                    </td>
-                    <td className="py-4 pr-4">
-                      <button
-                        type="button"
-                        onClick={() => { setDetailAffiliate(affiliate); setDetailMonth('all') }}
-                        className="rounded-xl bg-zinc-950 px-3 py-2 text-xs font-black text-white transition hover:bg-pink-500"
-                      >
-                        Ver desempenho
-                      </button>
-                    </td>
-                    <td className="py-4 pr-4">
                       <button
                         type="button"
                         onClick={() => { setCredentialsAffiliate(affiliate); setNewPassword('') }}
@@ -723,33 +657,13 @@ export default function AdminDashboard() {
                 ))}
                 {!filteredAffiliates.length && (
                   <tr>
-                    <td colSpan={12} className="py-10 text-center text-sm font-semibold text-zinc-400">
+                    <td colSpan={10} className="py-10 text-center text-sm font-semibold text-zinc-400">
                       Nenhuma afiliada encontrada{affiliateSearch ? ` para "${affiliateSearch}"` : ''}.
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
-          </div>
-        </section>
-
-        <section className="mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div><p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Conteúdo das afiliadas</p><h2 className="mt-1 text-xl font-black text-zinc-950">Vídeos para divulgação paga</h2><p className="mt-1 max-w-3xl text-sm text-zinc-400">Analise os vídeos enviados. Quando aprovado, a SHE poderá usar o conteúdo em tráfego pago com os links da própria afiliada para impulsionar as vendas dela.</p></div>
-            <div className="flex flex-wrap gap-2"><FilterPill active={videoFilter === 'pending'} onClick={() => setVideoFilter('pending')}>Pendentes · {videoSubmissions.filter(v => v.status === 'pending').length}</FilterPill><FilterPill active={videoFilter === 'approved'} onClick={() => setVideoFilter('approved')}>Aprovados · {videoSubmissions.filter(v => v.status === 'approved').length}</FilterPill><FilterPill active={videoFilter === 'rejected'} onClick={() => setVideoFilter('rejected')}>Recusados · {videoSubmissions.filter(v => v.status === 'rejected').length}</FilterPill><FilterPill active={videoFilter === 'all'} onClick={() => setVideoFilter('all')}>Todos · {videoSubmissions.length}</FilterPill></div>
-          </div>
-          <div className="mt-5 space-y-3">
-            {videoSubmissions.filter(video => videoFilter === 'all' || video.status === videoFilter).map(video => (
-              <div key={video.id} className="rounded-2xl border border-zinc-100 bg-zinc-50/70 p-4">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-black text-zinc-950">{video.affiliate?.name || `Afiliada #${video.affiliate_id}`}</p><span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-zinc-500">ID {video.affiliate_id}</span><span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${video.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : video.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>{video.status === 'approved' ? 'Aprovado' : video.status === 'rejected' ? 'Recusado' : 'Pendente'}</span></div><button type="button" onClick={() => setVideoLinkPreview(video.video_url)} className="mt-2 block max-w-3xl truncate text-left text-sm font-bold text-pink-600 underline underline-offset-2 hover:text-pink-700">{video.video_url}</button><p className="mt-1 text-[11px] text-zinc-400">Enviado em {dateTime(video.created_at)} · Termos v{video.terms_version} aceitos em {dateTime(video.terms_accepted_at)}</p></div>
-                  <div className="flex shrink-0 flex-wrap gap-2"><button type="button" onClick={() => setVideoLinkPreview(video.video_url)} className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-xs font-black text-zinc-700 hover:border-pink-200 hover:text-pink-600">Ver link do vídeo</button>{video.status === 'pending' && <button type="button" onClick={() => { setVideoReview(video); setVideoNote('') }} className="rounded-xl bg-zinc-950 px-4 py-3 text-xs font-black text-white hover:bg-pink-500">Analisar / decidir</button>}</div>
-                </div>
-                {video.status === 'approved' && <p className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">Aprovado para eventual divulgação com tráfego pago usando os links da afiliada.</p>}
-                {video.status === 'rejected' && video.admin_note && <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">Motivo/observação: {video.admin_note}</p>}
-              </div>
-            ))}
-            {!videoSubmissions.filter(video => videoFilter === 'all' || video.status === videoFilter).length && <div className="rounded-2xl border border-dashed border-zinc-200 px-4 py-10 text-center text-sm text-zinc-400">Nenhum vídeo nessa categoria.</div>}
           </div>
         </section>
 
@@ -847,126 +761,6 @@ export default function AdminDashboard() {
           </div>
         </section>
       </div>
-
-      {detailAffiliate && (
-        <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/55 px-3 py-5 sm:px-6" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailAffiliate(null) }}>
-          <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-[2rem] bg-zinc-50 p-4 shadow-[0_30px_100px_rgba(0,0,0,.3)] sm:p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Desempenho detalhado</p>
-                <h3 className="mt-1 text-2xl font-black text-zinc-950">{detailAffiliate.name}</h3>
-                <p className="mt-1 text-sm text-zinc-400">Vendas da afiliada em rosa e vendas da equipe em preto, no mesmo período.</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <select value={detailMonth} onChange={event => setDetailMonth(event.target.value)} className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-black text-zinc-700 outline-none focus:border-pink-400">
-                  <option value="all">Todo o período</option>
-                  {availableMonths.map(month => <option key={month} value={month}>{monthLabel(month)}</option>)}
-                </select>
-                <button type="button" onClick={() => setDetailAffiliate(null)} className="h-11 w-11 rounded-full bg-white text-xl text-zinc-500 shadow-sm">×</button>
-              </div>
-            </div>
-
-            {detailLoading ? (
-              <div className="mt-6 rounded-[1.5rem] border border-zinc-200 bg-white py-24 text-center text-sm font-bold text-zinc-400">Carregando desempenho…</div>
-            ) : detailData ? (
-              <>
-                <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {[
-                    ['Acessos', detailData.metrics?.accesses || 0],
-                    ['Vendas', detailData.metrics?.sales || 0],
-                    ['Faturamento', brl(detailData.metrics?.revenue || 0)],
-                    ['Ticket médio', brl(detailData.metrics?.averageTicket || 0)],
-                  ].map(([label, value]) => (
-                    <div key={label} className="rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
-                      <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">{label}</p>
-                      <p className="mt-2 text-2xl font-black text-zinc-950">{value}</p>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-5 rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h4 className="text-xl font-black text-zinc-950">{detailMonth === 'all' ? 'Desempenho mensal' : 'Desempenho diário'}</h4>
-                      <p className="mt-1 text-sm text-zinc-400">{detailMonth === 'all' ? 'Barras por mês em todo o período' : `Barras por dia em ${monthLabel(detailMonth)}`}</p>
-                    </div>
-                    <div className="flex flex-wrap gap-3 text-[10px] font-black uppercase tracking-wider text-zinc-500">
-                      <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-pink-400" /> Afiliada</span>
-                      <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-zinc-900" /> Equipe</span>
-                    </div>
-                  </div>
-
-                  {(() => {
-                    const rows = detailData.chart || []
-                    const maxTotal = Math.max(1, ...rows.map(item => Number(item.ownSales || 0) + Number(item.teamSales || 0)))
-                    return (
-                      <div className="mt-5 overflow-x-auto pb-2">
-                        <div className={`flex h-[310px] min-w-full items-end gap-1 border-b border-zinc-200 px-2 pt-8 ${detailMonth === 'all' ? '' : 'min-w-[720px]'}`}>
-                          {rows.map(item => {
-                            const own = Number(item.ownSales || 0)
-                            const team = Number(item.teamSales || 0)
-                            const total = own + team
-                            const totalHeight = total ? Math.max(10, (total / maxTotal) * 220) : 3
-                            const ownHeight = total ? (own / total) * totalHeight : 0
-                            const teamHeight = total ? (team / total) * totalHeight : 0
-                            return (
-                              <div key={item.date} className="group flex h-full min-w-[42px] flex-1 flex-col justify-end">
-                                <div className="relative flex flex-1 items-end justify-center">
-                                  {total > 0 && <span className="absolute bottom-[calc(100%+6px)] whitespace-nowrap text-[9px] font-black text-zinc-700">{total} {total === 1 ? 'venda' : 'vendas'}</span>}
-                                  <div className="flex w-[24px] flex-col justify-end overflow-hidden rounded-t-md" style={{ height: `${totalHeight}px` }} title={`${item.label}: ${own} da afiliada + ${team} da equipe`}>
-                                    {team > 0 && <div className="w-full bg-zinc-900" style={{ height: `${teamHeight}px`, minHeight: 3 }} />}
-                                    {own > 0 && <div className="w-full bg-pink-400" style={{ height: `${ownHeight}px`, minHeight: 3 }} />}
-                                  </div>
-                                </div>
-                                <span className="mt-2 truncate text-center text-[8px] font-bold text-zinc-400">{item.label}</span>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )
-                  })()}
-
-                  <div className="mt-4 grid gap-2 text-xs font-bold text-zinc-500 sm:grid-cols-2">
-                    <div className="rounded-xl bg-pink-50 px-3 py-2">Afiliada: <strong className="text-pink-600">{detailData.metrics?.ownSales || 0} vendas</strong> · {brl(detailData.metrics?.ownRevenue || 0)}</div>
-                    <div className="rounded-xl bg-zinc-100 px-3 py-2">Equipe: <strong className="text-zinc-900">{detailData.metrics?.teamSales || 0} vendas</strong> · {brl(detailData.metrics?.teamRevenue || 0)}</div>
-                  </div>
-                </div>
-              </>
-            ) : null}
-          </div>
-        </div>
-      )}
-
-      {videoLinkPreview && (
-        <div className="fixed inset-0 z-[75] flex items-center justify-center bg-black/55 px-4 py-6" onMouseDown={event => { if (event.target === event.currentTarget) setVideoLinkPreview(null) }}>
-          <div className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-2xl">
-            <div className="flex items-start justify-between gap-4">
-              <div><p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Link do vídeo</p><h3 className="mt-1 text-2xl font-black text-zinc-950">Ver endereço enviado</h3><p className="mt-1 text-sm text-zinc-400">O endereço não será aberto automaticamente. Copie e abra somente se você confiar no destino.</p></div>
-              <button type="button" onClick={() => setVideoLinkPreview(null)} className="h-9 w-9 shrink-0 rounded-full bg-zinc-100 text-zinc-500">×</button>
-            </div>
-            <div className="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-              <p className="break-all text-sm font-semibold leading-6 text-zinc-700">{videoLinkPreview}</p>
-            </div>
-            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button type="button" onClick={() => setVideoLinkPreview(null)} className="rounded-xl border border-zinc-200 px-5 py-3 text-sm font-black text-zinc-600">Fechar</button>
-              <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(videoLinkPreview); setMessage('Link copiado para a área de transferência.') } catch { setMessage('Não foi possível copiar automaticamente. Selecione o link e copie manualmente.') } }} className="rounded-xl bg-zinc-950 px-5 py-3 text-sm font-black text-white hover:bg-pink-500">Copiar link</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {videoReview && (
-        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/55 px-4 py-6" onMouseDown={event => { if (event.target === event.currentTarget && !videoBusyId) setVideoReview(null) }}>
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] bg-white p-6 shadow-[0_30px_100px_rgba(0,0,0,.3)]">
-            <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Análise de conteúdo</p><h3 className="mt-1 text-2xl font-black text-zinc-950">{videoReview.affiliate?.name || 'Afiliada'}</h3><p className="mt-1 text-sm text-zinc-400">Revise o vídeo antes de autorizar a divulgação paga.</p></div><button type="button" disabled={Boolean(videoBusyId)} onClick={() => setVideoReview(null)} className="h-9 w-9 rounded-full bg-zinc-100 text-zinc-500">×</button></div>
-            <div className="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50 p-4"><p className="text-[10px] font-black uppercase tracking-[.14em] text-zinc-400">Link enviado</p><button type="button" onClick={() => setVideoLinkPreview(videoReview.video_url)} className="mt-2 block break-all text-left text-sm font-bold text-pink-600 underline underline-offset-2 hover:text-pink-700">{videoReview.video_url}</button><p className="mt-2 text-xs text-zinc-500">A afiliada aceitou a versão {videoReview.terms_version} dos termos em {dateTime(videoReview.terms_accepted_at)}.</p></div>
-            <div className="mt-4 rounded-2xl bg-pink-50 p-4 text-xs leading-5 text-pink-900"><strong>Ao aprovar:</strong> a SHE fica autorizada, conforme os termos aceitos pela afiliada, a utilizar e adaptar o vídeo em divulgação, inclusive tráfego pago, com os links de afiliada dela.</div>
-            <div className="mt-5"><label className="text-[10px] font-black uppercase tracking-[.14em] text-zinc-400">Observação (opcional)</label><textarea value={videoNote} onChange={event => setVideoNote(event.target.value)} rows={4} placeholder="Motivo da recusa ou observação para a afiliada…" className="mt-2 w-full rounded-xl border border-zinc-200 px-4 py-3 text-sm outline-none focus:border-pink-400" /></div>
-            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" disabled={Boolean(videoBusyId)} onClick={() => reviewVideo(videoReview, 'rejected')} className="rounded-xl bg-red-600 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{videoBusyId === videoReview.id ? 'Salvando…' : 'Recusar vídeo'}</button><button type="button" disabled={Boolean(videoBusyId)} onClick={() => reviewVideo(videoReview, 'approved')} className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{videoBusyId === videoReview.id ? 'Salvando…' : 'Aprovar e liberar divulgação'}</button></div>
-          </div>
-        </div>
-      )}
 
       {deleteModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 px-5 py-8" onMouseDown={(event) => { if (event.target === event.currentTarget && !deletingIds.length) setDeleteModalOpen(false) }}>
