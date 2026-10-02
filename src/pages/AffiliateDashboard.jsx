@@ -81,6 +81,7 @@ export default function AffiliateDashboard() {
   const [pixOpen, setPixOpen] = useState(false)
   const [pixBusy, setPixBusy] = useState(false)
   const [pixMessage, setPixMessage] = useState('')
+  const [levelHelpOpen, setLevelHelpOpen] = useState(false)
   const chartScrollRef = useRef(null)
 
   useEffect(() => {
@@ -381,7 +382,7 @@ export default function AffiliateDashboard() {
           </section>
         )}
 
-        <section className={`mt-7 overflow-hidden rounded-[2rem] border border-white bg-gradient-to-r ${levelTone(level.key)} p-5 shadow-sm md:p-7`}>
+        <section className={`relative mt-7 overflow-hidden rounded-[2rem] border border-white bg-gradient-to-r ${levelTone(level.key)} p-5 shadow-sm md:p-7`}>
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[.2em] text-zinc-400">Seu nível no mês</p>
@@ -395,7 +396,6 @@ export default function AffiliateDashboard() {
                   ? `Faltam ${level.salesToNext} ponto(s) para ${level.nextLevel}.`
                   : 'Você atingiu o nível máximo deste mês.'}
               </p>
-              <p className="mt-2 text-[10px] leading-4 text-zinc-400">Os pontos do mês são a soma das suas vendas com as vendas das afiliadas diretamente na sua equipe. O nível reinicia no primeiro dia de cada mês.</p>
             </div>
             <div className="min-w-[220px] text-right">
               <p className="text-xs font-bold text-zinc-400">PROGRESSO</p>
@@ -426,46 +426,7 @@ export default function AffiliateDashboard() {
               )
             })}
           </div>
-          <p className="mt-3 text-[10px] leading-4 text-zinc-400">Os níveis atingidos são retroativos às vendas do mês: ao alcançar um novo nível, o valor por pedido daquele nível é aplicado às vendas realizadas no mês.</p>
-        </section>
-
-        <section className="mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Equipe</p>
-              <h2 className="mt-1 text-2xl font-black text-zinc-950">Sua rede</h2>
-              <p className="mt-1 text-sm text-zinc-500">Passe seu código para novas afiliadas entrarem diretamente na sua equipe.</p>
-              <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-pink-50 px-4 py-2"><span className="text-xs font-bold text-zinc-500">Seu código</span><span className="text-lg font-black tracking-[.18em] text-pink-600">{team.code}</span></div>
-            </div>
-            <div className="rounded-2xl bg-zinc-50 px-4 py-3 sm:min-w-[220px]">
-              <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Comissão de equipe</p>
-              <p className="mt-1 text-xl font-black text-zinc-950">{brl(team.commissionPerSale)} / venda</p>
-              <p className="mt-1 text-xs text-zinc-400">Gerada pelas afiliadas diretamente na sua equipe.</p>
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4"><p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Comissão gerada</p><p className="mt-1 text-2xl font-black text-zinc-950">{brl(team.earnedCommission)}</p></div>
-            <div className="rounded-2xl border border-pink-100 bg-pink-50/60 p-4"><p className="text-[10px] font-black uppercase tracking-[.15em] text-pink-500">Disponível para saque</p><p className="mt-1 text-2xl font-black text-zinc-950">{brl(team.availableCommission)}</p></div>
-          </div>
-
-          <div className="mt-5 overflow-x-auto">
-            <table className="w-full min-w-[520px] text-sm">
-              <thead><tr className="border-b border-zinc-100 text-left text-[10px] font-black uppercase tracking-[.14em] text-zinc-400"><th className="pb-3">Afiliada</th><th className="pb-3">ID</th><th className="pb-3">Vendas</th><th className="pb-3">Comissão gerada</th></tr></thead>
-              <tbody>{(team.members || []).map(member => <tr key={member.id} className="border-b border-zinc-100 last:border-0"><td className="py-3 font-black">{member.name}</td><td className="py-3 text-zinc-500">{member.id}</td><td className="py-3 font-bold">{member.sales}</td><td className="py-3 font-black text-pink-600">{brl(member.commission)}</td></tr>)}</tbody>
-            </table>
-            {!team.members?.length && <div className="py-6 text-center text-sm text-zinc-400">Nenhuma afiliada entrou na sua equipe ainda.</div>}
-          </div>
-
-          <div className="mt-5 rounded-2xl border border-pink-100 bg-white p-4">
-            <p className="text-sm font-black text-zinc-900">Sacar comissão de equipe</p>
-            <p className="mt-1 text-xs text-zinc-400">Esse saldo é separado da sua comissão pessoal. Saque mínimo de R$ 100,00, sempre em múltiplos de R$ 100,00.</p>
-            <form onSubmit={requestTeamWithdraw} className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <input value={teamWithdrawAmount} onChange={e => setTeamWithdrawAmount(e.target.value)} inputMode="decimal" placeholder="Ex.: 100" className="flex-1 rounded-xl border border-zinc-200 px-4 py-3 font-bold outline-none focus:border-pink-400" />
-              <button disabled={teamWithdrawBusy || team.availableCommission < 100} className="rounded-xl bg-pink-500 px-5 py-3 font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{teamWithdrawBusy ? 'Enviando…' : 'Solicitar saque de equipe'}</button>
-            </form>
-            {teamWithdrawMessage && <p className="mt-2 rounded-xl bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-600">{teamWithdrawMessage}</p>}
-          </div>
+          <button type="button" aria-label="Como funcionam os níveis" onClick={() => setLevelHelpOpen(true)} className="absolute bottom-4 right-5 flex h-6 w-6 items-center justify-center rounded-full border border-zinc-200 bg-white/90 text-xs font-black text-zinc-500 shadow-sm transition hover:border-pink-300 hover:text-pink-500">?</button>
         </section>
 
         <section className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -605,6 +566,45 @@ export default function AffiliateDashboard() {
           </div>
         </section>
 
+        <section className="mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Equipe</p>
+              <h2 className="mt-1 text-2xl font-black text-zinc-950">Sua rede</h2>
+              <p className="mt-1 text-sm text-zinc-500">Passe seu código para novas afiliadas entrarem diretamente na sua equipe.</p>
+              <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-pink-50 px-4 py-2"><span className="text-xs font-bold text-zinc-500">Seu código</span><span className="text-lg font-black tracking-[.18em] text-pink-600">{team.code}</span></div>
+            </div>
+            <div className="rounded-2xl bg-zinc-50 px-4 py-3 sm:min-w-[220px]">
+              <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Comissão de equipe</p>
+              <p className="mt-1 text-xl font-black text-zinc-950">{brl(team.commissionPerSale)} / venda</p>
+              <p className="mt-1 text-xs text-zinc-400">Gerada pelas afiliadas diretamente na sua equipe.</p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4"><p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Comissão gerada</p><p className="mt-1 text-2xl font-black text-zinc-950">{brl(team.earnedCommission)}</p></div>
+            <div className="rounded-2xl border border-pink-100 bg-pink-50/60 p-4"><p className="text-[10px] font-black uppercase tracking-[.15em] text-pink-500">Disponível para saque</p><p className="mt-1 text-2xl font-black text-zinc-950">{brl(team.availableCommission)}</p></div>
+          </div>
+
+          <div className="mt-5 overflow-x-auto">
+            <table className="w-full min-w-[520px] text-sm">
+              <thead><tr className="border-b border-zinc-100 text-left text-[10px] font-black uppercase tracking-[.14em] text-zinc-400"><th className="pb-3">Afiliada</th><th className="pb-3">ID</th><th className="pb-3">Vendas</th><th className="pb-3">Comissão gerada</th></tr></thead>
+              <tbody>{(team.members || []).map(member => <tr key={member.id} className="border-b border-zinc-100 last:border-0"><td className="py-3 font-black">{member.name}</td><td className="py-3 text-zinc-500">{member.id}</td><td className="py-3 font-bold">{member.sales}</td><td className="py-3 font-black text-pink-600">{brl(member.commission)}</td></tr>)}</tbody>
+            </table>
+            {!team.members?.length && <div className="py-6 text-center text-sm text-zinc-400">Nenhuma afiliada entrou na sua equipe ainda.</div>}
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-pink-100 bg-white p-4">
+            <p className="text-sm font-black text-zinc-900">Sacar comissão de equipe</p>
+            <p className="mt-1 text-xs text-zinc-400">Esse saldo é separado da sua comissão pessoal. Saque mínimo de R$ 100,00, sempre em múltiplos de R$ 100,00.</p>
+            <form onSubmit={requestTeamWithdraw} className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <input value={teamWithdrawAmount} onChange={e => setTeamWithdrawAmount(e.target.value)} inputMode="decimal" placeholder="Ex.: 100" className="flex-1 rounded-xl border border-zinc-200 px-4 py-3 font-bold outline-none focus:border-pink-400" />
+              <button disabled={teamWithdrawBusy || team.availableCommission < 100} className="rounded-xl bg-pink-500 px-5 py-3 font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{teamWithdrawBusy ? 'Enviando…' : 'Solicitar saque de equipe'}</button>
+            </form>
+            {teamWithdrawMessage && <p className="mt-2 rounded-xl bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-600">{teamWithdrawMessage}</p>}
+          </div>
+        </section>
+
         <section className="mt-6 rounded-[1.5rem] bg-white p-6 border border-pink-100 overflow-x-auto shadow-sm">
           <div className="flex items-end justify-between gap-4">
             <div>
@@ -663,6 +663,25 @@ export default function AffiliateDashboard() {
           </div>
         </section>
       </div>
+
+      {levelHelpOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-5 py-8 backdrop-blur-[2px]" onMouseDown={() => setLevelHelpOpen(false)}>
+          <div role="dialog" aria-modal="true" aria-labelledby="level-help-title" className="w-full max-w-md rounded-[1.5rem] bg-white p-6 shadow-[0_30px_100px_rgba(0,0,0,.22)]" onMouseDown={event => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Como funcionam os níveis</p>
+                <h3 id="level-help-title" className="mt-1 text-xl font-black text-zinc-950">Pontos e retroatividade</h3>
+              </div>
+              <button type="button" aria-label="Fechar" onClick={() => setLevelHelpOpen(false)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-sm font-black text-zinc-500 transition hover:bg-pink-50 hover:text-pink-500">×</button>
+            </div>
+            <div className="mt-5 space-y-4 text-sm leading-6 text-zinc-600">
+              <p>Os pontos do mês são a soma das suas vendas com as vendas das afiliadas diretamente na sua equipe. O nível reinicia no primeiro dia de cada mês.</p>
+              <p>Os níveis atingidos são retroativos às vendas do mês: ao alcançar um novo nível, o valor por pedido daquele nível é aplicado às vendas realizadas no mês.</p>
+            </div>
+            <button type="button" onClick={() => setLevelHelpOpen(false)} className="mt-6 w-full rounded-xl bg-zinc-950 py-3 font-black text-white transition hover:bg-pink-500">Entendi</button>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
