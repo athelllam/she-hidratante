@@ -79,6 +79,11 @@ export default function AdminDashboard() {
   const [error, setError] = useState('')
   const [affiliates, setAffiliates] = useState([])
   const [withdrawals, setWithdrawals] = useState([])
+  const [videoSubmissions, setVideoSubmissions] = useState([])
+  const [videoFilter, setVideoFilter] = useState('pending')
+  const [videoNoteId, setVideoNoteId] = useState(null)
+  const [videoNote, setVideoNote] = useState('')
+  const [videoBusyId, setVideoBusyId] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
   const [payingId, setPayingId] = useState(null)
   const [togglingId, setTogglingId] = useState(null)
@@ -107,12 +112,14 @@ export default function AdminDashboard() {
   const [monthFilterOpen, setMonthFilterOpen] = useState(false)
 
   const loadPanel = async () => {
-    const [affiliateData, withdrawalData] = await Promise.all([
+    const [affiliateData, withdrawalData, videoData] = await Promise.all([
       api('/api/admin/affiliates'),
       api('/api/admin/withdrawals'),
+      api('/api/admin/videos'),
     ])
     setAffiliates(affiliateData.affiliates || [])
     setWithdrawals(withdrawalData.withdrawals || [])
+    setVideoSubmissions(videoData.videos || [])
     setGlobalStatsData(affiliateData.globalStats || { all: { sales: 0, revenue: 0, averageTicket: 0, accesses: 0 }, byMonth: {}, snapshots: {} })
     setAvailableMonths(affiliateData.availableMonths || [])
     const nextSettings = affiliateData.settings || { ticketThreshold: 170, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 } }
@@ -205,6 +212,30 @@ export default function AdminDashboard() {
       setMessage(e.message || 'Não foi possível alterar o status.')
     } finally {
       setTogglingId(null)
+    }
+  }
+
+  const reviewVideo = async (video, status) => {
+    const label = status === 'approved' ? 'aprovar' : 'rejeitar'
+    const note = videoNoteId === video.id ? videoNote.trim() : ''
+    if (status === 'rejected' && !note) {
+      setVideoNoteId(video.id)
+      setMessage('Informe uma observação ao rejeitar o vídeo.')
+      return
+    }
+    if (!window.confirm(`Confirmar ${label} a solicitação de vídeo de ${video.affiliates?.name || 'Afiliada'}?`)) return
+    setVideoBusyId(video.id)
+    setMessage('')
+    try {
+      await api('/api/admin/videos', { method: 'PATCH', body: JSON.stringify({ id: video.id, status, note }) })
+      await loadPanel()
+      setVideoNoteId(null)
+      setVideoNote('')
+      setMessage(`Vídeo ${status === 'approved' ? 'aprovado' : 'rejeitado'}. O painel da afiliada já foi atualizado.`)
+    } catch (e) {
+      setMessage(e.message || 'Não foi possível atualizar o vídeo.')
+    } finally {
+      setVideoBusyId(null)
     }
   }
 
@@ -713,6 +744,46 @@ export default function AdminDashboard() {
                 )}
               </tbody>
             </table>
+          </div>
+        </section>
+
+
+        <section className="mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Conteúdo das afiliadas</p>
+              <h2 className="mt-1 text-2xl font-black text-zinc-950">Solicitações de vídeos</h2>
+              <p className="mt-1 text-sm text-zinc-400">Analise os links enviados. Ao aprovar, a SHE poderá usar o vídeo em divulgação com tráfego pago usando o link da afiliada.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <FilterPill active={videoFilter === 'pending'} onClick={() => setVideoFilter('pending')}>Pendentes · {videoSubmissions.filter(v => v.status === 'pending').length}</FilterPill>
+              <FilterPill active={videoFilter === 'approved'} onClick={() => setVideoFilter('approved')}>Aprovados · {videoSubmissions.filter(v => v.status === 'approved').length}</FilterPill>
+              <FilterPill active={videoFilter === 'rejected'} onClick={() => setVideoFilter('rejected')}>Rejeitados · {videoSubmissions.filter(v => v.status === 'rejected').length}</FilterPill>
+              <FilterPill active={videoFilter === 'all'} onClick={() => setVideoFilter('all')}>Todos · {videoSubmissions.length}</FilterPill>
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {videoSubmissions.filter(video => videoFilter === 'all' || video.status === videoFilter).map(video => (
+              <div key={video.id} className="rounded-2xl border border-zinc-100 bg-zinc-50/70 p-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2"><p className="font-black text-zinc-950">{video.affiliates?.name || 'Afiliada'}</p><span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-zinc-500">ID {video.affiliate_id}</span><span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${video.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : video.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>{video.status === 'approved' ? 'Aprovado' : video.status === 'rejected' ? 'Rejeitado' : 'Pendente'}</span></div>
+                    <p className="mt-1 text-xs text-zinc-400">Enviado em {dateTime(video.created_at)} · Solicitação #{video.id}</p>
+                    <div className="mt-3 rounded-xl border border-zinc-200 bg-white px-3 py-2"><p className="break-all text-xs font-semibold text-zinc-600">{video.video_url}</p><p className="mt-1 text-[10px] font-black uppercase tracking-wider text-zinc-400">O link é exibido apenas como texto e não é aberto automaticamente.</p></div>
+                  </div>
+                  <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row">
+                    {video.status === 'pending' && <>
+                      <button type="button" onClick={() => reviewVideo(video, 'approved')} disabled={videoBusyId === video.id} className="rounded-xl bg-emerald-600 px-4 py-3 text-xs font-black text-white disabled:opacity-50">{videoBusyId === video.id ? 'Salvando…' : 'Aprovar'}</button>
+                      <button type="button" onClick={() => { setVideoNoteId(video.id); setVideoNote(video.note || '') }} disabled={videoBusyId === video.id} className="rounded-xl bg-red-500 px-4 py-3 text-xs font-black text-white disabled:opacity-50">Rejeitar</button>
+                    </>}
+                  </div>
+                </div>
+                {video.status === 'pending' && videoNoteId === video.id && <div className="mt-3 flex flex-col gap-2 sm:flex-row"><input autoFocus value={videoNote} onChange={e => setVideoNote(e.target.value)} placeholder="Observação para a afiliada" className="min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none focus:border-pink-400" /><button type="button" onClick={() => reviewVideo(video, 'rejected')} disabled={videoBusyId === video.id} className="rounded-xl bg-red-500 px-4 py-3 text-xs font-black text-white">Confirmar rejeição</button></div>}
+                {video.note && <p className="mt-3 rounded-xl bg-white px-3 py-2 text-xs font-semibold leading-5 text-zinc-600"><strong>Observação:</strong> {video.note}</p>}
+              </div>
+            ))}
+            {!videoSubmissions.filter(video => videoFilter === 'all' || video.status === videoFilter).length && <div className="rounded-2xl border border-dashed border-zinc-200 px-4 py-8 text-center text-sm text-zinc-400">Nenhuma solicitação de vídeo neste filtro.</div>}
           </div>
         </section>
 

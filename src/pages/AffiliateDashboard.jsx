@@ -84,6 +84,12 @@ export default function AffiliateDashboard() {
   const [teamCode, setTeamCode] = useState('')
   const [teamJoinBusy, setTeamJoinBusy] = useState(false)
   const [teamJoinMessage, setTeamJoinMessage] = useState('')
+  const [videoSubmissions, setVideoSubmissions] = useState([])
+  const [videoUrl, setVideoUrl] = useState('')
+  const [videoTermsOpen, setVideoTermsOpen] = useState(false)
+  const [videoTermsAccepted, setVideoTermsAccepted] = useState(false)
+  const [videoBusy, setVideoBusy] = useState(false)
+  const [videoMessage, setVideoMessage] = useState('')
   const [pixKey, setPixKey] = useState('')
   const [pixOpen, setPixOpen] = useState(false)
   const [pixBusy, setPixBusy] = useState(false)
@@ -129,6 +135,12 @@ export default function AffiliateDashboard() {
       setPixKey(data.affiliate?.pix_key || '')
       setDashboard(data)
       if (data.selectedMonth) setSelectedMonth(data.selectedMonth)
+      try {
+        const videoData = await api('/api/affiliate/videos')
+        setVideoSubmissions(videoData.videos || [])
+      } catch {
+        setVideoSubmissions([])
+      }
       setLoading(false)
 
       if (sync) {
@@ -245,6 +257,27 @@ export default function AffiliateDashboard() {
       setTeamWithdrawMessage(e.message || 'Não foi possível solicitar o saque de equipe.')
     } finally {
       setTeamWithdrawBusy(false)
+    }
+  }
+
+  const submitVideo = async () => {
+    setVideoBusy(true)
+    setVideoMessage('')
+    try {
+      await api('/api/affiliate/videos', {
+        method: 'POST',
+        body: JSON.stringify({ videoUrl: videoUrl.trim(), termsAccepted: true, termsVersion: '1.0' }),
+      })
+      setVideoUrl('')
+      setVideoTermsAccepted(false)
+      setVideoTermsOpen(false)
+      setVideoMessage('Link enviado. Sua solicitação está pendente de análise pela SHE.')
+      const refreshed = await api('/api/affiliate/videos')
+      setVideoSubmissions(refreshed.videos || [])
+    } catch (e) {
+      setVideoMessage(e.message || 'Não foi possível enviar o link.')
+    } finally {
+      setVideoBusy(false)
     }
   }
 
@@ -624,6 +657,37 @@ export default function AffiliateDashboard() {
           </div>
         </section>
 
+
+        <section className="mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Conteúdo</p>
+              <h2 className="mt-1 text-2xl font-black text-zinc-950">Divulgue seu vídeo</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">Crie e publique seu vídeo, depois envie o link aqui. A SHE vai analisar. Se aprovado, poderemos usar o vídeo em divulgação com tráfego pago usando o seu link, ajudando a gerar vendas para você sem custo de mídia para a afiliada.</p>
+            </div>
+            <span className="rounded-full bg-pink-50 px-3 py-2 text-xs font-black text-pink-600">Envio para análise</span>
+          </div>
+
+          <form onSubmit={event => { event.preventDefault(); setVideoMessage(''); if (!videoUrl.trim()) { setVideoMessage('Informe o link do vídeo.'); return } setVideoTermsAccepted(false); setVideoTermsOpen(true) }} className="mt-5 flex flex-col gap-3 sm:flex-row">
+            <input value={videoUrl} onChange={e => setVideoUrl(e.target.value)} type="url" placeholder="Cole aqui o link do vídeo publicado" className="min-w-0 flex-1 rounded-2xl border border-zinc-200 px-4 py-3.5 text-sm outline-none focus:border-pink-400" />
+            <button disabled={videoBusy || !videoUrl.trim()} className="rounded-2xl bg-zinc-950 px-6 py-3.5 font-black text-white transition hover:bg-pink-500 disabled:cursor-not-allowed disabled:opacity-40">Enviar</button>
+          </form>
+          {videoMessage && <p className="mt-3 rounded-xl bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-600">{videoMessage}</p>}
+
+          <div className="mt-5 space-y-3">
+            {videoSubmissions.map(item => (
+              <div key={item.id} className="rounded-2xl border border-zinc-100 bg-zinc-50/70 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0"><p className="text-xs font-black uppercase tracking-[.14em] text-zinc-400">Solicitação #{item.id}</p><p className="mt-1 truncate text-sm font-bold text-zinc-700">{item.video_url}</p><p className="mt-1 text-xs text-zinc-400">Enviado em {new Date(item.created_at).toLocaleDateString('pt-BR')}</p></div>
+                  <span className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-black ${item.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : item.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>{item.status === 'approved' ? 'Aprovado' : item.status === 'rejected' ? 'Rejeitado' : 'Pendente'}</span>
+                </div>
+                {item.note && <p className="mt-3 rounded-xl bg-white px-3 py-2 text-xs font-semibold leading-5 text-zinc-600"><strong>Observação da SHE:</strong> {item.note}</p>}
+              </div>
+            ))}
+            {!videoSubmissions.length && <div className="rounded-2xl border border-dashed border-zinc-200 px-4 py-6 text-center text-sm text-zinc-400">Você ainda não enviou nenhum vídeo para análise.</div>}
+          </div>
+        </section>
+
         <section className="mt-6 rounded-[1.5rem] bg-white p-6 border border-pink-100 overflow-x-auto shadow-sm">
           <div className="flex items-end justify-between gap-4">
             <div>
@@ -682,6 +746,26 @@ export default function AffiliateDashboard() {
           </div>
         </section>
       </div>
+
+
+      {videoTermsOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-5 py-8" onMouseDown={event => { if (event.target === event.currentTarget && !videoBusy) setVideoTermsOpen(false) }}>
+          <div role="dialog" aria-modal="true" className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] bg-white p-6 shadow-[0_30px_100px_rgba(0,0,0,.3)]">
+            <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Termos e Condições · versão 1.0</p><h3 className="mt-1 text-2xl font-black text-zinc-950">Autorização de uso do vídeo</h3></div><button type="button" disabled={videoBusy} onClick={() => setVideoTermsOpen(false)} className="h-9 w-9 rounded-full bg-zinc-100 text-zinc-500">×</button></div>
+            <div className="mt-5 space-y-3 text-sm leading-6 text-zinc-600">
+              <p>Ao aceitar, você declara que possui os direitos necessários sobre o vídeo enviado ou autorização suficiente para conceder esta licença à SHE.</p>
+              <p>Você autoriza a SHE, de forma gratuita, a reproduzir, publicar, editar, cortar, adaptar, legendar, redimensionar e divulgar o vídeo em canais próprios e em campanhas de tráfego pago, inclusive utilizando o seu link de afiliada para atribuição das vendas.</p>
+              <p>A autorização inclui o uso do vídeo em anúncios, redes sociais, páginas, criativos e outros formatos de divulgação relacionados à SHE, pelo período em que a SHE considerar necessário para suas ações de marketing.</p>
+              <p>Você declara ser responsável por obter as autorizações de qualquer pessoa, música, imagem, marca ou outro material de terceiros presente no vídeo. Caso exista alguma restrição, você deve informá-la antes do envio.</p>
+              <p>A aprovação não obriga a SHE a utilizar o vídeo. A SHE poderá interromper ou retirar a divulgação a qualquer momento, sem obrigação de pagamento adicional, royalties ou indenização pelo uso autorizado.</p>
+              <p>Você permanece livre para manter e utilizar o vídeo em seus próprios canais, salvo se houver obrigação diferente decorrente de direitos de terceiros.</p>
+              <p>Você concorda que o aceite destes termos, associado ao seu cadastro e à data/hora do envio, será registrado para comprovar a autorização concedida.</p>
+            </div>
+            <label className="mt-5 flex cursor-pointer gap-3 rounded-2xl border border-pink-100 bg-pink-50/60 p-4"><input type="checkbox" checked={videoTermsAccepted} onChange={e => setVideoTermsAccepted(e.target.checked)} className="mt-1 h-4 w-4 accent-pink-500" /><span className="text-sm font-bold leading-5 text-zinc-700">Li e aceito integralmente os Termos e Condições para publicação e divulgação do vídeo.</span></label>
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" disabled={videoBusy} onClick={() => setVideoTermsOpen(false)} className="rounded-xl border border-zinc-200 px-5 py-3 text-sm font-black text-zinc-600">Cancelar</button><button type="button" disabled={!videoTermsAccepted || videoBusy} onClick={submitVideo} className="rounded-xl bg-zinc-950 px-5 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{videoBusy ? 'Enviando…' : 'Aceitar e enviar'}</button></div>
+          </div>
+        </div>
+      )}
 
       {levelHelpOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-5 py-8 backdrop-blur-[2px]" onMouseDown={() => setLevelHelpOpen(false)}>
