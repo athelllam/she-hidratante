@@ -364,7 +364,7 @@ export default function AffiliateDashboard() {
             </div>
           </div>
         </div>
-      )}
+      )
 
 
   if (loading) return <main className="min-h-screen bg-[#fffafc]" />
