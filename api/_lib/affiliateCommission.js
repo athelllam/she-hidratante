@@ -87,7 +87,7 @@ function calculateMonthlyStats(orders, config = DEFAULT_COMMISSION_CONFIG) {
   return byMonth;
 }
 
-function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG) {
+function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG, options = {}) {
   const normalized = normalizeConfig(config);
   const paid = (orders || []).filter(order => isPaidOrder(order));
   const monthlyStats = calculateMonthlyStats(paid, normalized);
@@ -99,7 +99,8 @@ function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG) {
   const annotated = paid.map(order => {
     const key = monthKey(order.created_at);
     const stats = monthlyStats[key] || { sales: 0, averageTicket: 0, multiplierActive: false };
-    const level = getLevel(stats.sales, normalized);
+    const floor = Number(options?.levelFloorByMonth?.[key] || 0);
+    const level = getLevel(Math.max(stats.sales, floor), normalized);
     const multiplier = stats.multiplierActive ? normalized.ticketBonus : 0;
     const commission = Number((level.commissionPerOrder + multiplier).toFixed(2));
     total += commission;

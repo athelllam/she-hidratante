@@ -125,6 +125,11 @@ alter table public.affiliate_settings enable row level security;
 alter table public.affiliates
   add column if not exists team_parent_id bigint references public.affiliates(id) on delete set null;
 
+-- Data/hora em que a afiliada entrou na equipe. Usada para conceder o Bronze
+-- promocional somente no mês em que ela entrou.
+alter table public.affiliates
+  add column if not exists team_joined_at timestamptz;
+
 create index if not exists affiliates_team_parent_idx on public.affiliates(team_parent_id);
 
 -- Origem do saque: pessoal ou comissão de equipe.
@@ -138,3 +143,45 @@ where source is null or source = '';
 -- Comissão paga por cada venda de uma afiliada direta da equipe.
 alter table public.affiliate_settings
   add column if not exists team_commission_per_sale numeric(12,2) not null default 10.00;
+
+
+-- Código público permanente da equipe: 6 caracteres alfanuméricos,
+-- único por afiliada e gerado uma única vez.
+create or replace function public.generate_affiliate_team_code()
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  candidate text;
+begin
+  loop
+    candidate := '';
+    for i in 1..6 loop
+      candidate := candidate || substr('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', floor(random() * 32 + 1)::int, 1);
+    end loop;
+
+    exit when not exists (
+      select 1 from public.affiliates where team_code = candidate
+    );
+  end loop;
+  return candidate;
+end;
+$$;
+
+alter table public.affiliates
+  add column if not exists team_code text;
+
+alter table public.affiliates
+  alter column team_code set default public.generate_affiliate_team_code();
+
+update public.affiliates
+set team_code = public.generate_affiliate_team_code()
+where team_code is null or btrim(team_code) = '';
+
+create unique index if not exists affiliates_team_code_unique_idx
+  on public.affiliates(team_code);
+
+alter table public.affiliates
+  alter column team_code set not null;

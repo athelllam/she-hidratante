@@ -205,9 +205,9 @@ export default function AffiliateDashboard() {
     try {
       const result = await api('/api/affiliate/dashboard', {
         method: 'POST',
-        body: JSON.stringify({ teamParentId: Number(teamCode) }),
+        body: JSON.stringify({ teamParentCode: teamCode.trim().toUpperCase() }),
       })
-      setAffiliate(current => current ? { ...current, team_parent_id: result.affiliate?.team_parent_id || Number(teamCode) } : current)
+      setAffiliate(current => current ? { ...current, team_parent_id: result.affiliate?.team_parent_id || true } : current)
       setTeamJoinMessage('Você entrou na equipe com sucesso.')
       setTeamCode('')
       const refreshed = await api(`/api/affiliate/dashboard?month=${encodeURIComponent(selectedMonth)}`)
@@ -320,7 +320,7 @@ export default function AffiliateDashboard() {
   const level = dashboard?.level || { key: 'none', label: 'Início', sales: 0, commissionPerOrder: Number(config.commissions?.none || 30), progress: 0, nextLevel: 'Bronze', nextMinSales: 10, salesToNext: 10 }
   const months = dashboard?.months?.length ? dashboard.months : [selectedMonth]
   const availableCommission = Number(dashboard?.metrics?.availableCommission || 0)
-  const team = dashboard?.team || { code: affiliate.id, joined: false, canJoin: false, commissionPerSale: 10, earnedCommission: 0, availableCommission: 0, members: [] }
+  const team = dashboard?.team || { code: affiliate.team_code || '', joined: false, canJoin: false, commissionPerSale: 10, earnedCommission: 0, availableCommission: 0, members: [] }
 
   return (
     <main className="min-h-screen bg-[#fffafc] px-5 py-8 md:px-10">
@@ -359,26 +359,27 @@ export default function AffiliateDashboard() {
           </div>
         </header>
 
-        <section className="mt-7 rounded-[1.5rem] border border-pink-100 bg-white p-4 shadow-sm md:p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[.2em] text-zinc-400">Código de Equipe</p>
-              {team.joined ? (
-                <p className="mt-1 text-sm font-bold text-zinc-800">Você está na equipe de <span className="font-black">{team.parent?.name || `ID ${affiliate.team_parent_id}`}</span> · ID {team.parent?.id || affiliate.team_parent_id}</p>
-              ) : (
-                <p className="mt-1 text-xs text-zinc-400">Informe o ID da afiliada que convidou você. Depois da primeira venda, essa opção fica bloqueada.</p>
+        {Number(dashboard?.lifetimeSales || 0) === 0 && (
+          <section className="mt-7 rounded-[1.5rem] border border-pink-100 bg-white p-4 shadow-sm md:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[.2em] text-zinc-400">Código de Equipe</p>
+                {team.joined ? (
+                  <p className="mt-1 text-sm font-bold text-zinc-800">Você está na equipe de <span className="font-black">{team.parent?.name || 'outra afiliada'}</span>.</p>
+                ) : (
+                  <p className="mt-1 text-xs text-zinc-400">Entre em uma equipe e suba para Bronze no primeiro mês. Informe o código de equipe antes da primeira venda.</p>
+                )}
+              </div>
+              {!team.joined && team.canJoin && (
+                <form onSubmit={joinTeam} className="flex w-full gap-2 sm:w-auto">
+                  <input value={teamCode} onChange={e => setTeamCode(e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase())} maxLength={6} disabled={teamJoinBusy} placeholder="Código de 6 caracteres" className="min-w-0 flex-1 rounded-xl border border-zinc-200 px-3 py-2.5 text-sm font-bold uppercase outline-none focus:border-pink-400 sm:w-48" />
+                  <button disabled={teamJoinBusy || teamCode.length !== 6} className="rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{teamJoinBusy ? 'Entrando…' : 'Entrar na equipe'}</button>
+                </form>
               )}
             </div>
-            {!team.joined && (
-              <form onSubmit={joinTeam} className="flex w-full gap-2 sm:w-auto">
-                <input value={teamCode} onChange={e => setTeamCode(e.target.value.replace(/\D/g, ''))} disabled={!team.canJoin || teamJoinBusy} inputMode="numeric" placeholder="ID da equipe" className="min-w-0 flex-1 rounded-xl border border-zinc-200 px-3 py-2.5 text-sm font-bold outline-none focus:border-pink-400 disabled:bg-zinc-100 disabled:text-zinc-400 sm:w-36" />
-                <button disabled={!team.canJoin || teamJoinBusy} className="rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{teamJoinBusy ? 'Entrando…' : 'Entrar na equipe'}</button>
-              </form>
-            )}
-          </div>
-          {teamJoinMessage && <p className="mt-2 text-xs font-semibold text-zinc-500">{teamJoinMessage}</p>}
-          {!team.joined && !team.canJoin && <p className="mt-2 text-xs font-semibold text-amber-600">A entrada em equipe está bloqueada porque já existe uma venda aprovada.</p>}
-        </section>
+            {teamJoinMessage && <p className="mt-2 text-xs font-semibold text-zinc-500">{teamJoinMessage}</p>}
+          </section>
+        )}
 
         <section className={`mt-7 overflow-hidden rounded-[2rem] border border-white bg-gradient-to-r ${levelTone(level.key)} p-5 shadow-sm md:p-7`}>
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
@@ -386,14 +387,15 @@ export default function AffiliateDashboard() {
               <p className="text-xs font-black uppercase tracking-[.2em] text-zinc-400">Seu nível no mês</p>
               <div className="mt-1 flex flex-wrap items-baseline gap-3">
                 <h2 className={`text-3xl font-black ${levelAccent(level.key)}`}>{level.label}</h2>
-                <span className="text-sm font-bold text-zinc-600">{level.sales} vendas</span>
+                <span className="text-sm font-bold text-zinc-600">{level.sales} pontos</span>
                 <span className="rounded-full bg-white/80 px-3 py-1 text-sm font-black text-zinc-800">{brl(level.commissionPerOrder)} / pedido</span>
               </div>
               <p className="mt-2 text-sm text-zinc-500">
                 {level.nextLevel
-                  ? `Faltam ${level.salesToNext} venda(s) para ${level.nextLevel}.`
+                  ? `Faltam ${level.salesToNext} ponto(s) para ${level.nextLevel}.`
                   : 'Você atingiu o nível máximo deste mês.'}
               </p>
+              <p className="mt-2 text-[10px] leading-4 text-zinc-400">Os pontos do mês são a soma das suas vendas com as vendas das afiliadas diretamente na sua equipe. O nível reinicia no primeiro dia de cada mês.</p>
             </div>
             <div className="min-w-[220px] text-right">
               <p className="text-xs font-bold text-zinc-400">PROGRESSO</p>
@@ -432,8 +434,8 @@ export default function AffiliateDashboard() {
             <div>
               <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Equipe</p>
               <h2 className="mt-1 text-2xl font-black text-zinc-950">Sua rede</h2>
-              <p className="mt-1 text-sm text-zinc-500">Passe seu ID para novas afiliadas entrarem diretamente na sua equipe.</p>
-              <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-pink-50 px-4 py-2"><span className="text-xs font-bold text-zinc-500">Seu código</span><span className="text-lg font-black text-pink-600">#{team.code}</span></div>
+              <p className="mt-1 text-sm text-zinc-500">Passe seu código para novas afiliadas entrarem diretamente na sua equipe.</p>
+              <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-pink-50 px-4 py-2"><span className="text-xs font-bold text-zinc-500">Seu código</span><span className="text-lg font-black tracking-[.18em] text-pink-600">{team.code}</span></div>
             </div>
             <div className="rounded-2xl bg-zinc-50 px-4 py-3 sm:min-w-[220px]">
               <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Comissão de equipe</p>

@@ -43,9 +43,8 @@ module.exports = async function handler(req, res) {
   if (req.method === 'POST') {
     try {
       const { affiliate } = await requireAffiliate(req);
-      const teamParentId = Number(req.body?.teamParentId);
-      if (!Number.isInteger(teamParentId) || teamParentId <= 0) return json(res, 400, { error: 'Informe um código de equipe válido.' });
-      if (teamParentId === Number(affiliate.id)) return json(res, 400, { error: 'Você não pode entrar na própria equipe.' });
+      const teamParentCode = String(req.body?.teamParentCode || '').trim().toUpperCase();
+      if (!/^[A-Z0-9]{6}$/.test(teamParentCode)) return json(res, 400, { error: 'Informe um código de equipe válido com 6 caracteres.' });
       if (affiliate.team_parent_id) return json(res, 400, { error: 'Você já está em uma equipe e não pode alterar de equipe.' });
 
       const existingOrders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=status&limit=5000`);
@@ -53,14 +52,15 @@ module.exports = async function handler(req, res) {
         return json(res, 400, { error: 'A entrada em uma equipe só pode ser feita antes da primeira venda.' });
       }
 
-      const parents = await supabaseFetch(`/rest/v1/affiliates?id=eq.${teamParentId}&select=id,name,active,team_parent_id&limit=1`);
+      const parents = await supabaseFetch(`/rest/v1/affiliates?team_code=eq.${encodeURIComponent(teamParentCode)}&select=id,name,active,team_parent_id,team_code&limit=1`);
       const parent = parents?.[0];
       if (!parent || !parent.active) return json(res, 404, { error: 'Código de equipe não encontrado ou indisponível.' });
+      if (Number(parent.id) === Number(affiliate.id)) return json(res, 400, { error: 'Você não pode entrar na própria equipe.' });
 
       // Impede ciclos na árvore de equipe.
       const allAffiliates = await supabaseFetch('/rest/v1/affiliates?select=id,team_parent_id&limit=20000');
       const parentMap = new Map((allAffiliates || []).map(row => [Number(row.id), row.team_parent_id ? Number(row.team_parent_id) : null]));
-      let cursor = teamParentId;
+      let cursor = Number(parent.id);
       const visited = new Set();
       while (cursor && !visited.has(cursor)) {
         if (cursor === Number(affiliate.id)) return json(res, 400, { error: 'Esse vínculo criaria um ciclo na rede.' });
@@ -71,9 +71,9 @@ module.exports = async function handler(req, res) {
       const rows = await supabaseFetch(`/rest/v1/affiliates?id=eq.${Number(affiliate.id)}`, {
         method: 'PATCH',
         headers: { Prefer: 'return=representation' },
-        body: JSON.stringify({ team_parent_id: teamParentId }),
+        body: JSON.stringify({ team_parent_id: Number(parent.id), team_joined_at: new Date().toISOString() }),
       });
-      return json(res, 200, { affiliate: rows?.[0] || { ...affiliate, team_parent_id: teamParentId }, teamParent: parent });
+      return json(res, 200, { affiliate: rows?.[0] || { ...affiliate, team_parent_id: Number(parent.id) }, teamParent: parent });
     } catch (error) {
       return json(res, error.statusCode || 500, { error: error.message || 'Não foi possível entrar na equipe.' });
     }
@@ -106,7 +106,9 @@ module.exports = async function handler(req, res) {
     } : DEFAULT_COMMISSION_CONFIG);
 
     const accessEvents = (events || []).filter((e) => e.type === 'access');
-    const { orders: annotatedPaidOrders, total: totalEarnedCommission, salesByMonth, monthlyStats } = commissionForOrders(orders || [], settings);
+    const joinedMonth = affiliate.team_joined_at ? String(affiliate.team_joined_at).slice(0, 7) : null;
+    const currentJoinMonthFloor = joinedMonth ? { [joinedMonth]: 10 } : {};
+    const { orders: annotatedPaidOrders, total: totalEarnedCommission, salesByMonth, monthlyStats } = commissionForOrders(orders || [], settings, { levelFloorByMonth: currentJoinMonthFloor });
     const lifetimeSales = annotatedPaidOrders.length;
 
     const selectedOrders = annotatedPaidOrders.filter((o) => {
@@ -135,7 +137,8 @@ module.exports = async function handler(req, res) {
     const teamWithdrawals = (withdrawals || []).filter(w => String(w.source || 'personal') === 'team');
     const reserved = personalWithdrawals.reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const availableCommission = Math.max(0, totalEarnedCommission - reserved);
-    const level = getLevel(selectedSales, settings);
+    // O nível é mensal. Em "Todos os meses", usamos o mês atual,
+    // porque o nível reinicia no primeiro dia de cada mês.
 
     // Saldo acumulado: o saldo de abertura do mês é o saldo final do mês anterior.
     // Saques pending/approved/paid já reduzem o saldo disponível imediatamente.
@@ -161,6 +164,15 @@ module.exports = async function handler(req, res) {
       ? await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=in.(${teamIds.join(',')})&select=affiliate_id,status,created_at&order=created_at.asc&limit=20000`)
       : [];
     const teamRate = Number(settings.teamCommissionPerSale || 10);
+    const levelMonth = isAllMonths ? defaultMonth : selectedMonth;
+    const ownSalesForLevel = isAllMonths
+      ? annotatedPaidOrders.filter(order => order.month === levelMonth).length
+      : selectedSales;
+    const teamSalesForLevel = (teamOrders || []).filter(order => isPaidOrder(order) && String(order.created_at || '').slice(0, 7) === levelMonth).length;
+    const levelSales = ownSalesForLevel + teamSalesForLevel;
+    const joinedThisLevelMonth = Boolean(joinedMonth && joinedMonth === levelMonth);
+    const effectiveLevelSales = joinedThisLevelMonth ? Math.max(10, levelSales) : levelSales;
+    const level = getLevel(effectiveLevelSales, settings);
     const teamSalesByAffiliate = new Map();
     for (const order of teamOrders || []) {
       if (!isPaidOrder(order)) continue;
@@ -171,10 +183,11 @@ module.exports = async function handler(req, res) {
     const teamReserved = teamWithdrawals.reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const teamAvailableCommission = Math.max(0, teamEarnedCommission - teamReserved);
     const team = {
-      code: Number(id),
+      code: String(affiliate.team_code || ''),
       parent: teamParent ? { id: Number(teamParent.id), name: teamParent.name, slug: teamParent.slug } : null,
       joined: Boolean(affiliate.team_parent_id),
       canJoin: !affiliate.team_parent_id && lifetimeSales === 0,
+      code: String(affiliate.team_code || ''),
       lifetimeSales,
       commissionPerSale: teamRate,
       earnedCommission: money(teamEarnedCommission),
@@ -240,6 +253,7 @@ module.exports = async function handler(req, res) {
       settings,
       selectedMonth,
       isAllMonths,
+      lifetimeSales,
       team,
       metrics: {
         accesses: selectedAccesses.length,
@@ -264,6 +278,8 @@ module.exports = async function handler(req, res) {
         key: level.key,
         label: level.label,
         sales: level.sales,
+        ownSales: selectedSales,
+        teamSales: teamSalesForLevel,
         commissionPerOrder: level.commissionPerOrder,
         progress: level.progress,
         nextLevel: level.nextLevel,
