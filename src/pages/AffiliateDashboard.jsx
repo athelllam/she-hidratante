@@ -95,6 +95,7 @@ export default function AffiliateDashboard() {
   const [pixBusy, setPixBusy] = useState(false)
   const [pixMessage, setPixMessage] = useState('')
   const [levelHelpOpen, setLevelHelpOpen] = useState(false)
+  const [videoHelpOpen, setVideoHelpOpen] = useState(false)
   const chartScrollRef = useRef(null)
 
   useEffect(() => {
@@ -658,12 +659,11 @@ export default function AffiliateDashboard() {
         </section>
 
 
-        <section className="mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
+        <section className="relative mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Conteúdo</p>
               <h2 className="mt-1 text-2xl font-black text-zinc-950">Divulgue seu vídeo</h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">Crie e publique seu vídeo, depois envie o link aqui. A SHE vai analisar. Se aprovado, poderemos usar o vídeo em divulgação com tráfego pago usando o seu link, ajudando a gerar vendas para você sem custo de mídia para a afiliada.</p>
             </div>
             <span className="rounded-full bg-pink-50 px-3 py-2 text-xs font-black text-pink-600">Envio para análise</span>
           </div>
@@ -686,6 +686,7 @@ export default function AffiliateDashboard() {
             ))}
             {!videoSubmissions.length && <div className="rounded-2xl border border-dashed border-zinc-200 px-4 py-6 text-center text-sm text-zinc-400">Você ainda não enviou nenhum vídeo para análise.</div>}
           </div>
+          <button type="button" aria-label="Como funciona a divulgação de vídeos" onClick={() => setVideoHelpOpen(true)} className="absolute bottom-4 right-5 flex h-6 w-6 items-center justify-center rounded-full border border-zinc-200 bg-white/90 text-xs font-black text-zinc-500 shadow-sm transition hover:border-pink-300 hover:text-pink-500">?</button>
         </section>
 
         <section className="mt-6 rounded-[1.5rem] bg-white p-6 border border-pink-100 overflow-x-auto shadow-sm">
@@ -763,6 +764,24 @@ export default function AffiliateDashboard() {
             </div>
             <label className="mt-5 flex cursor-pointer gap-3 rounded-2xl border border-pink-100 bg-pink-50/60 p-4"><input type="checkbox" checked={videoTermsAccepted} onChange={e => setVideoTermsAccepted(e.target.checked)} className="mt-1 h-4 w-4 accent-pink-500" /><span className="text-sm font-bold leading-5 text-zinc-700">Li e aceito integralmente os Termos e Condições para publicação e divulgação do vídeo.</span></label>
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" disabled={videoBusy} onClick={() => setVideoTermsOpen(false)} className="rounded-xl border border-zinc-200 px-5 py-3 text-sm font-black text-zinc-600">Cancelar</button><button type="button" disabled={!videoTermsAccepted || videoBusy} onClick={submitVideo} className="rounded-xl bg-zinc-950 px-5 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{videoBusy ? 'Enviando…' : 'Aceitar e enviar'}</button></div>
+          </div>
+        </div>
+      )}
+
+      {videoHelpOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-5 py-8 backdrop-blur-[2px]" onMouseDown={() => setVideoHelpOpen(false)}>
+          <div role="dialog" aria-modal="true" aria-labelledby="video-help-title" className="w-full max-w-md rounded-[1.5rem] bg-white p-6 shadow-[0_30px_100px_rgba(0,0,0,.22)]" onMouseDown={event => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Divulgue seu vídeo</p>
+                <h3 id="video-help-title" className="mt-1 text-xl font-black text-zinc-950">Como funciona</h3>
+              </div>
+              <button type="button" aria-label="Fechar" onClick={() => setVideoHelpOpen(false)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-sm font-black text-zinc-500 transition hover:bg-pink-50 hover:text-pink-500">×</button>
+            </div>
+            <div className="mt-5 text-sm leading-6 text-zinc-600">
+              <p>Crie e publique seu vídeo, depois envie o link aqui. A She vai analisar. Se aprovado, poderemos usar o vídeo em divulgação usando o seu link, ajudando a gerar vendas para você sem custo de mídia para a afiliada.</p>
+            </div>
+            <button type="button" onClick={() => setVideoHelpOpen(false)} className="mt-6 w-full rounded-xl bg-zinc-950 py-3 font-black text-white transition hover:bg-pink-500">Entendi</button>
           </div>
         </div>
       )}
