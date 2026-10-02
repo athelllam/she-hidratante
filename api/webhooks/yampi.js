@@ -79,25 +79,126 @@ function collectInterestingFields(value, path = '$', depth = 0, out = []) {
   return out;
 }
 
-function getMetadata(payload) {
-  const candidates = [
+function getNestedValue(obj, path) {
+  return path.split('.').reduce((current, key) => current == null ? undefined : current[key], obj);
+}
+
+function findKeyMatches(value, wantedKeys, path = '$', depth = 0, out = []) {
+  if (depth > 10 || out.length >= 200 || value == null) return out;
+  const wanted = new Set(wantedKeys.map(k => String(k).toLowerCase()));
+
+  if (Array.isArray(value)) {
+    value.slice(0, 50).forEach((item, index) => {
+      findKeyMatches(item, wantedKeys, `${path}[${index}]`, depth + 1, out);
+    });
+    return out;
+  }
+
+  if (typeof value !== 'object') return out;
+
+  for (const [key, child] of Object.entries(value)) {
+    const childPath = `${path}.${key}`;
+    if (wanted.has(String(key).toLowerCase())) {
+      let safeValue = child;
+      const lower = String(key).toLowerCase();
+      if (lower === 'metadata' && child && typeof child === 'object') {
+        if (Array.isArray(child)) {
+          safeValue = child.map(item => ({
+            key: item?.key ?? item?.name ?? null,
+            value: String(item?.key ?? item?.name ?? '').toLowerCase() === 'affiliate_id'
+              ? item?.value ?? item?.content ?? null
+              : '[omitted]',
+          }));
+        } else {
+          safeValue = Object.fromEntries(Object.entries(child).map(([k, v]) => [
+            k,
+            String(k).toLowerCase() === 'affiliate_id' ? v : '[omitted]',
+          ]));
+        }
+      }
+      if (lower === 'raw_body') safeValue = '[omitted]';
+      out.push({ path: childPath, key, value: safeValue });
+    }
+    findKeyMatches(child, wantedKeys, childPath, depth + 1, out);
+    if (out.length >= 200) break;
+  }
+  return out;
+}
+
+function firstDeepValue(payload, keys) {
+  const matches = findKeyMatches(payload, keys, '$', 0, []);
+  return matches.length ? matches[0].value : null;
+}
+
+function findObjectWithKey(payload, key) {
+  const wanted = String(key).toLowerCase();
+  function walk(value, depth = 0) {
+    if (depth > 10 || value == null || typeof value !== 'object') return null;
+    if (Array.isArray(value)) {
+      for (const item of value.slice(0, 50)) {
+        const found = walk(item, depth + 1);
+        if (found) return found;
+      }
+      return null;
+    }
+    if (Object.keys(value).some(k => k.toLowerCase() === wanted)) return value;
+    for (const child of Object.values(value)) {
+      const found = walk(child, depth + 1);
+      if (found) return found;
+    }
+    return null;
+  }
+  return walk(payload);
+}
+
+function getOrder(payload) {
+  const directCandidates = [
     payload?.data?.order,
     payload?.order,
     payload?.data,
     payload,
   ];
-  for (const obj of candidates) {
-    const metadata = obj?.metadata;
-    if (!metadata) continue;
-    if (metadata.affiliate_id != null) return metadata.affiliate_id;
-    if (metadata.afiliado != null) return metadata.afiliado;
-    if (metadata['affiliate_id'] != null) return metadata['affiliate_id'];
+  for (const candidate of directCandidates) {
+    if (candidate && typeof candidate === 'object' && (
+      candidate.id != null || candidate.number != null || candidate.order_id != null || candidate.code != null || candidate.metadata != null
+    )) return candidate;
   }
-  return null;
+  return findObjectWithKey(payload, 'metadata') || findObjectWithKey(payload, 'status') || payload;
 }
 
-function getOrder(payload) {
-  return payload?.data?.order || payload?.order || payload?.data || payload;
+function getMetadata(payload) {
+  const candidates = [
+    payload?.data?.order?.metadata,
+    payload?.order?.metadata,
+    payload?.data?.metadata,
+    payload?.metadata,
+  ];
+
+  const readMetadata = (metadata) => {
+    if (!metadata) return null;
+    if (Array.isArray(metadata)) {
+      for (const item of metadata) {
+        const key = String(item?.key ?? item?.name ?? '').toLowerCase();
+        if (key === 'affiliate_id') return item?.value ?? item?.content ?? null;
+      }
+    }
+    if (typeof metadata === 'object') {
+      for (const [key, value] of Object.entries(metadata)) {
+        if (String(key).toLowerCase() === 'affiliate_id') return value;
+      }
+      const nested = metadata.data;
+      if (nested && nested !== metadata) return readMetadata(nested);
+    }
+    return null;
+  };
+
+  for (const candidate of candidates) {
+    const value = readMetadata(candidate);
+    if (value != null) return value;
+  }
+
+  const matches = findKeyMatches(payload, ['affiliate_id'], '$', 0, []);
+  return matches.length ? matches[0].value : null;
 }
 
 function getStatus(payload) {
@@ -110,6 +211,7 @@ function getStatus(payload) {
     order?.status?.name ||
     order?.status?.data?.name ||
     order?.status ||
+    order?.transactions?.data?.status ||
     payload?.event ||
     ''
   ).toLowerCase().trim().replace(/\s+/g, '_');
@@ -117,22 +219,21 @@ function getStatus(payload) {
 
 function getStatusDiagnostics(payload) {
   const order = getOrder(payload);
+  const event = payload?.event ?? firstDeepValue(payload, ['event']);
   return {
-    event: payload?.event ?? null,
-    orderId: order?.id ?? order?.number ?? order?.order_id ?? order?.code ?? null,
+    event: event ?? null,
+    orderId: order?.id ?? order?.number ?? order?.order_id ?? order?.code ?? firstDeepValue(payload, ['order_id','orderId','number','code','id']),
     status: {
-      raw: order?.status ?? null,
-      slug: order?.status?.slug ?? null,
-      alias: order?.status?.alias ?? null,
+      raw: order?.status ?? firstDeepValue(payload, ['status']),
+      slug: order?.status?.slug ?? firstDeepValue(payload, ['slug']),
+      alias: order?.status?.alias ?? firstDeepValue(payload, ['alias']),
       dataSlug: order?.status?.data?.slug ?? null,
       dataAlias: order?.status?.data?.alias ?? null,
-      name: order?.status?.name ?? null,
+      name: order?.status?.name ?? firstDeepValue(payload, ['status_name']),
       dataName: order?.status?.data?.name ?? null,
       normalized: getStatus(payload) || null,
     },
     metadata: {
-      orderMetadata: order?.metadata ?? null,
-      payloadMetadata: payload?.metadata ?? null,
       affiliateId: getMetadata(payload),
     },
     keys: {
@@ -140,24 +241,19 @@ function getStatusDiagnostics(payload) {
       data: Object.keys(payload?.data || {}),
       order: Object.keys(order || {}),
     },
+    matches: findKeyMatches(payload, ['event','status','slug','alias','metadata','affiliate_id','order_id','number','code','total','value_total','amount']),
   };
 }
 
 function getTotal(payload) {
   const order = getOrder(payload);
-  return Number(
-    order?.value_total ??
-    order?.total ??
-    order?.amount ??
-    order?.value ??
-    order?.payment?.total ??
-    0
-  );
+  const candidate = order?.value_total ?? order?.total ?? order?.amount ?? order?.value ?? order?.payment?.total ?? firstDeepValue(payload, ['value_total','total','amount','value']);
+  return Number(candidate || 0);
 }
 
 function getOrderId(payload) {
   const order = getOrder(payload);
-  return order?.id ?? order?.number ?? order?.order_id ?? order?.code ?? null;
+  return order?.id ?? order?.number ?? order?.order_id ?? order?.code ?? firstDeepValue(payload, ['order_id','orderId','number','code']);
 }
 
 function safeEqual(a, b) {
@@ -229,27 +325,31 @@ module.exports = async function handler(req, res) {
     const affiliates = await supabaseFetch(`/rest/v1/affiliates?id=eq.${affiliateId}&select=id,commission_rate&limit=1`);
     if (!affiliates?.[0]) return json(res, 200, { ok: true, ignored: true, reason: 'Afiliada inexistente.' });
 
-    const status = getStatus(payload) || 'created';
-    if (status !== 'payment_approved') {
+    const event = String(diagnostics.event || '').toLowerCase().trim();
+    const detectedStatus = getStatus(payload) || '';
+    const normalizedStatus = detectedStatus || (event === 'order.paid' ? 'payment_approved' : '');
+    const isPaid = event === 'order.paid' || normalizedStatus === 'payment_approved';
+
+    if (!isPaid) {
       console.log('[YAMPI WEBHOOK DIAGNOSTIC] STATUS NÃO CONFIRMADO:', JSON.stringify({
-        event: diagnostics.event,
+        event,
         orderId: diagnostics.orderId,
-        normalizedStatus: status,
+        normalizedStatus,
         statusObject: diagnostics.status,
         affiliateId: diagnostics.metadata.affiliateId,
       }));
       return json(res, 200, {
         ok: true,
         ignored: true,
-        reason: 'Status não é payment_approved.',
-        diagnostic: {
-          event: diagnostics.event,
-          orderId: diagnostics.orderId,
-          normalizedStatus: status,
-          affiliateId: diagnostics.metadata.affiliateId,
-        },
+        reason: 'Evento/status não representa pagamento aprovado.',
+        diagnostic: { event, orderId: diagnostics.orderId, normalizedStatus, affiliateId: diagnostics.metadata.affiliateId },
       });
     }
+
+    // order.paid é o evento específico de pagamento aprovado da Yampi.
+    // Normalizamos para payment_approved no banco para manter o dashboard e
+    // a sincronização com a mesma regra de negócio.
+    const status = 'payment_approved';
     const total = getTotal(payload);
     const commission = total * Number(affiliates[0].commission_rate || 0);
 
