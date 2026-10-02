@@ -68,8 +68,6 @@ export default function AffiliateDashboard() {
   const [dashboard, setDashboard] = useState(null)
   const [selectedMonth, setSelectedMonth] = useState('')
   const [registerMode, setRegisterMode] = useState(false)
-  const [registerTermsOpen, setRegisterTermsOpen] = useState(false)
-  const [registerTermsAccepted, setRegisterTermsAccepted] = useState(false)
   const [form, setForm] = useState({ name: '', slug: '', email: '', password: '', whatsapp: '' })
   const [login, setLogin] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
@@ -183,22 +181,11 @@ export default function AffiliateDashboard() {
     } finally { setBusy(false) }
   }
 
-  const submitRegister = (event) => {
+  const submitRegister = async (event) => {
     event.preventDefault()
-    setError('')
-    setRegisterTermsAccepted(false)
-    setRegisterTermsOpen(true)
-  }
-
-  const confirmRegister = async () => {
-    if (!registerTermsAccepted) return
     setBusy(true); setError('')
     try {
-      await api('/api/affiliate/register', {
-        method: 'POST',
-        body: JSON.stringify({ ...form, termsAccepted: true, termsVersion: '2.0' }),
-      })
-      setRegisterTermsOpen(false)
+      await api('/api/affiliate/register', { method: 'POST', body: JSON.stringify(form) })
       await load({ sync: true })
     } catch (e) {
       setError(e.message)
@@ -327,46 +314,6 @@ export default function AffiliateDashboard() {
     ]
   }, [dashboard])
 
-  const registerTermsModal = registerTermsOpen ? (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 px-4 py-6 backdrop-blur-[2px]" onMouseDown={() => !busy && setRegisterTermsOpen(false)}>
-          <div role="dialog" aria-modal="true" aria-labelledby="register-terms-title" className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-[1.75rem] bg-white shadow-[0_30px_120px_rgba(0,0,0,.28)]" onMouseDown={event => event.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4 border-b border-zinc-100 px-6 py-5">
-              <div><p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Cadastro de afiliada · versão 2.0</p><h3 id="register-terms-title" className="mt-1 text-2xl font-black text-zinc-950">Termos e Condições do Programa de Afiliadas SHE</h3></div>
-              <button type="button" aria-label="Fechar" disabled={busy} onClick={() => setRegisterTermsOpen(false)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-lg font-black text-zinc-500 hover:bg-pink-50 hover:text-pink-500">×</button>
-            </div>
-            <div className="overflow-y-auto px-6 py-5 text-sm leading-6 text-zinc-600">
-              <p className="font-bold text-zinc-900">Leia com atenção. O cadastro somente será concluído após o aceite expresso destes termos.</p>
-              <div className="mt-5 space-y-5">
-                <section><h4 className="font-black text-zinc-950">1. Natureza do programa</h4><p>O Programa de Afiliadas SHE é uma relação comercial de divulgação e indicação de produtos, realizada por conta e risco da própria afiliada. A participação não constitui contratação de emprego, sociedade, representação comercial exclusiva, mandato, franquia ou associação entre a SHE e a afiliada.</p></section>
-                <section><h4 className="font-black text-zinc-950">2. Independência e ausência de vínculo trabalhista</h4><p>A afiliada atua de forma independente, sem subordinação jurídica, hierárquica, disciplinar ou econômica à SHE. Não existe jornada, controle de ponto, obrigação de comparecimento, escala, plantão, salário fixo, férias, 13º salário, FGTS, aviso-prévio, benefícios trabalhistas ou qualquer outra parcela própria de relação de emprego.</p><p className="mt-2">A afiliada decide livremente se, quando, onde e de que forma realizará suas divulgações, podendo exercer outras atividades profissionais ou comerciais para terceiros. A SHE não exige exclusividade e não garante volume mínimo de vendas ou de comissões.</p><p className="mt-2">Treinamentos, materiais de apoio, orientações comerciais, campanhas, reuniões facultativas ou comunicações da SHE não constituem ordens de trabalho e não criam subordinação. A afiliada é livre para não participar.</p></section>
-                <section><h4 className="font-black text-zinc-950">3. Comissão, vendas e ausência de remuneração fixa</h4><p>A afiliada somente recebe comissão nos termos das regras do programa e sobre vendas elegíveis efetivamente atribuídas e reconhecidas pelo sistema. Comissão não é salário e não existe garantia de renda, quantidade mínima de vendas ou valor mínimo mensal.</p><p className="mt-2">A afiliada é responsável por sua organização, despesas, equipamentos, internet, produção de conteúdo, deslocamentos, tributos e demais custos necessários à sua atividade independente, salvo benefícios promocionais expressamente anunciados pela SHE.</p></section>
-                <section><h4 className="font-black text-zinc-950">4. Liberdade comercial</h4><p>A afiliada pode escolher livremente seus horários, canais e estratégias de divulgação, respeitados estes termos, as políticas da SHE, a legislação aplicável e as regras das plataformas utilizadas. A SHE pode disponibilizar materiais e recomendações, mas não determina jornada ou modo obrigatório de execução da atividade.</p></section>
-                <section><h4 className="font-black text-zinc-950">5. Sistema de equipes — não é pirâmide financeira</h4><p>O sistema de equipes da SHE não é um sistema de pirâmide financeira, não cobra taxa de entrada, não exige compra de produtos para participar e não remunera simplesmente o recrutamento de pessoas.</p><p className="mt-2">A “afiliada mãe” não é chefe, gerente, supervisora ou empregadora das afiliadas de sua equipe. Ela não possui poder para contratar, demitir, aplicar sanções, determinar jornada, dar ordens de trabalho ou representar a SHE. O sistema de equipe existe exclusivamente como mecanismo comercial de incentivo e reconhecimento pela colaboração, orientação e treinamentos voluntariamente oferecidos pela afiliada mãe às afiliadas diretamente vinculadas à sua equipe.</p><p className="mt-2">Eventual benefício relacionado à equipe decorre das regras comerciais do programa e da atividade de vendas, e não do simples ato de recrutar pessoas, cobrar valores ou vender acesso ao programa.</p></section>
-                <section><h4 className="font-black text-zinc-950">6. Proibição de cobranças e promessas indevidas</h4><p>A afiliada não pode cobrar taxa de entrada, mensalidade, treinamento obrigatório, material obrigatório ou qualquer pagamento de outra afiliada para ingresso ou permanência no programa, nem prometer ganhos garantidos, renda fixa ou enriquecimento rápido. Também não pode apresentar o programa como emprego, salário, investimento financeiro ou oportunidade de retorno garantido.</p></section>
-                <section><h4 className="font-black text-zinc-950">7. Divulgação e publicidade</h4><p>A afiliada deve divulgar os produtos de forma verdadeira, responsável e compatível com as informações oficiais da SHE. É proibido inventar benefícios, fazer alegações médicas não autorizadas, utilizar publicidade enganosa, ocultar a natureza comercial da divulgação quando a legislação exigir identificação, ou publicar conteúdo que possa gerar responsabilidade para a SHE.</p></section>
-                <section><h4 className="font-black text-zinc-950">8. Conteúdo, marcas e propriedade intelectual</h4><p>A afiliada somente poderá utilizar nome, marca, imagens, textos, vídeos e materiais fornecidos pela SHE dentro das autorizações disponibilizadas. A afiliada garante que possui autorização para usar músicas, imagens, pessoas, marcas e demais elementos de terceiros que inserir em seus conteúdos.</p></section>
-                <section><h4 className="font-black text-zinc-950">9. Pagamentos e saques</h4><p>Os valores disponíveis para saque dependem das regras do programa, da validação das vendas, de cancelamentos, estornos, chargebacks e demais ajustes aplicáveis. A afiliada declara estar ciente de que <strong>os saques podem levar até 3 (três) dias</strong> para serem analisados e processados, conforme o fluxo operacional da SHE.</p></section>
-                <section><h4 className="font-black text-zinc-950">10. Envio e aprovação de vídeos</h4><p>O envio de um vídeo não garante aprovação, publicação ou utilização pela SHE. A afiliada declara estar ciente de que <strong>a análise e aprovação de vídeos pode levar até 15 (quinze) dias</strong>. A SHE poderá aprovar, rejeitar, solicitar ajustes ou não utilizar um conteúdo, conforme seus critérios comerciais, legais e de marca.</p></section>
-                <section><h4 className="font-black text-zinc-950">11. Responsabilidade da afiliada</h4><p>A afiliada é responsável por seus atos, publicações, declarações, conteúdos e relações com terceiros. Caso sua conduta gere reclamação, autuação, prejuízo ou demanda contra a SHE por violação de direitos de terceiros, publicidade irregular, fraude ou descumprimento destes termos, a SHE poderá adotar as medidas cabíveis para resguardar seus direitos, sem prejuízo da apuração de responsabilidade conforme a lei.</p></section>
-                <section><h4 className="font-black text-zinc-950">12. Fraudes e atribuição de vendas</h4><p>É proibido gerar vendas artificialmente, utilizar bots, automações indevidas, spam, fraude de cliques, autoindicação, manipulação de links, anúncios não autorizados em nome da SHE ou qualquer mecanismo destinado a distorcer a atribuição de vendas. A SHE poderá suspender a conta e apurar comissões quando houver indícios de fraude, observadas as regras aplicáveis.</p></section>
-                <section><h4 className="font-black text-zinc-950">13. Tributos e obrigações pessoais</h4><p>A afiliada é responsável por verificar e cumprir suas próprias obrigações fiscais, previdenciárias e empresariais decorrentes dos valores que receber, conforme sua situação e a legislação aplicável. O programa não constitui contratação de trabalho nem substitui eventual regularização profissional necessária para a atividade independente.</p></section>
-                <section><h4 className="font-black text-zinc-950">14. Alteração, suspensão e encerramento</h4><p>A SHE poderá alterar regras comerciais, campanhas, percentuais, critérios de atribuição, materiais e condições do programa, comunicando as alterações pelos canais disponíveis quando necessário. A participação poderá ser suspensa ou encerrada em caso de fraude, violação das regras, uso indevido da marca, risco jurídico, inatividade ou decisão comercial da SHE, respeitados direitos já constituídos e a legislação aplicável.</p></section>
-                <section><h4 className="font-black text-zinc-950">15. Ausência de garantia de resultado</h4><p>A SHE não promete quantidade de vendas, faturamento, comissões, alcance ou retorno financeiro. Qualquer exemplo de resultado divulgado pela SHE ou por afiliadas é meramente ilustrativo e não representa promessa de ganho.</p></section>
-                <section><h4 className="font-black text-zinc-950">16. Dados e registros</h4><p>Os dados fornecidos no cadastro e os registros relacionados à participação no programa poderão ser tratados e armazenados para execução do programa, segurança, prevenção a fraudes, pagamentos, atendimento, cumprimento de obrigações legais e exercício regular de direitos, conforme a Política de Privacidade da SHE e a legislação aplicável.</p></section>
-                <section><h4 className="font-black text-zinc-950">17. Reconhecimento da realidade da relação</h4><p>As partes reconhecem que a relação pretendida é comercial e autônoma. Este termo não tem por objetivo afastar direitos que sejam indisponíveis por lei. A caracterização jurídica da relação, em qualquer situação, observará os fatos efetivamente praticados e a legislação aplicável.</p></section>
-                <section><h4 className="font-black text-zinc-950">18. Aceite eletrônico</h4><p>Ao marcar a opção de aceite e concluir o cadastro, a afiliada declara que leu, compreendeu e concordou com estes Termos e Condições. A SHE registrará a versão dos termos, data e hora do aceite e dados técnicos necessários para comprovação do consentimento e segurança do sistema.</p></section>
-              </div>
-            </div>
-            <div className="border-t border-zinc-100 bg-zinc-50 px-6 py-5">
-              <label className="flex cursor-pointer gap-3 rounded-2xl border border-pink-100 bg-pink-50/70 p-4"><input type="checkbox" checked={registerTermsAccepted} onChange={event => setRegisterTermsAccepted(event.target.checked)} className="mt-1 h-4 w-4 accent-pink-500" /><span className="text-sm font-bold leading-5 text-zinc-700">Li, compreendi e aceito integralmente os Termos e Condições do Programa de Afiliadas SHE.</span></label>
-              {error && <p className="mt-3 text-xs font-semibold text-red-500">{error}</p>}
-              <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" disabled={busy} onClick={() => setRegisterTermsOpen(false)} className="rounded-xl border border-zinc-200 px-5 py-3 text-sm font-black text-zinc-600">Cancelar</button><button type="button" disabled={!registerTermsAccepted || busy} onClick={confirmRegister} className="rounded-xl bg-pink-500 px-5 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{busy ? 'Criando conta…' : 'Aceitar e cadastrar'}</button></div>
-            </div>
-          </div>
-        </div>
-      )
-
-
   if (loading) return <main className="min-h-screen bg-[#fffafc]" />
 
   if (!affiliate) {
@@ -407,7 +354,6 @@ export default function AffiliateDashboard() {
           <button type="button" onClick={() => { setRegisterMode(v => !v); setError('') }} className="mt-4 w-full text-sm font-bold text-pink-500">
             {registerMode ? 'Já tenho uma conta' : 'Quero ser afiliada'}
           </button>
-          {registerTermsModal}
         </div>
       </main>
     )
@@ -797,10 +743,11 @@ export default function AffiliateDashboard() {
             ))}
             {!dashboard?.withdrawals?.length && (
               <div className="rounded-2xl border border-dashed border-zinc-200 px-4 py-8 text-center text-sm text-zinc-400">Nenhuma solicitação de saque neste mês.</div>
-        ) : null;
+            )}
           </div>
         </section>
       </div>
+
 
       {videoTermsOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-5 py-8" onMouseDown={event => { if (event.target === event.currentTarget && !videoBusy) setVideoTermsOpen(false) }}>

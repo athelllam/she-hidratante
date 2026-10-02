@@ -95,18 +95,6 @@ alter table public.affiliates
 alter table public.affiliates
   add column if not exists pix_key text;
 
-alter table public.affiliates
-  add column if not exists terms_version text;
-
-alter table public.affiliates
-  add column if not exists terms_accepted_at timestamptz;
-
-alter table public.affiliates
-  add column if not exists terms_acceptance_ip text;
-
-alter table public.affiliates
-  add column if not exists terms_acceptance_user_agent text;
-
 -- O PIX é copiado para cada solicitação no momento do saque.
 -- Assim, trocar o PIX depois não altera saques antigos.
 alter table public.affiliate_withdrawals
