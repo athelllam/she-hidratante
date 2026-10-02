@@ -715,10 +715,17 @@ export default function AffiliateDashboard() {
               <p className="mt-1 text-sm text-zinc-500">Passe seu código para novas afiliadas entrarem diretamente na sua equipe.</p>
               <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-pink-50 px-4 py-2"><span className="text-xs font-bold text-zinc-500">Seu código</span><span className="text-lg font-black tracking-[.18em] text-pink-600">{team.code}</span></div>
             </div>
-            <div className="rounded-2xl bg-zinc-50 px-4 py-3 sm:min-w-[220px]">
-              <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Comissão de equipe</p>
-              <p className="mt-1 text-xl font-black text-zinc-950">{brl(team.commissionPerSale)} / venda</p>
-              <p className="mt-1 text-xs text-zinc-400">Gerada pelas afiliadas diretamente na sua equipe.</p>
+            <div className="grid gap-2 sm:min-w-[320px] sm:grid-cols-2">
+              <div className="rounded-2xl bg-zinc-50 px-4 py-3">
+                <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Vendas da equipe</p>
+                <p className="mt-1 text-xl font-black text-zinc-950">{team.sales || 0}</p>
+                <p className="mt-1 text-xs text-zinc-400">Somatória das vendas das afiliadas diretamente na sua equipe.</p>
+              </div>
+              <div className="rounded-2xl bg-zinc-50 px-4 py-3">
+                <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Comissão de equipe</p>
+                <p className="mt-1 text-xl font-black text-zinc-950">{brl(team.commissionPerSale)} / venda</p>
+                <p className="mt-1 text-xs text-zinc-400">Gerada pelas afiliadas diretamente na sua equipe.</p>
+              </div>
             </div>
           </div>
 

@@ -251,7 +251,9 @@ module.exports = async function handler(req, res) {
     }).length;
     const levelSales = ownSalesForLevel + teamSalesForLevel;
     const joinedThisLevelMonth = Boolean(joinedMonth && joinedMonth === levelMonth);
-    const effectiveLevelSales = joinedThisLevelMonth ? Math.max(10, levelSales) : levelSales;
+    // O bônus de equipe concede 10 pontos adicionais no mês em que a afiliada
+    // entra na equipe. Depois disso, as vendas pessoais + equipe são somadas normalmente.
+    const effectiveLevelSales = joinedThisLevelMonth ? (10 + levelSales) : levelSales;
     const level = getLevel(effectiveLevelSales, settings);
     const teamSalesByAffiliate = new Map();
     for (const order of teamOrders || []) {
@@ -269,6 +271,7 @@ module.exports = async function handler(req, res) {
       canJoin: !affiliate.team_parent_id && lifetimeSales === 0,
       code: String(affiliate.team_code || ''),
       lifetimeSales,
+      sales: Array.from(teamSalesByAffiliate.values()).reduce((sum, sales) => sum + sales, 0),
       commissionPerSale: teamRate,
       earnedCommission: money(teamEarnedCommission),
       reservedWithdrawals: money(teamReserved),
