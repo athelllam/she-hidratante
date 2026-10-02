@@ -9,10 +9,11 @@ module.exports = async function handler(req, res) {
     await requireAdmin(req);
 
     if (req.method === 'GET') {
-      const [affiliates, orders, withdrawals, statusHistory, settingRows] = await Promise.all([
+      const [affiliates, orders, withdrawals, events, statusHistory, settingRows] = await Promise.all([
         supabaseFetch('/rest/v1/affiliates?select=id,slug,name,email,whatsapp,pix_key,active,admin_active,commission_rate,created_at&order=created_at.desc'),
         supabaseFetch('/rest/v1/affiliate_orders?select=affiliate_id,status,total,commission,created_at&order=created_at.desc&limit=20000'),
         supabaseFetch('/rest/v1/affiliate_withdrawals?select=affiliate_id,amount,status,requested_at&order=requested_at.desc&limit=10000'),
+        supabaseFetch('/rest/v1/affiliate_events?select=affiliate_id,type,created_at&order=created_at.desc&limit=20000'),
         supabaseFetch('/rest/v1/affiliate_admin_status_history?select=affiliate_id,admin_active,effective_at&order=effective_at.asc&limit=20000').catch(() => []),
         supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,commission_none,commission_bronze,commission_silver,commission_gold&limit=1'),
       ]);
@@ -69,6 +70,13 @@ module.exports = async function handler(req, res) {
         ));
       }
 
+      const accessesByAffiliate = new Map();
+      for (const event of events || []) {
+        if (event.type !== 'access') continue;
+        const id = Number(event.affiliate_id);
+        accessesByAffiliate.set(id, (accessesByAffiliate.get(id) || 0) + 1);
+      }
+
       const stats = new Map();
       for (const affiliate of affiliates || []) {
         const affiliateOrders = ordersByAffiliate.get(Number(affiliate.id)) || [];
@@ -84,6 +92,7 @@ module.exports = async function handler(req, res) {
           revenue,
           commission: commissionData.total,
           withdrawals: 0,
+          accesses: accessesByAffiliate.get(Number(affiliate.id)) || 0,
           lastSaleAt: lastSaleAt ? new Date(lastSaleAt).toISOString() : null,
           autoInactive: lastSaleAt > 0 && lastSaleAt < cutoff,
         });
@@ -114,12 +123,21 @@ module.exports = async function handler(req, res) {
       });
 
       const monthlyMap = new Map();
+      for (const event of events || []) {
+        if (event.type !== 'access' || !event.created_at) continue;
+        const date = new Date(event.created_at);
+        if (Number.isNaN(date.getTime())) continue;
+        const month = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+        const bucket = monthlyMap.get(month) || { sales: 0, revenue: 0, accesses: 0 };
+        bucket.accesses += 1;
+        monthlyMap.set(month, bucket);
+      }
       for (const order of orders || []) {
         if (!isPaidOrder(order) || !order.created_at) continue;
         const date = new Date(order.created_at);
         if (Number.isNaN(date.getTime())) continue;
         const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        const bucket = monthlyMap.get(month) || { sales: 0, revenue: 0 };
+        const bucket = monthlyMap.get(month) || { sales: 0, revenue: 0, accesses: 0 };
         bucket.sales += 1;
         bucket.revenue += Number(order.total || 0);
         monthlyMap.set(month, bucket);
@@ -127,12 +145,14 @@ module.exports = async function handler(req, res) {
       const monthlyStats = Object.fromEntries(Array.from(monthlyMap.entries()).map(([month, value]) => [month, {
         sales: value.sales,
         revenue: money(value.revenue),
+        accesses: value.accesses || 0,
         averageTicket: money(value.sales ? value.revenue / value.sales : 0),
       }]));
       const globalAll = Object.values(monthlyStats).reduce((acc, value) => ({
         sales: acc.sales + value.sales,
         revenue: acc.revenue + value.revenue,
-      }), { sales: 0, revenue: 0 });
+        accesses: acc.accesses + Number(value.accesses || 0),
+      }), { sales: 0, revenue: 0, accesses: 0 });
       globalAll.averageTicket = money(globalAll.sales ? globalAll.revenue / globalAll.sales : 0);
 
       // Snapshots históricos: vendas/faturamento/ticket do período e estado das afiliadas

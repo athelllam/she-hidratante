@@ -331,7 +331,7 @@ export default function AffiliateDashboard() {
             </div>
           </div>
 
-          <div className="relative mx-auto mt-8 h-[92px] w-[90%] px-0">
+          <div className="relative mx-auto mt-8 h-[92px] w-[82%] max-w-[520px] px-0">
             <div className="absolute left-0 right-0 top-4 h-4 rounded-full bg-black/10">
               <div className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-orange-400 via-zinc-400 to-amber-400 transition-all duration-700" style={{ width: `${level.progress}%` }} />
             </div>
@@ -342,7 +342,7 @@ export default function AffiliateDashboard() {
               { label: 'Prata', min: 50, image: '/badge-silver.svg', rate: brl(config.commissions?.silver), tone: 'text-zinc-500' },
               { label: 'Ouro', min: 101, image: '/badge-gold.svg', rate: brl(config.commissions?.gold), tone: 'text-amber-600' },
             ].map(item => {
-              const markerLeft = item.label === 'Bronze' ? '10%' : item.label === 'Prata' ? '50%' : '100%'
+              const markerLeft = item.label === 'Bronze' ? '10%' : item.label === 'Prata' ? '50%' : '90%'
               return (
                 <div key={item.label} className="absolute top-0 -translate-x-1/2 text-center" style={{ left: markerLeft }}>
                   <div className="mx-auto h-10 w-10 rounded-full border-2 border-white bg-white shadow-[0_5px_14px_rgba(0,0,0,.14)] sm:h-12 sm:w-12">
@@ -354,6 +354,7 @@ export default function AffiliateDashboard() {
               )
             })}
           </div>
+          <p className="mt-3 text-[10px] leading-4 text-zinc-400">Os níveis atingidos são retroativos às vendas do mês: ao alcançar um novo nível, o valor por pedido daquele nível é aplicado às vendas realizadas no mês.</p>
         </section>
 
         <section className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
