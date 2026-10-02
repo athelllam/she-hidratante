@@ -136,7 +136,7 @@ export default function AffiliateDashboard() {
       setDashboard(data)
       if (data.selectedMonth) setSelectedMonth(data.selectedMonth)
       try {
-        const videoData = await api('/api/affiliate/videos')
+        const videoData = await api('/api/affiliate/dashboard?videos=1')
         setVideoSubmissions(videoData.videos || [])
       } catch {
         setVideoSubmissions([])
@@ -264,15 +264,15 @@ export default function AffiliateDashboard() {
     setVideoBusy(true)
     setVideoMessage('')
     try {
-      await api('/api/affiliate/videos', {
+      await api('/api/affiliate/dashboard', {
         method: 'POST',
-        body: JSON.stringify({ videoUrl: videoUrl.trim(), termsAccepted: true, termsVersion: '1.0' }),
+        body: JSON.stringify({ action: 'submit_video', videoUrl: videoUrl.trim(), termsAccepted: true, termsVersion: '1.0' }),
       })
       setVideoUrl('')
       setVideoTermsAccepted(false)
       setVideoTermsOpen(false)
       setVideoMessage('Link enviado. Sua solicitação está pendente de análise pela SHE.')
-      const refreshed = await api('/api/affiliate/videos')
+      const refreshed = await api('/api/affiliate/dashboard?videos=1')
       setVideoSubmissions(refreshed.videos || [])
     } catch (e) {
       setVideoMessage(e.message || 'Não foi possível enviar o link.')

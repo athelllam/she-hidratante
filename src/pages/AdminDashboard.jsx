@@ -115,7 +115,7 @@ export default function AdminDashboard() {
     const [affiliateData, withdrawalData, videoData] = await Promise.all([
       api('/api/admin/affiliates'),
       api('/api/admin/withdrawals'),
-      api('/api/admin/videos'),
+      api('/api/admin/affiliates?videos=1'),
     ])
     setAffiliates(affiliateData.affiliates || [])
     setWithdrawals(withdrawalData.withdrawals || [])
@@ -227,7 +227,7 @@ export default function AdminDashboard() {
     setVideoBusyId(video.id)
     setMessage('')
     try {
-      await api('/api/admin/videos', { method: 'PATCH', body: JSON.stringify({ id: video.id, status, note }) })
+      await api('/api/admin/affiliates', { method: 'PATCH', body: JSON.stringify({ action: 'video_review', id: video.id, status, note }) })
       await loadPanel()
       setVideoNoteId(null)
       setVideoNote('')

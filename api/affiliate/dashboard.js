@@ -40,6 +40,51 @@ function monthLabelForChart(value) {
 }
 
 module.exports = async function handler(req, res) {
+  if (req.method === 'GET' && String(req.query?.videos || '') === '1') {
+    try {
+      const { affiliate } = await requireAffiliate(req);
+      const rows = await supabaseFetch(`/rest/v1/affiliate_video_submissions?affiliate_id=eq.${Number(affiliate.id)}&select=id,video_url,status,note,terms_version,terms_accepted_at,created_at,reviewed_at&order=created_at.desc&limit=100`);
+      return json(res, 200, { videos: rows || [], termsVersion: '1.0' });
+    } catch (error) {
+      return json(res, error.statusCode || 500, { error: error.message || 'Erro ao carregar solicitações de vídeo.' });
+    }
+  }
+
+  if (req.method === 'POST' && String(req.body?.action || '') === 'submit_video') {
+    try {
+      const { affiliate } = await requireAffiliate(req);
+      const TERMS_VERSION = '1.0';
+      const videoUrl = String(req.body?.videoUrl || '').trim();
+      const termsAccepted = Boolean(req.body?.termsAccepted);
+      const termsVersion = String(req.body?.termsVersion || '');
+      if (!videoUrl) return json(res, 400, { error: 'Informe o link do vídeo.' });
+      if (videoUrl.length > 2000) return json(res, 400, { error: 'O link do vídeo é muito longo.' });
+      try {
+        const parsed = new URL(videoUrl);
+        if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('invalid');
+      } catch {
+        return json(res, 400, { error: 'Informe um link válido começando com http:// ou https://.' });
+      }
+      if (!termsAccepted || termsVersion !== TERMS_VERSION) {
+        return json(res, 400, { error: 'É necessário aceitar os Termos e Condições para enviar o vídeo.' });
+      }
+      const rows = await supabaseFetch('/rest/v1/affiliate_video_submissions', {
+        method: 'POST',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({
+          affiliate_id: affiliate.id,
+          video_url: videoUrl,
+          status: 'pending',
+          terms_version: TERMS_VERSION,
+          terms_accepted_at: new Date().toISOString(),
+        }),
+      });
+      return json(res, 201, { video: rows?.[0] || null });
+    } catch (error) {
+      return json(res, error.statusCode || 500, { error: error.message || 'Não foi possível enviar o vídeo.' });
+    }
+  }
+
   if (req.method === 'POST') {
     try {
       const { affiliate } = await requireAffiliate(req);
