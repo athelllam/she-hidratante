@@ -194,11 +194,20 @@ module.exports = async function handler(req, res) {
         let activeCount = 0;
         let inactiveCount = 0;
         let balance = 0;
+        const now = new Date();
+        const currentMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+        const isCurrentMonth = month === currentMonth;
+
         for (const affiliate of affiliates || []) {
           const created = new Date(affiliate.created_at).getTime();
           if (Number.isNaN(created) || created >= endExclusive.getTime()) continue;
           affiliateCount += 1;
-          const activeAt = activeAtEnd(affiliate, endExclusive);
+
+          // Para o mês corrente não existe um "último dia do mês" ainda.
+          // O card deve refletir o estado atual, sem projetar o status até o fim do mês.
+          const activeAt = isCurrentMonth
+            ? Boolean(affiliate.admin_active)
+            : activeAtEnd(affiliate, endExclusive);
           if (activeAt === true) activeCount += 1;
           else if (activeAt === false) inactiveCount += 1;
 
