@@ -579,12 +579,12 @@ export default function AdminDashboard() {
               <thead>
                 <tr className="border-b border-zinc-100 text-left text-[10px] font-black uppercase tracking-[.14em] text-zinc-400">
                   <th className="pb-3 pr-4">Afiliada</th>
-                  <th className="pb-3 pr-4">ID</th>
+                  <th className="pb-3 pr-4">Acessos</th>
                   <th className="pb-3 pr-4">Vendas</th>
                   <th className="pb-3 pr-4">Faturamento</th>
-                  <th className="pb-3 pr-4">Acessos</th>
                   <th className="pb-3 pr-4">Ticket médio</th>
                   <th className="pb-3 pr-4">Saldo</th>
+                  <th className="pb-3 pr-4">ID</th>
                   <th className="pb-3 pr-4">Ativa/Inativa</th>
                   <th className="pb-3 pr-4">Dados de acesso</th>
                   <th className="pb-3">Selecionar</th>
@@ -602,12 +602,12 @@ export default function AdminDashboard() {
                         <div className="mt-1 text-[10px] text-amber-600">Ainda não possui venda</div>
                       )}
                     </td>
-                    <td className="py-4 pr-4 font-bold text-zinc-600">{affiliate.id}</td>
+                    <td className="py-4 pr-4 font-black text-zinc-950">{affiliate.accesses || 0}</td>
                     <td className="py-4 pr-4 font-black text-zinc-950">{affiliate.sales}</td>
                     <td className="py-4 pr-4 font-black text-zinc-950">{brl(affiliate.revenue)}</td>
-                    <td className="py-4 pr-4 font-black text-zinc-950">{affiliate.accesses || 0}</td>
                     <td className="py-4 pr-4 font-black text-zinc-950">{brl(affiliate.averageTicket)}</td>
                     <td className="py-4 pr-4 font-black text-emerald-600">{brl(affiliate.balance)}</td>
+                    <td className="py-4 pr-4 font-bold text-zinc-600">{affiliate.id}</td>
                     <td className="py-4 pr-4">
                       <button
                         type="button"
@@ -654,7 +654,7 @@ export default function AdminDashboard() {
                 ))}
                 {!filteredAffiliates.length && (
                   <tr>
-                    <td colSpan={9} className="py-10 text-center text-sm font-semibold text-zinc-400">
+                    <td colSpan={10} className="py-10 text-center text-sm font-semibold text-zinc-400">
                       Nenhuma afiliada encontrada{affiliateSearch ? ` para "${affiliateSearch}"` : ''}.
                     </td>
                   </tr>
