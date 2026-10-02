@@ -23,7 +23,7 @@ function withdrawalStatusLabel(status) {
   if (status === 'paid') return 'Pago'
   if (status === 'rejected') return 'Recusado'
   if (status === 'cancelled') return 'Cancelado'
-  return 'Pending'
+  return 'Pendente'
 }
 
 async function api(path, options = {}) {
