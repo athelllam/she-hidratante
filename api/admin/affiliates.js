@@ -115,6 +115,7 @@ module.exports = async function handler(req, res) {
           revenue: money(bucket.revenue),
           averageTicket: money(bucket.sales ? bucket.revenue / bucket.sales : 0),
           earnedCommission: money(bucket.commission),
+          accesses: Number(bucket.accesses || 0),
           balance: money(Math.max(0, bucket.commission - bucket.withdrawals)),
           adminActive: Boolean(affiliate.admin_active),
           lastSaleAt: bucket.lastSaleAt,
