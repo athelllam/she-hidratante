@@ -275,21 +275,18 @@ export default function AffiliateDashboard() {
             </div>
           </div>
 
-          <div className="relative mt-8 h-[92px] px-3 sm:px-5">
-            <div className="absolute left-3 right-3 top-4 h-4 rounded-full bg-black/10 sm:left-5 sm:right-5">
+          <div className="relative mx-auto mt-8 h-[92px] w-[90%] px-0">
+            <div className="absolute left-0 right-0 top-4 h-4 rounded-full bg-black/10">
               <div className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-orange-400 via-zinc-400 to-amber-400 transition-all duration-700" style={{ width: `${level.progress}%` }} />
             </div>
 
-            <div className="absolute left-0 top-0 text-left">
-              <div className="whitespace-nowrap text-[15px] font-black leading-none text-zinc-900 sm:text-base">R$ 30,00 <span className="text-[10px] font-bold text-zinc-500 sm:text-xs">/pedido</span></div>
-            </div>
 
             {[
               { label: 'Bronze', min: 10, image: '/badge-bronze.svg', rate: 'R$ 40,00', tone: 'text-[#9a5a22]' },
               { label: 'Prata', min: 50, image: '/badge-silver.svg', rate: 'R$ 50,00', tone: 'text-zinc-500' },
               { label: 'Ouro', min: 101, image: '/badge-gold.svg', rate: 'R$ 60,00', tone: 'text-amber-600' },
             ].map(item => {
-              const markerLeft = item.label === 'Bronze' ? '10%' : item.label === 'Prata' ? '55%' : '100%'
+              const markerLeft = item.label === 'Bronze' ? '10%' : item.label === 'Prata' ? '50%' : '100%'
               return (
                 <div key={item.label} className="absolute top-0 -translate-x-1/2 text-center" style={{ left: markerLeft }}>
                   <div className="mx-auto h-10 w-10 rounded-full border-2 border-white bg-white shadow-[0_5px_14px_rgba(0,0,0,.14)] sm:h-12 sm:w-12">
