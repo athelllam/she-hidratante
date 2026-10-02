@@ -84,6 +84,10 @@ module.exports = async function handler(req, res) {
     const selectedRevenue = selectedOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
     const selectedAverageTicket = selectedSales ? selectedRevenue / selectedSales : 0;
     const ticketMultiplierActive = !isAllMonths && selectedAverageTicket > settings.ticketThreshold;
+    // Comissão do período é sempre histórica/bruta: soma das comissões
+    // geradas pelos pedidos pagos dentro do período selecionado.
+    // Ela NÃO sofre desconto por saques. O desconto de saques existe apenas
+    // em availableCommission, usado exclusivamente no saldo disponível para saque.
     const selectedCommission = selectedOrders.reduce((sum, o) => sum + Number(o.commission || 0), 0);
     const reserved = (withdrawals || []).reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const availableCommission = Math.max(0, totalEarnedCommission - reserved);
@@ -164,8 +168,10 @@ module.exports = async function handler(req, res) {
         sales: selectedSales,
         revenue: money(selectedRevenue),
         averageTicket: money(selectedAverageTicket),
+        // Comissão histórica do período selecionado. Saques nunca são abatidos aqui.
         commission: money(selectedCommission),
         earnedCommission: money(selectedCommission),
+        // Saldo disponível é separado e já considera saques/reservas.
         availableCommission: money(availableCommission),
         reservedWithdrawals: money(reserved),
         openingBalance: money(openingBalance),

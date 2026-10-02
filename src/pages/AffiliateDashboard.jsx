@@ -220,7 +220,7 @@ export default function AffiliateDashboard() {
       ['Vendas', m.sales || 0],
       ['Faturamento', brl(m.revenue)],
       ['Ticket médio', brl(m.averageTicket)],
-      ['Comissão do mês', brl(m.commission)],
+      ['Comissão', brl(m.commission)],
     ]
   }, [dashboard])
 
@@ -381,19 +381,6 @@ export default function AffiliateDashboard() {
               </div>
             )
           })}
-        </section>
-
-        <section className="mt-5 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-[1.25rem] border border-pink-100 bg-white px-5 py-4 shadow-sm">
-            <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">Saldo inicial do mês</p>
-            <p className="mt-1 text-xl font-black text-zinc-950">{brl(dashboard?.metrics?.openingBalance)}</p>
-            <p className="mt-1 text-xs text-zinc-400">É o saldo final do mês anterior.</p>
-          </div>
-          <div className="rounded-[1.25rem] border border-pink-100 bg-white px-5 py-4 shadow-sm">
-            <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">Saldo final do mês</p>
-            <p className="mt-1 text-xl font-black text-zinc-950">{brl(dashboard?.metrics?.closingBalance)}</p>
-            <p className="mt-1 text-xs text-zinc-400">Já desconta as solicitações de saque deste mês.</p>
-          </div>
         </section>
 
         <section className="mt-6 grid items-start gap-6 lg:grid-cols-[520px_380px]">
