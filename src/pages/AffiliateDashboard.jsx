@@ -84,6 +84,11 @@ export default function AffiliateDashboard() {
   const [teamCode, setTeamCode] = useState('')
   const [teamJoinBusy, setTeamJoinBusy] = useState(false)
   const [teamJoinMessage, setTeamJoinMessage] = useState('')
+  const [videoSubmissions, setVideoSubmissions] = useState([])
+  const [videoUrl, setVideoUrl] = useState('')
+  const [videoTermsOpen, setVideoTermsOpen] = useState(false)
+  const [videoBusy, setVideoBusy] = useState(false)
+  const [videoMessage, setVideoMessage] = useState('')
   const [pixKey, setPixKey] = useState('')
   const [pixOpen, setPixOpen] = useState(false)
   const [pixBusy, setPixBusy] = useState(false)
@@ -121,6 +126,10 @@ export default function AffiliateDashboard() {
     })
   }, [selectedMonth, dashboard?.chart])
 
+  const loadVideos = async () => {
+    try { const data = await api('/api/affiliate/videos'); setVideoSubmissions(data.videos || []) } catch { setVideoSubmissions([]) }
+  }
+
   const load = async ({ sync = false, month = selectedMonth } = {}) => {
     try {
       const query = month ? `?month=${encodeURIComponent(month)}` : ''
@@ -129,6 +138,7 @@ export default function AffiliateDashboard() {
       setPixKey(data.affiliate?.pix_key || '')
       setDashboard(data)
       if (data.selectedMonth) setSelectedMonth(data.selectedMonth)
+      if (data.affiliate) await loadVideos()
       setLoading(false)
 
       if (sync) {
@@ -155,7 +165,7 @@ export default function AffiliateDashboard() {
     }
   }
 
-  useEffect(() => { load({ sync: true }) }, [])
+  useEffect(() => { load({ sync: true }); loadVideos() }, [])
 
   const submitLogin = async (event) => {
     event.preventDefault()
@@ -183,6 +193,15 @@ export default function AffiliateDashboard() {
     await api('/api/affiliate/logout', { method: 'POST' }).catch(() => {})
     setAffiliate(null)
     setDashboard(null)
+  }
+
+  const submitVideo = async () => {
+    setVideoBusy(true); setVideoMessage('')
+    try {
+      const result = await api('/api/affiliate/videos', { method: 'POST', body: JSON.stringify({ videoUrl: videoUrl.trim(), acceptedTerms: true }) })
+      if (result.video) setVideoSubmissions(current => [result.video, ...current])
+      setVideoUrl(''); setVideoTermsOpen(false); setVideoMessage('Vídeo enviado para análise. O status agora é Pendente.')
+    } catch (e) { setVideoMessage(e.message || 'Não foi possível enviar o vídeo.') } finally { setVideoBusy(false) }
   }
 
   const requestWithdraw = async (event) => {
@@ -624,6 +643,18 @@ export default function AffiliateDashboard() {
           </div>
         </section>
 
+        <section className="mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div><p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Conteúdo para divulgação</p><h2 className="mt-1 text-2xl font-black text-zinc-950">Divulgue seus vídeos</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-zinc-500">Publique seu vídeo nas suas redes, depois cole aqui o link. A SHE vai analisar o conteúdo e, se aprovado, poderá usar esse vídeo em divulgação com tráfego pago usando seus links de afiliada. Isso significa divulgação patrocinada pela SHE para ajudar a gerar vendas para você, sem custo de mídia para a afiliada.</p></div>
+            <button type="button" onClick={() => { setVideoMessage(''); setVideoTermsOpen(true) }} className="rounded-xl bg-pink-500 px-5 py-3 text-sm font-black text-white transition hover:bg-pink-600">Divulgar um link</button>
+          </div>
+          {videoMessage && <p className="mt-4 rounded-xl bg-pink-50 px-4 py-3 text-xs font-bold text-pink-700">{videoMessage}</p>}
+          <div className="mt-5 space-y-3">
+            {videoSubmissions.map(video => <div key={video.id} className="rounded-2xl border border-zinc-100 bg-zinc-50/70 p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.14em] text-zinc-400">Link enviado</p><a href={video.video_url} target="_blank" rel="noreferrer" className="mt-1 block truncate text-sm font-bold text-zinc-900 underline decoration-pink-300 underline-offset-2">{video.video_url}</a><p className="mt-1 text-[11px] text-zinc-400">Enviado em {new Date(video.created_at).toLocaleString('pt-BR')}</p></div><span className={`shrink-0 rounded-full px-3 py-1.5 text-[10px] font-black uppercase ${video.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : video.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>{video.status === 'approved' ? 'Aprovado' : video.status === 'rejected' ? 'Recusado' : 'Pendente'}</span></div>{video.status === 'approved' && <p className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold leading-5 text-emerald-800">A SHE aprovou este vídeo. Ele poderá ser utilizado pela SHE em divulgação com tráfego pago usando seus links de afiliada, para impulsionar suas vendas sem custo de mídia para você.</p>}{video.status === 'rejected' && video.admin_note && <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold leading-5 text-red-700">Observação da SHE: {video.admin_note}</p>}</div>)}
+            {!videoSubmissions.length && <div className="rounded-2xl border border-dashed border-zinc-200 px-4 py-8 text-center text-sm text-zinc-400">Você ainda não enviou nenhum vídeo para análise.</div>}
+          </div>
+        </section>
+
         <section className="mt-6 rounded-[1.5rem] bg-white p-6 border border-pink-100 overflow-x-auto shadow-sm">
           <div className="flex items-end justify-between gap-4">
             <div>
@@ -698,6 +729,17 @@ export default function AffiliateDashboard() {
               <p>Os níveis atingidos são retroativos às vendas do mês: ao alcançar um novo nível, o valor por pedido daquele nível é aplicado às vendas realizadas no mês.</p>
             </div>
             <button type="button" onClick={() => setLevelHelpOpen(false)} className="mt-6 w-full rounded-xl bg-zinc-950 py-3 font-black text-white transition hover:bg-pink-500">Entendi</button>
+          </div>
+        </div>
+      )}
+
+      {videoTermsOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 px-4 py-6" onMouseDown={event => { if (event.target === event.currentTarget && !videoBusy) setVideoTermsOpen(false) }}>
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] bg-white p-6 shadow-[0_30px_100px_rgba(0,0,0,.3)]">
+            <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Termos para divulgação</p><h3 className="mt-1 text-2xl font-black text-zinc-950">Autorização de uso do vídeo</h3></div><button type="button" disabled={videoBusy} onClick={() => setVideoTermsOpen(false)} className="h-9 w-9 rounded-full bg-zinc-100 text-zinc-500 disabled:opacity-50">×</button></div>
+            <div className="mt-5 rounded-2xl bg-zinc-50 p-4 text-sm leading-6 text-zinc-600"><p className="font-black text-zinc-900">Antes de enviar, você declara e concorda com os seguintes termos:</p><ol className="mt-3 list-decimal space-y-2 pl-5"><li>Você declara que criou o vídeo ou possui autorização suficiente de todas as pessoas e titulares envolvidos para submetê-lo à SHE.</li><li>Você autoriza a SHE, de forma gratuita, mundial, por prazo indeterminado e para meios digitais e publicitários, a reproduzir, publicar, editar, adaptar, cortar, legendar, impulsionar e divulgar o vídeo enviado.</li><li>A autorização inclui anúncios pagos, redes sociais, páginas, sites, campanhas, materiais promocionais e outros canais da SHE, inclusive com links de afiliada associados à sua conta.</li><li>Você autoriza a utilização da sua imagem, voz, nome, @perfil e demais elementos que apareçam no vídeo, quando necessários à divulgação.</li><li>Você declara que o vídeo não viola direitos autorais, marcas, imagem, voz, privacidade ou outros direitos de terceiros e se responsabiliza por reclamações decorrentes de conteúdo sem autorização.</li><li>A aprovação não obriga a SHE a publicar ou investir mídia. A SHE decidirá quando, onde, por quanto tempo e em quais formatos utilizar o conteúdo.</li><li>A SHE poderá realizar adaptações técnicas e criativas necessárias para anúncios, como cortes, redimensionamento, legendas, chamadas e thumbnails.</li><li>O envio e a aprovação não geram pagamento, royalty ou reembolso específico pelo uso. As comissões de vendas atribuídas aos seus links seguem as regras do programa.</li><li>Você poderá continuar usando o vídeo nos seus próprios canais; a autorização permite que a SHE também o utilize para as finalidades descritas.</li><li>A SHE poderá interromper campanhas ou deixar de utilizar o vídeo a qualquer momento.</li><li>Você confirma que leu, compreendeu e aceita estes termos e possui capacidade e autorização para conceder os direitos aqui previstos.</li></ol><p className="mt-4 text-xs font-semibold text-zinc-400">Versão 1.0 · O aceite é registrado junto ao envio.</p></div>
+            <div className="mt-5 rounded-2xl border border-pink-100 bg-pink-50 p-4"><p className="text-xs font-black uppercase tracking-[.12em] text-pink-600">Link do vídeo</p><input value={videoUrl} onChange={event => setVideoUrl(event.target.value)} type="url" placeholder="https://www.instagram.com/... ou https://youtu.be/..." className="mt-2 w-full rounded-xl border border-pink-200 bg-white px-4 py-3 text-sm outline-none focus:border-pink-400" /></div>
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" disabled={videoBusy} onClick={() => setVideoTermsOpen(false)} className="rounded-xl border border-zinc-200 px-5 py-3 text-sm font-black text-zinc-600 disabled:opacity-50">Cancelar</button><button type="button" disabled={videoBusy || !videoUrl.trim()} onClick={submitVideo} className="rounded-xl bg-pink-500 px-5 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{videoBusy ? 'Enviando…' : 'Aceito os termos e enviar para análise'}</button></div>
           </div>
         </div>
       )}

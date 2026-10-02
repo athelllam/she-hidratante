@@ -10,7 +10,7 @@ module.exports = async function handler(req, res) {
 
     if (req.method === 'GET') {
       const [affiliates, orders, withdrawals, events, statusHistory, settingRows] = await Promise.all([
-        supabaseFetch('/rest/v1/affiliates?select=id,slug,name,email,whatsapp,pix_key,active,admin_active,commission_rate,created_at&order=created_at.desc'),
+        supabaseFetch('/rest/v1/affiliates?select=id,slug,name,email,whatsapp,pix_key,active,admin_active,commission_rate,created_at,team_parent_id&order=created_at.desc'),
         supabaseFetch('/rest/v1/affiliate_orders?select=affiliate_id,status,total,commission,created_at&order=created_at.desc&limit=20000'),
         supabaseFetch('/rest/v1/affiliate_withdrawals?select=affiliate_id,amount,status,source,requested_at&order=requested_at.desc&limit=10000'),
         supabaseFetch('/rest/v1/affiliate_events?select=affiliate_id,type,created_at&order=created_at.desc&limit=20000'),
@@ -29,6 +29,9 @@ module.exports = async function handler(req, res) {
           gold: settingRows[0].commission_gold,
         },
       } : DEFAULT_COMMISSION_CONFIG);
+
+      const detailAffiliateId = Number(req.query?.detail || 0);
+      const detailMonth = String(req.query?.month || 'all');
 
       const ordersByAffiliate = new Map();
       for (const order of orders || []) {
@@ -120,6 +123,9 @@ module.exports = async function handler(req, res) {
           balance: money(Math.max(0, bucket.commission - bucket.withdrawals)),
           adminActive: Boolean(affiliate.admin_active),
           lastSaleAt: bucket.lastSaleAt,
+          daysWithoutSales: bucket.lastSaleAt
+            ? Math.max(0, Math.floor((Date.now() - new Date(bucket.lastSaleAt).getTime()) / (24 * 60 * 60 * 1000)))
+            : Math.max(0, Math.floor((Date.now() - new Date(affiliate.created_at).getTime()) / (24 * 60 * 60 * 1000))),
           autoInactive: Boolean(bucket.autoInactive),
         };
       });
@@ -249,6 +255,85 @@ module.exports = async function handler(req, res) {
           averageTicket: money(monthSales.length ? monthRevenue / monthSales.length : 0),
           totalBalance: money(balance),
         };
+      }
+
+      if (detailAffiliateId > 0) {
+        const selectedAffiliate = (affiliates || []).find(item => Number(item.id) === detailAffiliateId);
+        if (!selectedAffiliate) return json(res, 404, { error: 'Afiliada não encontrada.' });
+
+        const teamIds = (affiliates || [])
+          .filter(item => Number(item.team_parent_id) === detailAffiliateId)
+          .map(item => Number(item.id));
+        const teamIdSet = new Set(teamIds);
+        const inMonth = (value) => detailMonth === 'all' || String(value || '').slice(0, 7) === detailMonth;
+        const validPaid = (order) => isPaidOrder(order) && order.created_at && inMonth(order.created_at);
+        const selectedOrders = (orders || []).filter(order => validPaid(order) && (Number(order.affiliate_id) === detailAffiliateId || teamIdSet.has(Number(order.affiliate_id))));
+        const selectedEvents = (events || []).filter(event => event.type === 'access' && event.created_at && inMonth(event.created_at) && (Number(event.affiliate_id) === detailAffiliateId || teamIdSet.has(Number(event.affiliate_id))));
+        const ownOrders = selectedOrders.filter(order => Number(order.affiliate_id) === detailAffiliateId);
+        const teamOrders = selectedOrders.filter(order => teamIdSet.has(Number(order.affiliate_id)));
+        const revenue = selectedOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+        const metrics = {
+          accesses: selectedEvents.length,
+          sales: selectedOrders.length,
+          revenue: money(revenue),
+          averageTicket: money(selectedOrders.length ? revenue / selectedOrders.length : 0),
+          ownSales: ownOrders.length,
+          teamSales: teamOrders.length,
+          ownRevenue: money(ownOrders.reduce((sum, order) => sum + Number(order.total || 0), 0)),
+          teamRevenue: money(teamOrders.reduce((sum, order) => sum + Number(order.total || 0), 0)),
+        };
+
+        const bucketMap = new Map();
+        const addBucket = (key, label) => {
+          if (!bucketMap.has(key)) bucketMap.set(key, { date: key, label, ownSales: 0, teamSales: 0, ownRevenue: 0, teamRevenue: 0, accesses: 0 });
+          return bucketMap.get(key);
+        };
+        if (detailMonth === 'all') {
+          for (const order of selectedOrders) {
+            const key = String(order.created_at).slice(0, 7);
+            const d = new Date(`${key}-01T00:00:00Z`);
+            const bucket = addBucket(key, d.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric', timeZone: 'UTC' }));
+            const own = Number(order.affiliate_id) === detailAffiliateId;
+            if (own) { bucket.ownSales += 1; bucket.ownRevenue += Number(order.total || 0); }
+            else { bucket.teamSales += 1; bucket.teamRevenue += Number(order.total || 0); }
+          }
+          for (const event of selectedEvents) {
+            const key = String(event.created_at).slice(0, 7);
+            const d = new Date(`${key}-01T00:00:00Z`);
+            addBucket(key, d.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric', timeZone: 'UTC' })).accesses += 1;
+          }
+        } else {
+          const [year, monthNumber] = detailMonth.split('-').map(Number);
+          const days = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+          for (let day = 1; day <= days; day += 1) {
+            const key = `${detailMonth}-${String(day).padStart(2, '0')}`;
+            addBucket(key, String(day).padStart(2, '0'));
+          }
+          for (const order of selectedOrders) {
+            const key = String(order.created_at).slice(0, 10);
+            const bucket = addBucket(key, key.slice(-2));
+            const own = Number(order.affiliate_id) === detailAffiliateId;
+            if (own) { bucket.ownSales += 1; bucket.ownRevenue += Number(order.total || 0); }
+            else { bucket.teamSales += 1; bucket.teamRevenue += Number(order.total || 0); }
+          }
+          for (const event of selectedEvents) {
+            const key = String(event.created_at).slice(0, 10);
+            addBucket(key, key.slice(-2)).accesses += 1;
+          }
+        }
+
+        const chart = Array.from(bucketMap.values()).sort((a, b) => a.date.localeCompare(b.date)).map(item => ({
+          ...item,
+          ownRevenue: money(item.ownRevenue),
+          teamRevenue: money(item.teamRevenue),
+        }));
+        return json(res, 200, {
+          affiliate: { id: Number(selectedAffiliate.id), name: selectedAffiliate.name, slug: selectedAffiliate.slug },
+          period: detailMonth,
+          teamSize: teamIds.length,
+          metrics,
+          chart,
+        });
       }
 
       return json(res, 200, {
