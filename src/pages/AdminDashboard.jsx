@@ -416,6 +416,7 @@ export default function AdminDashboard() {
                   <th className="pb-3 pr-4">Afiliada</th>
                   <th className="pb-3 pr-4">ID</th>
                   <th className="pb-3 pr-4">Vendas</th>
+                  <th className="pb-3 pr-4">Faturamento</th>
                   <th className="pb-3 pr-4">Ticket médio</th>
                   <th className="pb-3 pr-4">Saldo</th>
                   <th className="pb-3 pr-4">Ativa/Inativa</th>
@@ -437,6 +438,7 @@ export default function AdminDashboard() {
                     </td>
                     <td className="py-4 pr-4 font-bold text-zinc-600">{affiliate.id}</td>
                     <td className="py-4 pr-4 font-black text-zinc-950">{affiliate.sales}</td>
+                    <td className="py-4 pr-4 font-black text-zinc-950">{brl(affiliate.revenue)}</td>
                     <td className="py-4 pr-4 font-black text-zinc-950">{brl(affiliate.averageTicket)}</td>
                     <td className="py-4 pr-4 font-black text-emerald-600">{brl(affiliate.balance)}</td>
                     <td className="py-4 pr-4">
