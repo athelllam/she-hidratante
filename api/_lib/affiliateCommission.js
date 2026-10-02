@@ -1,23 +1,55 @@
-const LEVELS = [
-  { key: 'none', label: 'Início', minSales: 0, commissionPerOrder: 30 },
-  { key: 'bronze', label: 'Bronze', minSales: 10, commissionPerOrder: 40 },
-  { key: 'silver', label: 'Prata', minSales: 50, commissionPerOrder: 50 },
-  { key: 'gold', label: 'Ouro', minSales: 101, commissionPerOrder: 60 },
+const DEFAULT_COMMISSION_CONFIG = {
+  ticketThreshold: 170,
+  ticketBonus: 5,
+  commissions: {
+    none: 30,
+    bronze: 40,
+    silver: 50,
+    gold: 60,
+  },
+};
+
+const LEVEL_DEFINITIONS = [
+  { key: 'none', label: 'Início', minSales: 0 },
+  { key: 'bronze', label: 'Bronze', minSales: 10 },
+  { key: 'silver', label: 'Prata', minSales: 50 },
+  { key: 'gold', label: 'Ouro', minSales: 101 },
 ];
 
-const TICKET_MULTIPLIER_THRESHOLD = 170;
-const TICKET_MULTIPLIER_VALUE = 5;
+const LEVELS = LEVEL_DEFINITIONS.map(level => ({
+  ...level,
+  commissionPerOrder: DEFAULT_COMMISSION_CONFIG.commissions[level.key],
+}));
 
-function getLevel(sales) {
+const TICKET_MULTIPLIER_THRESHOLD = DEFAULT_COMMISSION_CONFIG.ticketThreshold;
+const TICKET_MULTIPLIER_VALUE = DEFAULT_COMMISSION_CONFIG.ticketBonus;
+
+function normalizeConfig(config = {}) {
+  const commissions = config.commissions || {};
+  return {
+    ticketThreshold: Number.isFinite(Number(config.ticketThreshold)) ? Number(config.ticketThreshold) : DEFAULT_COMMISSION_CONFIG.ticketThreshold,
+    ticketBonus: Number.isFinite(Number(config.ticketBonus)) ? Number(config.ticketBonus) : DEFAULT_COMMISSION_CONFIG.ticketBonus,
+    commissions: {
+      none: Number.isFinite(Number(commissions.none)) ? Number(commissions.none) : DEFAULT_COMMISSION_CONFIG.commissions.none,
+      bronze: Number.isFinite(Number(commissions.bronze)) ? Number(commissions.bronze) : DEFAULT_COMMISSION_CONFIG.commissions.bronze,
+      silver: Number.isFinite(Number(commissions.silver)) ? Number(commissions.silver) : DEFAULT_COMMISSION_CONFIG.commissions.silver,
+      gold: Number.isFinite(Number(commissions.gold)) ? Number(commissions.gold) : DEFAULT_COMMISSION_CONFIG.commissions.gold,
+    },
+  };
+}
+
+function getLevel(sales, config = DEFAULT_COMMISSION_CONFIG) {
   const count = Number(sales) || 0;
-  let current = LEVELS[0];
-  for (const level of LEVELS) {
+  const normalized = normalizeConfig(config);
+  let current = LEVEL_DEFINITIONS[0];
+  for (const level of LEVEL_DEFINITIONS) {
     if (count >= level.minSales) current = level;
   }
-  const next = LEVELS.find(level => level.minSales > count) || null;
+  const next = LEVEL_DEFINITIONS.find(level => level.minSales > count) || null;
   const progress = Math.min(100, (count / 101) * 100);
   return {
     ...current,
+    commissionPerOrder: normalized.commissions[current.key],
     sales: count,
     progress,
     nextLevel: next ? next.label : null,
@@ -32,8 +64,9 @@ function monthKey(value) {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-function calculateMonthlyStats(orders) {
+function calculateMonthlyStats(orders, config = DEFAULT_COMMISSION_CONFIG) {
   const paid = (orders || []).filter(order => isPaidOrder(order));
+  const normalized = normalizeConfig(config);
   const byMonth = {};
 
   for (const order of paid) {
@@ -46,15 +79,16 @@ function calculateMonthlyStats(orders) {
 
   for (const stats of Object.values(byMonth)) {
     stats.averageTicket = stats.sales ? stats.revenue / stats.sales : 0;
-    stats.multiplierActive = stats.averageTicket > TICKET_MULTIPLIER_THRESHOLD;
+    stats.multiplierActive = stats.averageTicket > normalized.ticketThreshold;
   }
 
   return byMonth;
 }
 
-function commissionForOrders(orders) {
+function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG) {
+  const normalized = normalizeConfig(config);
   const paid = (orders || []).filter(order => isPaidOrder(order));
-  const monthlyStats = calculateMonthlyStats(paid);
+  const monthlyStats = calculateMonthlyStats(paid, normalized);
   const salesByMonth = Object.fromEntries(
     Object.entries(monthlyStats).map(([key, stats]) => [key, stats.sales])
   );
@@ -63,8 +97,8 @@ function commissionForOrders(orders) {
   const annotated = paid.map(order => {
     const key = monthKey(order.created_at);
     const stats = monthlyStats[key] || { sales: 0, averageTicket: 0, multiplierActive: false };
-    const level = getLevel(stats.sales);
-    const multiplier = stats.multiplierActive ? TICKET_MULTIPLIER_VALUE : 0;
+    const level = getLevel(stats.sales, normalized);
+    const multiplier = stats.multiplierActive ? normalized.ticketBonus : 0;
     const commission = Number((level.commissionPerOrder + multiplier).toFixed(2));
     total += commission;
     return {
@@ -88,9 +122,12 @@ function isPaidOrder(order) {
 }
 
 module.exports = {
+  DEFAULT_COMMISSION_CONFIG,
+  LEVEL_DEFINITIONS,
   LEVELS,
   TICKET_MULTIPLIER_THRESHOLD,
   TICKET_MULTIPLIER_VALUE,
+  normalizeConfig,
   getLevel,
   monthKey,
   calculateMonthlyStats,

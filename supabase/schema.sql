@@ -86,3 +86,22 @@ alter table public.affiliates
 -- Assim, trocar o PIX depois não altera saques antigos.
 alter table public.affiliate_withdrawals
   add column if not exists pix_key text;
+
+-- Configurações globais das comissões e da meta de ticket médio.
+-- O registro id=1 é único e é alterado somente pelo painel administrativo.
+create table if not exists public.affiliate_settings (
+  id integer primary key check (id = 1),
+  ticket_threshold numeric(12,2) not null default 170.00,
+  ticket_bonus numeric(12,2) not null default 5.00,
+  commission_none numeric(12,2) not null default 30.00,
+  commission_bronze numeric(12,2) not null default 40.00,
+  commission_silver numeric(12,2) not null default 50.00,
+  commission_gold numeric(12,2) not null default 60.00,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.affiliate_settings (id)
+values (1)
+on conflict (id) do nothing;
+
+alter table public.affiliate_settings enable row level security;

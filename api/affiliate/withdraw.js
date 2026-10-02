@@ -1,5 +1,5 @@
 const { requireAffiliate, supabaseFetch, json } = require('../_lib/supabase');
-const { commissionForOrders } = require('../_lib/affiliateCommission');
+const { commissionForOrders, DEFAULT_COMMISSION_CONFIG, normalizeConfig } = require('../_lib/affiliateCommission');
 
 module.exports = async function handler(req, res) {
   try {
@@ -33,9 +33,17 @@ module.exports = async function handler(req, res) {
       return json(res, 400, { error: 'Cadastre seu PIX de recebimento antes de solicitar um saque.' });
     }
 
-    const orders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=status,total,commission,created_at`);
+    const [orders, settingRows] = await Promise.all([
+      supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=status,total,commission,created_at`),
+      supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,commission_none,commission_bronze,commission_silver,commission_gold&limit=1'),
+    ]);
+    const settings = normalizeConfig(settingRows?.[0] ? {
+      ticketThreshold: settingRows[0].ticket_threshold,
+      ticketBonus: settingRows[0].ticket_bonus,
+      commissions: { none: settingRows[0].commission_none, bronze: settingRows[0].commission_bronze, silver: settingRows[0].commission_silver, gold: settingRows[0].commission_gold },
+    } : DEFAULT_COMMISSION_CONFIG);
     const withdrawals = await supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${affiliate.id}&status=in.(pending,approved,paid)&select=amount`);
-    const { total: earned } = commissionForOrders(orders || []);
+    const { total: earned } = commissionForOrders(orders || [], settings);
     const reserved = (withdrawals || []).reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const available = Math.max(0, earned - reserved);
 

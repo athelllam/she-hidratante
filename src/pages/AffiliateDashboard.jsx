@@ -263,7 +263,8 @@ export default function AffiliateDashboard() {
 
   const publicUrl = `${window.location.origin}/${affiliate.slug}`
   const qrUrl = `https://quickchart.io/qr?size=220&text=${encodeURIComponent(publicUrl)}`
-  const level = dashboard?.level || { key: 'none', label: 'Início', sales: 0, commissionPerOrder: 30, progress: 0, nextLevel: 'Bronze', nextMinSales: 10, salesToNext: 10 }
+  const config = dashboard?.settings || { ticketThreshold: 170, ticketBonus: 5, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 } }
+  const level = dashboard?.level || { key: 'none', label: 'Início', sales: 0, commissionPerOrder: Number(config.commissions?.none || 30), progress: 0, nextLevel: 'Bronze', nextMinSales: 10, salesToNext: 10 }
   const months = dashboard?.months?.length ? dashboard.months : [selectedMonth]
   const availableCommission = Number(dashboard?.metrics?.availableCommission || 0)
 
@@ -331,9 +332,9 @@ export default function AffiliateDashboard() {
 
 
             {[
-              { label: 'Bronze', min: 10, image: '/badge-bronze.svg', rate: 'R$ 40,00', tone: 'text-[#9a5a22]' },
-              { label: 'Prata', min: 50, image: '/badge-silver.svg', rate: 'R$ 50,00', tone: 'text-zinc-500' },
-              { label: 'Ouro', min: 101, image: '/badge-gold.svg', rate: 'R$ 60,00', tone: 'text-amber-600' },
+              { label: 'Bronze', min: 10, image: '/badge-bronze.svg', rate: brl(config.commissions?.bronze), tone: 'text-[#9a5a22]' },
+              { label: 'Prata', min: 50, image: '/badge-silver.svg', rate: brl(config.commissions?.silver), tone: 'text-zinc-500' },
+              { label: 'Ouro', min: 101, image: '/badge-gold.svg', rate: brl(config.commissions?.gold), tone: 'text-amber-600' },
             ].map(item => {
               const markerLeft = item.label === 'Bronze' ? '10%' : item.label === 'Prata' ? '50%' : '100%'
               return (
@@ -364,11 +365,11 @@ export default function AffiliateDashboard() {
                 <p className={`text-xs uppercase tracking-[.18em] ${multiplierActive ? 'text-amber-700' : 'text-zinc-400'}`}>{label}</p>
                 <p className={`mt-3 text-2xl font-black ${multiplierActive ? 'text-amber-900' : 'text-zinc-950'}`}>{value}</p>
                 {multiplierActive && (
-                  <span className="mt-2 inline-flex rounded-full bg-amber-400/20 px-2.5 py-1 text-[11px] font-black text-amber-800">+ R$ 5,00 / venda</span>
+                  <span className="mt-2 inline-flex rounded-full bg-amber-400/20 px-2.5 py-1 text-[11px] font-black text-amber-800">+ {brl(dashboard?.metrics?.ticketMultiplierValue ?? config.ticketBonus)} / pedido</span>
                 )}
                 {label === 'Ticket médio' && (
                   <p className={`mt-2 text-[10px] leading-4 ${multiplierActive ? 'text-amber-700' : 'text-zinc-400'}`}>
-                    Ticket acima de R$ 170,00 ativa + R$ 5,00 por venda no mês. Se cair para R$ 170,00 ou menos, o benefício é perdido até voltar a superar a meta.
+                    Ticket acima de {brl(dashboard?.metrics?.ticketMultiplierThreshold ?? config.ticketThreshold)} ativa + {brl(dashboard?.metrics?.ticketMultiplierValue ?? config.ticketBonus)} por pedido no mês. Se cair para {brl(dashboard?.metrics?.ticketMultiplierThreshold ?? config.ticketThreshold)} ou menos, o benefício é perdido até voltar a superar a meta.
                   </p>
                 )}
               </div>

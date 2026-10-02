@@ -2,8 +2,8 @@ const { requireAffiliate, supabaseFetch, json } = require('../_lib/supabase');
 const {
   getLevel,
   commissionForOrders,
-  TICKET_MULTIPLIER_THRESHOLD,
-  TICKET_MULTIPLIER_VALUE,
+  DEFAULT_COMMISSION_CONFIG,
+  normalizeConfig,
 } = require('../_lib/affiliateCommission');
 
 function money(value) {
@@ -41,14 +41,21 @@ module.exports = async function handler(req, res) {
     const selectedMonth = validMonth(req.query?.month) || defaultMonth;
     const { start, end } = monthRange(selectedMonth);
 
-    const [events, orders, withdrawals] = await Promise.all([
+    const [events, orders, withdrawals, settingRows] = await Promise.all([
       supabaseFetch(`/rest/v1/affiliate_events?affiliate_id=eq.${id}&select=type,created_at&order=created_at.desc&limit=10000`),
       supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${id}&select=yampi_order_id,status,total,commission,created_at,updated_at&order=created_at.desc&limit=5000`),
       supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${id}&status=in.(pending,approved,paid)&select=id,amount,status,pix_key,requested_at,processed_at,note&order=requested_at.desc&limit=500`),
+      supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,commission_none,commission_bronze,commission_silver,commission_gold&limit=1'),
     ]);
 
+    const settings = normalizeConfig(settingRows?.[0] ? {
+      ticketThreshold: settingRows[0].ticket_threshold,
+      ticketBonus: settingRows[0].ticket_bonus,
+      commissions: { none: settingRows[0].commission_none, bronze: settingRows[0].commission_bronze, silver: settingRows[0].commission_silver, gold: settingRows[0].commission_gold },
+    } : DEFAULT_COMMISSION_CONFIG);
+
     const accessEvents = (events || []).filter((e) => e.type === 'access');
-    const { orders: annotatedPaidOrders, total: totalEarnedCommission, salesByMonth, monthlyStats } = commissionForOrders(orders || []);
+    const { orders: annotatedPaidOrders, total: totalEarnedCommission, salesByMonth, monthlyStats } = commissionForOrders(orders || [], settings);
 
     const selectedOrders = annotatedPaidOrders.filter((o) => {
       const date = new Date(o.created_at);
@@ -66,11 +73,11 @@ module.exports = async function handler(req, res) {
     const selectedSales = selectedOrders.length;
     const selectedRevenue = selectedOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
     const selectedAverageTicket = selectedSales ? selectedRevenue / selectedSales : 0;
-    const ticketMultiplierActive = selectedAverageTicket > TICKET_MULTIPLIER_THRESHOLD;
+    const ticketMultiplierActive = selectedAverageTicket > settings.ticketThreshold;
     const selectedCommission = selectedOrders.reduce((sum, o) => sum + Number(o.commission || 0), 0);
     const reserved = (withdrawals || []).reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const availableCommission = Math.max(0, totalEarnedCommission - reserved);
-    const level = getLevel(selectedSales);
+    const level = getLevel(selectedSales, settings);
 
     // Saldo acumulado: o saldo de abertura do mês é o saldo final do mês anterior.
     // Saques pending/approved/paid já reduzem o saldo disponível imediatamente.
@@ -114,6 +121,7 @@ module.exports = async function handler(req, res) {
 
     return json(res, 200, {
       affiliate,
+      settings,
       selectedMonth,
       metrics: {
         accesses: selectedAccesses.length,
@@ -127,9 +135,10 @@ module.exports = async function handler(req, res) {
         openingBalance: money(openingBalance),
         closingBalance: money(closingBalance),
         selectedWithdrawals: money(selectedWithdrawalsTotal),
-        ticketMultiplier: money(ticketMultiplierActive ? TICKET_MULTIPLIER_VALUE : 0),
+        ticketMultiplier: money(ticketMultiplierActive ? settings.ticketBonus : 0),
         ticketMultiplierActive,
-        ticketMultiplierThreshold: TICKET_MULTIPLIER_THRESHOLD,
+        ticketMultiplierThreshold: settings.ticketThreshold,
+        ticketMultiplierValue: settings.ticketBonus,
       },
       level: {
         key: level.key,

@@ -89,10 +89,13 @@ export default function AdminDashboard() {
   const [credentialsAffiliate, setCredentialsAffiliate] = useState(null)
   const [newPassword, setNewPassword] = useState('')
   const [savingPassword, setSavingPassword] = useState(false)
-  const [deleteAffiliate, setDeleteAffiliate] = useState(null)
-  const [deleteConfirmation, setDeleteConfirmation] = useState('')
+  const [selectedAffiliateIds, setSelectedAffiliateIds] = useState(new Set())
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deletePhrase, setDeletePhrase] = useState('')
-  const [deletingId, setDeletingId] = useState(null)
+  const [deletingIds, setDeletingIds] = useState([])
+  const [settings, setSettings] = useState({ ticketThreshold: 170, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 } })
+  const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', none: '30', bronze: '40', silver: '50', gold: '60' })
+  const [savingSettings, setSavingSettings] = useState(false)
 
   const loadPanel = async () => {
     const [affiliateData, withdrawalData] = await Promise.all([
@@ -101,6 +104,18 @@ export default function AdminDashboard() {
     ])
     setAffiliates(affiliateData.affiliates || [])
     setWithdrawals(withdrawalData.withdrawals || [])
+    const nextSettings = affiliateData.settings || { ticketThreshold: 170, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 } }
+    setSettings(nextSettings)
+    setSettingsForm({
+      ticketThreshold: String(nextSettings.ticketThreshold),
+      none: String(nextSettings.commissions?.none ?? 30),
+      bronze: String(nextSettings.commissions?.bronze ?? 40),
+      silver: String(nextSettings.commissions?.silver ?? 50),
+      gold: String(nextSettings.commissions?.gold ?? 60),
+    })
+    setSelectedAffiliateIds(new Set())
+    setDeleteModalOpen(false)
+    setDeletePhrase('')
     setAuthenticated(true)
   }
 
@@ -148,6 +163,7 @@ export default function AdminDashboard() {
     setAuthenticated(false)
     setAffiliates([])
     setWithdrawals([])
+    setSelectedAffiliateIds(new Set())
   }
 
   const toggleAdminStatus = async (affiliate) => {
@@ -187,41 +203,86 @@ export default function AdminDashboard() {
     }
   }
 
-  const openDeleteConfirmation = (affiliate) => {
-    const confirmed = window.confirm(
-      `ATENÇÃO: você está prestes a excluir permanentemente a afiliada ${affiliate.name}.\n\nIsso apagará a conta de acesso, o cadastro SQL, eventos, pedidos, comissões e saques vinculados. Essa ação NÃO pode ser desfeita.\n\nDeseja continuar para a confirmação final?`
-    )
-    if (!confirmed) return
-    setDeleteAffiliate(affiliate)
-    setDeleteConfirmation('')
-    setDeletePhrase('')
+  const toggleAffiliateSelection = (affiliateId) => {
+    setSelectedAffiliateIds(current => {
+      const next = new Set(current)
+      if (next.has(affiliateId)) next.delete(affiliateId)
+      else next.add(affiliateId)
+      return next
+    })
   }
 
-  const permanentlyDeleteAffiliate = async (event) => {
-    event.preventDefault()
-    if (!deleteAffiliate) return
-    if (deleteConfirmation.trim() !== deleteAffiliate.name.trim() || deletePhrase !== 'EXCLUIR') return
+  const openDeleteConfirmation = () => {
+    const selected = affiliates.filter(affiliate => selectedAffiliateIds.has(affiliate.id))
+    if (!selected.length) return
+    const names = selected.map(affiliate => `• ${affiliate.name}`).join('\n')
+    const confirmed = window.confirm(
+      `ATENÇÃO: você está prestes a excluir permanentemente ${selected.length} afiliada(s).\n\n${names}\n\nIsso apagará as contas de acesso, cadastros SQL, eventos, pedidos, comissões e saques vinculados. Essa ação NÃO pode ser desfeita.\n\nDeseja continuar para a confirmação final?`
+    )
+    if (!confirmed) return
+    setDeletePhrase('')
+    setDeleteModalOpen(true)
+  }
 
-    setDeletingId(deleteAffiliate.id)
+  const permanentlyDeleteSelected = async (event) => {
+    event.preventDefault()
+    const ids = Array.from(selectedAffiliateIds)
+    if (!ids.length || deletePhrase !== 'EXCLUIR') return
+
+    setDeletingIds(ids)
     setMessage('')
     try {
       await api('/api/admin/affiliates', {
         method: 'DELETE',
-        body: JSON.stringify({
-          id: deleteAffiliate.id,
-          confirmName: deleteConfirmation.trim(),
-          confirmPhrase: deletePhrase,
-        }),
+        body: JSON.stringify({ ids, confirmCount: ids.length, confirmPhrase: deletePhrase }),
       })
-      setAffiliates(current => current.filter(item => item.id !== deleteAffiliate.id))
-      setDeleteAffiliate(null)
-      setDeleteConfirmation('')
+      setAffiliates(current => current.filter(item => !ids.includes(item.id)))
+      setSelectedAffiliateIds(new Set())
+      setDeleteModalOpen(false)
       setDeletePhrase('')
-      setMessage(`Afiliada ${deleteAffiliate.name} excluída completamente do sistema.`)
+      setMessage(`${ids.length} afiliada(s) excluída(s) completamente do sistema.`)
     } catch (e) {
-      setMessage(e.message || 'Não foi possível excluir a afiliada.')
+      setMessage(e.message || 'Não foi possível excluir as afiliadas selecionadas.')
     } finally {
-      setDeletingId(null)
+      setDeletingIds([])
+    }
+  }
+
+  const saveSettings = async (event) => {
+    event.preventDefault()
+    setSavingSettings(true)
+    setMessage('')
+    try {
+      const payload = {
+        ticketThreshold: Number(String(settingsForm.ticketThreshold).replace(',', '.')),
+        commissions: {
+          none: Number(String(settingsForm.none).replace(',', '.')),
+          bronze: Number(String(settingsForm.bronze).replace(',', '.')),
+          silver: Number(String(settingsForm.silver).replace(',', '.')),
+          gold: Number(String(settingsForm.gold).replace(',', '.')),
+        },
+      }
+      if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0)) {
+        throw new Error('Informe valores válidos. A meta do ticket deve ser maior que zero e as comissões não podem ser negativas.')
+      }
+      const result = await api('/api/admin/affiliates', {
+        method: 'PATCH',
+        body: JSON.stringify({ settings: payload }),
+      })
+      setSettings(result.settings)
+      setSettingsForm({
+        ticketThreshold: String(result.settings.ticketThreshold),
+        none: String(result.settings.commissions.none),
+        bronze: String(result.settings.commissions.bronze),
+        silver: String(result.settings.commissions.silver),
+        gold: String(result.settings.commissions.gold),
+      })
+      setMessage('Configurações de comissão e ticket médio atualizadas para todas as afiliadas.')
+      await loadPanel()
+    } catch (e) {
+      setMessage(e.message || 'Não foi possível atualizar as configurações.')
+    } finally {
+      setSavingSettings(false)
     }
   }
 
@@ -406,7 +467,17 @@ export default function AdminDashboard() {
                 </button>
               )}
             </div>
-            <p className="text-xs font-semibold text-zinc-400">Ordenado por maior número de vendas</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs font-semibold text-zinc-400">Ordenado por maior número de vendas</p>
+              <button
+                type="button"
+                onClick={openDeleteConfirmation}
+                disabled={!selectedAffiliateIds.size || deletingIds.length > 0}
+                className="rounded-xl bg-red-600 px-4 py-2.5 text-xs font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-35"
+              >
+                {selectedAffiliateIds.size ? `Excluir selecionadas (${selectedAffiliateIds.size})` : 'Excluir selecionadas'}
+              </button>
+            </div>
           </div>
 
           <div className="mt-4 overflow-x-auto">
@@ -421,7 +492,7 @@ export default function AdminDashboard() {
                   <th className="pb-3 pr-4">Saldo</th>
                   <th className="pb-3 pr-4">Ativa/Inativa</th>
                   <th className="pb-3 pr-4">Dados de acesso</th>
-                  <th className="pb-3">Excluir</th>
+                  <th className="pb-3">Selecionar</th>
                 </tr>
               </thead>
               <tbody>
@@ -470,18 +541,24 @@ export default function AdminDashboard() {
                     <td className="py-4">
                       <button
                         type="button"
-                        onClick={() => openDeleteConfirmation(affiliate)}
-                        disabled={deletingId === affiliate.id}
-                        className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-black text-red-600 transition hover:bg-red-600 hover:text-white disabled:opacity-50"
+                        role="switch"
+                        aria-checked={selectedAffiliateIds.has(affiliate.id)}
+                        aria-label={`Selecionar ${affiliate.name} para exclusão`}
+                        onClick={() => toggleAffiliateSelection(affiliate.id)}
+                        disabled={deletingIds.length > 0}
+                        className={`relative h-8 w-[58px] rounded-full p-1 transition disabled:opacity-50 ${selectedAffiliateIds.has(affiliate.id) ? 'bg-red-500' : 'bg-zinc-200'}`}
                       >
-                        {deletingId === affiliate.id ? 'Excluindo…' : 'Excluir'}
+                        <span className={`block h-6 w-6 rounded-full bg-white shadow transition-transform ${selectedAffiliateIds.has(affiliate.id) ? 'translate-x-[26px]' : 'translate-x-0'}`} />
                       </button>
+                      <div className={`mt-1 text-[10px] font-black ${selectedAffiliateIds.has(affiliate.id) ? 'text-red-600' : 'text-zinc-400'}`}>
+                        {selectedAffiliateIds.has(affiliate.id) ? 'SELECIONADA' : 'NÃO SELECIONADA'}
+                      </div>
                     </td>
                   </tr>
                 ))}
                 {!filteredAffiliates.length && (
                   <tr>
-                    <td colSpan={8} className="py-10 text-center text-sm font-semibold text-zinc-400">
+                    <td colSpan={9} className="py-10 text-center text-sm font-semibold text-zinc-400">
                       Nenhuma afiliada encontrada{affiliateSearch ? ` para "${affiliateSearch}"` : ''}.
                     </td>
                   </tr>
@@ -489,6 +566,39 @@ export default function AdminDashboard() {
               </tbody>
             </table>
           </div>
+        </section>
+
+        <section className="mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
+          <div>
+            <h2 className="text-xl font-black text-zinc-950">Configurações de comissão</h2>
+            <p className="mt-1 text-sm text-zinc-400">Altere a meta de ticket médio e os valores pagos por pedido em cada faixa. A mudança vale para todas as afiliadas.</p>
+          </div>
+
+          <form onSubmit={saveSettings} className="mt-5 grid gap-4 md:grid-cols-5">
+            <label className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              <span className="text-[10px] font-black uppercase tracking-[.14em] text-amber-700">Meta ticket médio</span>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="font-black text-zinc-500">R$</span>
+                <input value={settingsForm.ticketThreshold} onChange={e => setSettingsForm(v => ({ ...v, ticketThreshold: e.target.value }))} inputMode="decimal" className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-lg font-black outline-none focus:border-amber-400" />
+              </div>
+              <p className="mt-2 text-[10px] font-semibold text-amber-700">Acima dessa meta, entra o bônus de +R$ 5,00/pedido.</p>
+            </label>
+
+            {[['none', 'Início'], ['bronze', 'Bronze'], ['silver', 'Prata'], ['gold', 'Ouro']].map(([key, label]) => (
+              <label key={key} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                <span className="text-[10px] font-black uppercase tracking-[.14em] text-zinc-500">{label} · por pedido</span>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="font-black text-zinc-500">R$</span>
+                  <input value={settingsForm[key]} onChange={e => setSettingsForm(v => ({ ...v, [key]: e.target.value }))} inputMode="decimal" className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-lg font-black outline-none focus:border-pink-400" />
+                </div>
+              </label>
+            ))}
+
+            <div className="md:col-span-5 flex flex-col gap-3 border-t border-zinc-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-zinc-400">Atual: meta {brl(settings.ticketThreshold)} · Início {brl(settings.commissions?.none)} · Bronze {brl(settings.commissions?.bronze)} · Prata {brl(settings.commissions?.silver)} · Ouro {brl(settings.commissions?.gold)}</p>
+              <button disabled={savingSettings} className="rounded-xl bg-zinc-950 px-5 py-3 text-sm font-black text-white transition hover:bg-pink-500 disabled:opacity-50">{savingSettings ? 'Atualizando…' : 'Atualizar valores'}</button>
+            </div>
+          </form>
         </section>
 
         <section className="mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
@@ -543,58 +653,32 @@ export default function AdminDashboard() {
         </section>
       </div>
 
-      {deleteAffiliate && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 px-5 py-8" onMouseDown={(event) => { if (event.target === event.currentTarget && !deletingId) setDeleteAffiliate(null) }}>
+      {deleteModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 px-5 py-8" onMouseDown={(event) => { if (event.target === event.currentTarget && !deletingIds.length) setDeleteModalOpen(false) }}>
           <div className="w-full max-w-lg rounded-[2rem] bg-white p-6 shadow-[0_30px_100px_rgba(0,0,0,.3)]">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-black uppercase tracking-[.22em] text-red-500">Exclusão permanente</p>
-                <h3 className="mt-1 text-2xl font-black text-zinc-950">Excluir {deleteAffiliate.name}?</h3>
+                <h3 className="mt-1 text-2xl font-black text-zinc-950">Excluir {selectedAffiliateIds.size} afiliada(s)?</h3>
               </div>
-              <button type="button" disabled={Boolean(deletingId)} onClick={() => setDeleteAffiliate(null)} className="h-9 w-9 rounded-full bg-zinc-100 text-zinc-500 disabled:opacity-50">×</button>
+              <button type="button" disabled={Boolean(deletingIds.length)} onClick={() => setDeleteModalOpen(false)} className="h-9 w-9 rounded-full bg-zinc-100 text-zinc-500 disabled:opacity-50">×</button>
             </div>
 
-            <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4">
-              <p className="text-sm font-black text-red-800">Esta ação não pode ser desfeita.</p>
-              <p className="mt-1 text-xs leading-5 text-red-700">Serão excluídos o cadastro da afiliada, a conta de autenticação e todos os eventos, pedidos, comissões e solicitações de saque relacionados.</p>
+            <div className="mt-5 max-h-40 overflow-y-auto rounded-2xl border border-red-200 bg-red-50 p-4">
+              {affiliates.filter(item => selectedAffiliateIds.has(item.id)).map(item => <p key={item.id} className="text-sm font-bold text-red-800">• {item.name}</p>)}
+              <p className="mt-3 text-xs leading-5 text-red-700">Esta ação não pode ser desfeita. Serão excluídos os cadastros, contas de autenticação e todos os eventos, pedidos, comissões e saques relacionados.</p>
             </div>
 
-            <form onSubmit={permanentlyDeleteAffiliate} className="mt-5 space-y-4">
+            <form onSubmit={permanentlyDeleteSelected} className="mt-5 space-y-4">
               <div>
-                <label className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Confirmação 1 de 2</label>
-                <p className="mt-1 text-xs text-zinc-500">Digite exatamente o nome da afiliada: <strong className="text-zinc-900">{deleteAffiliate.name}</strong></p>
-                <input
-                  value={deleteConfirmation}
-                  onChange={event => setDeleteConfirmation(event.target.value)}
-                  autoComplete="off"
-                  disabled={Boolean(deletingId)}
-                  placeholder="Nome da afiliada"
-                  className="mt-2 w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm outline-none focus:border-red-400 disabled:bg-zinc-50"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Confirmação 2 de 2</label>
-                <p className="mt-1 text-xs text-zinc-500">Digite <strong className="text-red-600">EXCLUIR</strong> para confirmar a exclusão definitiva.</p>
-                <input
-                  value={deletePhrase}
-                  onChange={event => setDeletePhrase(event.target.value.toUpperCase())}
-                  autoComplete="off"
-                  disabled={Boolean(deletingId)}
-                  placeholder="EXCLUIR"
-                  className="mt-2 w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm font-black uppercase tracking-[.15em] outline-none focus:border-red-400 disabled:bg-zinc-50"
-                />
+                <label className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Confirmação final</label>
+                <p className="mt-1 text-xs text-zinc-500">Digite <strong className="text-red-600">EXCLUIR</strong> para confirmar a exclusão definitiva das {selectedAffiliateIds.size} selecionadas.</p>
+                <input value={deletePhrase} onChange={event => setDeletePhrase(event.target.value.toUpperCase())} autoComplete="off" disabled={Boolean(deletingIds.length)} placeholder="EXCLUIR" className="mt-2 w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm font-black uppercase tracking-[.15em] outline-none focus:border-red-400 disabled:bg-zinc-50" />
               </div>
 
               <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
-                <button type="button" disabled={Boolean(deletingId)} onClick={() => setDeleteAffiliate(null)} className="rounded-xl border border-zinc-200 px-4 py-3 text-sm font-black text-zinc-600 disabled:opacity-50">Cancelar</button>
-                <button
-                  type="submit"
-                  disabled={Boolean(deletingId) || deleteConfirmation.trim() !== deleteAffiliate.name.trim() || deletePhrase !== 'EXCLUIR'}
-                  className="rounded-xl bg-red-600 px-4 py-3 text-sm font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {deletingId ? 'Excluindo definitivamente…' : 'Excluir definitivamente'}
-                </button>
+                <button type="button" disabled={Boolean(deletingIds.length)} onClick={() => setDeleteModalOpen(false)} className="rounded-xl border border-zinc-200 px-4 py-3 text-sm font-black text-zinc-600 disabled:opacity-50">Cancelar</button>
+                <button type="submit" disabled={Boolean(deletingIds.length) || deletePhrase !== 'EXCLUIR'} className="rounded-xl bg-red-600 px-4 py-3 text-sm font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40">{deletingIds.length ? 'Excluindo definitivamente…' : 'Excluir definitivamente'}</button>
               </div>
             </form>
           </div>

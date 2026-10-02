@@ -23,3 +23,21 @@ A migration do `supabase/schema.sql` adiciona:
 - `affiliate_withdrawals.pix_key`: cópia do PIX usado no momento de cada solicitação de saque.
 
 A afiliada pode substituir o PIX pelo painel. Saques novos usam a nova chave; saques antigos preservam a chave que foi registrada quando foram solicitados.
+
+
+## Configurações administrativas de comissão
+
+A migration `supabase/schema.sql` cria a tabela `affiliate_settings` com os valores globais de meta de ticket médio e comissão por faixa. Execute o SQL no Supabase antes de publicar esta versão.
+
+No painel `/admin`, o administrador pode alterar:
+- meta de ticket médio (padrão R$ 170,00);
+- comissão Início (padrão R$ 30,00/pedido);
+- comissão Bronze (padrão R$ 40,00/pedido);
+- comissão Prata (padrão R$ 50,00/pedido);
+- comissão Ouro (padrão R$ 60,00/pedido).
+
+O bônus de ticket permanece em R$ 5,00/pedido e o sistema passa a usar a meta configurada pelo administrador. A alteração é refletida no cálculo de comissão e nos textos/valores exibidos no painel das afiliadas.
+
+## Exclusão múltipla
+
+As afiliadas agora são selecionadas por um botão liga/desliga, sempre desmarcado ao entrar/atualizar o painel. A exclusão é feita por um único botão e exige duas confirmações: confirmação inicial do navegador e digitação de `EXCLUIR` na confirmação final.
