@@ -156,7 +156,7 @@ module.exports = async function handler(req, res) {
       ? availableCommission
       : Math.max(0, openingBalance + selectedCommission - selectedWithdrawalsTotal);
 
-    const teamMembers = await supabaseFetch(`/rest/v1/affiliates?team_parent_id=eq.${id}&select=id,name,slug,created_at&order=created_at.asc&limit=1000`);
+    const teamMembers = await supabaseFetch(`/rest/v1/affiliates?team_parent_id=eq.${id}&select=id,name,slug,whatsapp,created_at&order=created_at.asc&limit=1000`);
     const teamParentRows = affiliate.team_parent_id ? await supabaseFetch(`/rest/v1/affiliates?id=eq.${Number(affiliate.team_parent_id)}&select=id,name,slug&limit=1`) : [];
     const teamParent = teamParentRows?.[0] || null;
     const teamIds = (teamMembers || []).map(member => Number(member.id)).filter(Boolean);
@@ -195,7 +195,7 @@ module.exports = async function handler(req, res) {
       availableCommission: money(teamAvailableCommission),
       members: (teamMembers || []).map(member => {
         const sales = teamSalesByAffiliate.get(Number(member.id)) || 0;
-        return { id: Number(member.id), name: member.name, slug: member.slug, sales, commission: money(sales * teamRate) };
+        return { id: Number(member.id), name: member.name, slug: member.slug, whatsapp: member.whatsapp || '', sales, commission: money(sales * teamRate) };
       }),
     };
 

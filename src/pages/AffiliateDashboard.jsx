@@ -291,6 +291,12 @@ export default function AffiliateDashboard() {
               <input value={login.password} onChange={e => setLogin({...login,password:e.target.value})} type="password" required placeholder="Senha" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
               {error && <p className="text-xs text-red-500">{error}</p>}
               <button disabled={busy} className="w-full rounded-2xl bg-pink-500 py-3.5 font-bold text-white disabled:opacity-60">{busy ? 'Entrando…' : 'Entrar'}</button>
+              <a href="https://wa.me/553132784332" target="_blank" rel="noreferrer" className="flex items-center justify-center gap-1.5 pt-1 text-xs font-semibold text-zinc-400 transition-colors hover:text-zinc-600">
+                <span>Esqueceu sua senha? Fale com o Suporte</span>
+                <svg aria-hidden="true" viewBox="0 0 24 24" className="h-3.5 w-3.5 shrink-0 fill-current">
+                  <path d="M20.52 3.48A11.82 11.82 0 0 0 12.08 0C5.55 0 .24 5.31.24 11.84c0 2.09.55 4.13 1.59 5.93L.13 24l6.38-1.67a11.8 11.8 0 0 0 5.57 1.42h.01c6.53 0 11.84-5.31 11.84-11.84 0-3.16-1.23-6.13-3.41-8.43ZM12.09 21.8h-.01a9.91 9.91 0 0 1-5.05-1.39l-.36-.21-3.79.99 1.01-3.69-.23-.38a9.9 9.9 0 0 1-1.52-5.28C2.14 6.37 6.6 1.91 12.08 1.91c2.65 0 5.14 1.03 7.01 2.9a9.86 9.86 0 0 1 2.91 7.02c0 5.48-4.46 9.94-9.91 9.97Zm5.44-7.45c-.3-.15-1.78-.88-2.05-.98-.27-.1-.47-.15-.67.15-.2.3-.77.98-.94 1.18-.17.2-.35.22-.65.07-.3-.15-1.27-.47-2.42-1.49-.9-.8-1.51-1.78-1.69-2.08-.18-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.61-.92-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.49s1.07 2.89 1.22 3.09c.15.2 2.11 3.22 5.12 4.52.72.31 1.28.5 1.72.64.72.23 1.37.2 1.89.12.58-.09 1.78-.73 2.03-1.44.25-.71.25-1.32.18-1.44-.07-.12-.27-.2-.57-.35Z"/>
+                </svg>
+              </a>
             </form>
           ) : (
             <form onSubmit={submitRegister} className="mt-7 space-y-3">
@@ -314,6 +320,7 @@ export default function AffiliateDashboard() {
 
   const chart = dashboard?.chart || []
   const maxRevenue = Math.max(1, ...chart.map(x => Number(x.revenue || 0)))
+  const chartBarAreaHeight = 88
 
   const publicUrl = `${window.location.origin}/${affiliate.slug}`
   const qrUrl = `https://quickchart.io/qr?size=220&text=${encodeURIComponent(publicUrl)}`
@@ -468,22 +475,25 @@ export default function AffiliateDashboard() {
 
             <div ref={chartScrollRef} className={`mt-4 h-[155px] w-full ${selectedMonth === 'all' ? 'max-w-full overflow-x-auto' : 'max-w-[300px] overflow-x-auto'} overflow-y-hidden rounded-xl bg-white pb-2 overscroll-x-contain scroll-smooth`}>
               <div className={`h-[135px] ${selectedMonth === 'all' ? 'w-full min-w-[520px]' : 'w-max'} px-1`}>
-                <div className="flex h-[118px] items-end gap-1 border-b border-zinc-100">
+                <div className="flex h-[118px] items-end gap-1 border-b border-zinc-100 pt-[22px]">
                   {chart.map((item) => {
                     const revenue = Number(item.revenue || 0)
-                    const height = revenue ? Math.max(8, (revenue / maxRevenue) * 100) : 3
+                    const height = revenue ? Math.max(8, (revenue / maxRevenue) * chartBarAreaHeight) : 3
                     return (
                       <div key={item.date} data-chart-index={chart.indexOf(item)} className={`group flex h-full ${selectedMonth === 'all' ? 'min-w-[72px] flex-1' : 'w-[48px] shrink-0'} flex-col justify-end`}>
                         <div className="relative flex flex-1 items-end justify-center">
                           {revenue > 0 && (
-                            <span className="absolute bottom-[calc(var(--bar-height)+5px)] left-1/2 -translate-x-1/2 whitespace-nowrap text-[8px] font-black text-zinc-700" style={{ '--bar-height': `${height}%` }}>
+                            <span
+                              className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap text-[8px] font-black text-zinc-700"
+                              style={{ bottom: `${height + 5}px` }}
+                            >
                               {brl(revenue).replace('R$ ', 'R$')}
                             </span>
                           )}
                           <div
                             title={`${selectedMonth === 'all' ? (item.label || monthLabel(item.date)) : shortDate(item.date)} — ${brl(revenue)} — ${item.sales} venda(s)`}
                             className="w-[18px] rounded-t-md bg-pink-400 transition-all duration-300 group-hover:bg-pink-500"
-                            style={{ height: `${height}%`, minHeight: revenue ? undefined : '3px' }}
+                            style={{ height: `${height}px`, minHeight: revenue ? undefined : '3px' }}
                           />
                         </div>
                         <span className="mt-2 text-center text-[8px] font-bold text-zinc-400">{selectedMonth === 'all' ? (item.label || monthLabel(item.date)) : shortDate(item.date)}</span>
@@ -589,7 +599,7 @@ export default function AffiliateDashboard() {
           <div className="mt-5 overflow-x-auto">
             <table className="w-full min-w-[520px] text-sm">
               <thead><tr className="border-b border-zinc-100 text-left text-[10px] font-black uppercase tracking-[.14em] text-zinc-400"><th className="pb-3">Afiliada</th><th className="pb-3">ID</th><th className="pb-3">Vendas</th><th className="pb-3">Comissão gerada</th></tr></thead>
-              <tbody>{(team.members || []).map(member => <tr key={member.id} className="border-b border-zinc-100 last:border-0"><td className="py-3 font-black">{member.name}</td><td className="py-3 text-zinc-500">{member.id}</td><td className="py-3 font-bold">{member.sales}</td><td className="py-3 font-black text-pink-600">{brl(member.commission)}</td></tr>)}</tbody>
+              <tbody>{(team.members || []).map(member => <tr key={member.id} className="border-b border-zinc-100 last:border-0"><td className="py-3 font-black"><div className="flex items-center gap-2"><a href={member.whatsapp ? `https://wa.me/55${String(member.whatsapp).replace(/\D/g, '')}` : '#'} target={member.whatsapp ? '_blank' : undefined} rel={member.whatsapp ? 'noreferrer' : undefined} aria-label={member.whatsapp ? `Falar com ${member.name} pelo WhatsApp` : undefined} className={member.whatsapp ? 'text-[#25D366] transition-opacity hover:opacity-70' : 'pointer-events-none text-zinc-200'}><svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M20.52 3.48A11.82 11.82 0 0 0 12.08 0C5.55 0 .24 5.31.24 11.84c0 2.09.55 4.13 1.59 5.93L.13 24l6.38-1.67a11.8 11.8 0 0 0 5.57 1.42h.01c6.53 0 11.84-5.31 11.84-11.84 0-3.16-1.23-6.13-3.41-8.43ZM12.09 21.8h-.01a9.91 9.91 0 0 1-5.05-1.39l-.36-.21-3.79.99 1.01-3.69-.23-.38a9.9 9.9 0 0 1-1.52-5.28C2.14 6.37 6.6 1.91 12.08 1.91c2.65 0 5.14 1.03 7.01 2.9a9.86 9.86 0 0 1 2.91 7.02c0 5.48-4.46 9.94-9.91 9.97Zm5.44-7.45c-.3-.15-1.78-.88-2.05-.98-.27-.1-.47-.15-.67.15-.2.3-.77.98-.94 1.18-.17.2-.35.22-.65.07-.3-.15-1.27-.47-2.42-1.49-.9-.8-1.51-1.78-1.69-2.08-.18-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.61-.92-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.49s1.07 2.89 1.22 3.09c.15.2 2.11 3.22 5.12 4.52.72.31 1.28.5 1.72.64.72.23 1.37.2 1.89.12.58-.09 1.78-.73 2.03-1.44.25-.71.25-1.32.18-1.44-.07-.12-.27-.2-.57-.35Z"/></svg></a><span>{member.name}</span></div></td><td className="py-3 text-zinc-500">{member.id}</td><td className="py-3 font-bold">{member.sales}</td><td className="py-3 font-black text-pink-600">{brl(member.commission)}</td></tr>)}</tbody>
             </table>
             {!team.members?.length && <div className="py-6 text-center text-sm text-zinc-400">Nenhuma afiliada entrou na sua equipe ainda.</div>}
           </div>
