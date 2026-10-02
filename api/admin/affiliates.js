@@ -9,10 +9,11 @@ module.exports = async function handler(req, res) {
     await requireAdmin(req);
 
     if (req.method === 'GET') {
-      const [affiliates, orders, withdrawals, settingRows] = await Promise.all([
+      const [affiliates, orders, withdrawals, statusHistory, settingRows] = await Promise.all([
         supabaseFetch('/rest/v1/affiliates?select=id,slug,name,email,whatsapp,pix_key,active,admin_active,commission_rate,created_at&order=created_at.desc'),
         supabaseFetch('/rest/v1/affiliate_orders?select=affiliate_id,status,total,commission,created_at&order=created_at.desc&limit=20000'),
         supabaseFetch('/rest/v1/affiliate_withdrawals?select=affiliate_id,amount,status,requested_at&order=requested_at.desc&limit=10000'),
+        supabaseFetch('/rest/v1/affiliate_admin_status_history?select=affiliate_id,admin_active,effective_at&order=effective_at.asc&limit=20000').catch(() => []),
         supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,commission_none,commission_bronze,commission_silver,commission_gold&limit=1'),
       ]);
 
@@ -59,6 +60,13 @@ module.exports = async function handler(req, res) {
         for (const affiliate of affiliates || []) {
           if (staleAffiliateIds.includes(Number(affiliate.id))) affiliate.admin_active = false;
         }
+        await Promise.all(staleAffiliateIds.map(id =>
+          supabaseFetch('/rest/v1/affiliate_admin_status_history', {
+            method: 'POST',
+            headers: { Prefer: 'return=minimal' },
+            body: JSON.stringify({ affiliate_id: id, admin_active: false }),
+          }).catch(() => null)
+        ));
       }
 
       const stats = new Map();
@@ -127,11 +135,96 @@ module.exports = async function handler(req, res) {
       }), { sales: 0, revenue: 0 });
       globalAll.averageTicket = money(globalAll.sales ? globalAll.revenue / globalAll.sales : 0);
 
+      // Snapshots históricos: vendas/faturamento/ticket do período e estado das afiliadas
+      // no fechamento do último dia de cada mês.
+      const historyByAffiliate = new Map();
+      for (const row of statusHistory || []) {
+        const id = Number(row.affiliate_id);
+        if (!historyByAffiliate.has(id)) historyByAffiliate.set(id, []);
+        historyByAffiliate.get(id).push(row);
+      }
+
+      const paidOrders = (orders || []).filter(isPaidOrder).filter(order => order.created_at && !Number.isNaN(new Date(order.created_at).getTime()));
+      const monthsForSnapshot = Array.from(new Set([
+        ...Object.keys(monthlyStats),
+        ...((affiliates || []).map(a => { const d = new Date(a.created_at); return Number.isNaN(d.getTime()) ? null : `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}` }).filter(Boolean)),
+      ])).sort();
+
+      function endOfMonthExclusive(month) {
+        const [year, monthNumber] = String(month).split('-').map(Number);
+        return new Date(Date.UTC(year, monthNumber, 1));
+      }
+
+      function activeAtEnd(affiliate, endExclusive) {
+        const history = historyByAffiliate.get(Number(affiliate.id)) || [];
+        let latestHistory = null;
+        for (const row of history) {
+          const t = new Date(row.effective_at).getTime();
+          if (Number.isNaN(t) || t >= endExclusive.getTime()) continue;
+          if (!latestHistory || t > new Date(latestHistory.effective_at).getTime()) latestHistory = row;
+        }
+        if (latestHistory) return Boolean(latestHistory.admin_active);
+
+        // Compatibilidade para meses anteriores à criação do histórico: usa a regra
+        // automática vigente (nova afiliada sem venda continua ativa).
+        const created = new Date(affiliate.created_at).getTime();
+        if (Number.isNaN(created) || created >= endExclusive.getTime()) return null;
+        const cutoff = endExclusive.getTime() - (7 * 24 * 60 * 60 * 1000);
+        let lastSale = 0;
+        for (const order of paidOrders) {
+          if (Number(order.affiliate_id) !== Number(affiliate.id)) continue;
+          const t = new Date(order.created_at).getTime();
+          if (t < endExclusive.getTime() && t > lastSale) lastSale = t;
+        }
+        if (!lastSale) return true;
+        return lastSale >= cutoff;
+      }
+
+      const historicalStats = {};
+      for (const month of monthsForSnapshot) {
+        const endExclusive = endOfMonthExclusive(month);
+        const monthOrders = paidOrders.filter(order => new Date(order.created_at).getTime() < endExclusive.getTime());
+        const monthSales = paidOrders.filter(order => {
+          const t = new Date(order.created_at).getTime();
+          return t >= new Date(`${month}-01T00:00:00.000Z`).getTime() && t < endExclusive.getTime();
+        });
+        const monthRevenue = monthSales.reduce((sum, order) => sum + Number(order.total || 0), 0);
+
+        let affiliateCount = 0;
+        let activeCount = 0;
+        let inactiveCount = 0;
+        let balance = 0;
+        for (const affiliate of affiliates || []) {
+          const created = new Date(affiliate.created_at).getTime();
+          if (Number.isNaN(created) || created >= endExclusive.getTime()) continue;
+          affiliateCount += 1;
+          const activeAt = activeAtEnd(affiliate, endExclusive);
+          if (activeAt === true) activeCount += 1;
+          else if (activeAt === false) inactiveCount += 1;
+
+          const affiliateOrdersUntilEnd = monthOrders.filter(order => Number(order.affiliate_id) === Number(affiliate.id));
+          const commissionUntilEnd = commissionForOrders(affiliateOrdersUntilEnd, settings).total;
+          const withdrawalsUntilEnd = (withdrawals || []).filter(w => Number(w.affiliate_id) === Number(affiliate.id) && new Date(w.requested_at).getTime() < endExclusive.getTime() && ['pending','approved','paid'].includes(String(w.status || '').toLowerCase()))
+            .reduce((sum, w) => sum + Number(w.amount || 0), 0);
+          balance += Math.max(0, commissionUntilEnd - withdrawalsUntilEnd);
+        }
+
+        historicalStats[month] = {
+          affiliates: affiliateCount,
+          active: activeCount,
+          inactive: inactiveCount,
+          sales: monthSales.length,
+          revenue: money(monthRevenue),
+          averageTicket: money(monthSales.length ? monthRevenue / monthSales.length : 0),
+          totalBalance: money(balance),
+        };
+      }
+
       return json(res, 200, {
         affiliates: result,
         settings,
-        globalStats: { all: globalAll, byMonth: monthlyStats },
-        availableMonths: Object.keys(monthlyStats).sort().reverse(),
+        globalStats: { all: globalAll, byMonth: monthlyStats, snapshots: historicalStats },
+        availableMonths: monthsForSnapshot.sort().reverse(),
       });
     }
 
@@ -248,6 +341,13 @@ module.exports = async function handler(req, res) {
         headers: { Prefer: 'return=representation' },
           body: JSON.stringify(patch),
         });
+        if (typeof adminActive === 'boolean') {
+          await supabaseFetch('/rest/v1/affiliate_admin_status_history', {
+            method: 'POST',
+            headers: { Prefer: 'return=minimal' },
+            body: JSON.stringify({ affiliate_id: Number(id), admin_active: adminActive }),
+          });
+        }
       }
 
       if (wantsPasswordChange) {

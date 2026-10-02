@@ -57,9 +57,18 @@ module.exports = async function handler(req, res) {
           whatsapp: cleanWhatsapp,
           pix_key: null,
           active: true,
+          admin_active: true,
           commission_rate: 0.10,
         }),
       });
+
+      if (rows?.[0]?.id) {
+        await supabaseFetch('/rest/v1/affiliate_admin_status_history', {
+          method: 'POST',
+          headers: { Prefer: 'return=minimal' },
+          body: JSON.stringify({ affiliate_id: rows[0].id, admin_active: true }),
+        }).catch(() => null);
+      }
 
       const session = await authFetch('/auth/v1/token?grant_type=password', {
         method: 'POST',

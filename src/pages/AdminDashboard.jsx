@@ -96,7 +96,7 @@ export default function AdminDashboard() {
   const [settings, setSettings] = useState({ ticketThreshold: 170, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 } })
   const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', none: '30', bronze: '40', silver: '50', gold: '60' })
   const [savingSettings, setSavingSettings] = useState(false)
-  const [globalStatsData, setGlobalStatsData] = useState({ all: { sales: 0, revenue: 0, averageTicket: 0 }, byMonth: {} })
+  const [globalStatsData, setGlobalStatsData] = useState({ all: { sales: 0, revenue: 0, averageTicket: 0 }, byMonth: {}, snapshots: {} })
   const [availableMonths, setAvailableMonths] = useState([])
   const [selectedMonths, setSelectedMonths] = useState([])
   const [monthFilterOpen, setMonthFilterOpen] = useState(false)
@@ -108,7 +108,7 @@ export default function AdminDashboard() {
     ])
     setAffiliates(affiliateData.affiliates || [])
     setWithdrawals(withdrawalData.withdrawals || [])
-    setGlobalStatsData(affiliateData.globalStats || { all: { sales: 0, revenue: 0, averageTicket: 0 }, byMonth: {} })
+    setGlobalStatsData(affiliateData.globalStats || { all: { sales: 0, revenue: 0, averageTicket: 0 }, byMonth: {}, snapshots: {} })
     setAvailableMonths(affiliateData.availableMonths || [])
     const nextSettings = affiliateData.settings || { ticketThreshold: 170, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 } }
     setSettings(nextSettings)
@@ -313,29 +313,46 @@ export default function AdminDashboard() {
   }
 
   const stats = useMemo(() => {
-    const selected = selectedMonths.length
-      ? selectedMonths.reduce((acc, month) => {
-          const value = globalStatsData.byMonth?.[month]
-          if (!value) return acc
-          acc.sales += Number(value.sales || 0)
-          acc.revenue += Number(value.revenue || 0)
-          return acc
-        }, { sales: 0, revenue: 0 })
-      : { sales: Number(globalStatsData.all?.sales || 0), revenue: Number(globalStatsData.all?.revenue || 0) }
-    selected.averageTicket = selected.sales ? selected.revenue / selected.sales : 0
-    const totalBalance = affiliates.reduce((sum, affiliate) => sum + Number(affiliate.balance || 0), 0)
+    if (!selectedMonths.length) {
+      const totalSales = Number(globalStatsData.all?.sales || 0)
+      const totalRevenue = Number(globalStatsData.all?.revenue || 0)
+      const pending = withdrawals.filter(item => item.status === 'pending' || item.status === 'approved')
+      return {
+        affiliates: affiliates.length,
+        active: affiliates.filter(item => item.adminActive).length,
+        inactive: affiliates.filter(item => !item.adminActive).length,
+        totalSales,
+        totalRevenue,
+        averageTicket: totalSales ? totalRevenue / totalSales : 0,
+        totalBalance: affiliates.reduce((sum, affiliate) => sum + Number(affiliate.balance || 0), 0),
+        pendingCount: pending.length,
+        pendingAmount: pending.reduce((sum, item) => sum + Number(item.amount || 0), 0),
+      }
+    }
+
+    // Para 1 ou vários meses: vendas/faturamento/ticket são acumulados apenas
+    // nos meses selecionados; afiliadas/ativas/inativas/saldo são o snapshot
+    // do fechamento do último mês selecionado.
+    const selected = selectedMonths.reduce((acc, month) => {
+      const value = globalStatsData.byMonth?.[month]
+      if (!value) return acc
+      acc.sales += Number(value.sales || 0)
+      acc.revenue += Number(value.revenue || 0)
+      return acc
+    }, { sales: 0, revenue: 0 })
+    const snapshotMonth = [...selectedMonths].sort().at(-1)
+    const snapshot = globalStatsData.snapshots?.[snapshotMonth] || {}
     const pending = withdrawals.filter(item => item.status === 'pending' || item.status === 'approved')
-    const pendingAmount = pending.reduce((sum, item) => sum + Number(item.amount || 0), 0)
     return {
-      affiliates: affiliates.length,
-      active: affiliates.filter(item => item.adminActive).length,
-      inactive: affiliates.filter(item => !item.adminActive).length,
+      affiliates: Number(snapshot.affiliates || 0),
+      active: Number(snapshot.active || 0),
+      inactive: Number(snapshot.inactive || 0),
       totalSales: selected.sales,
       totalRevenue: selected.revenue,
-      averageTicket: selected.averageTicket,
-      totalBalance,
+      averageTicket: selected.sales ? selected.revenue / selected.sales : 0,
+      totalBalance: Number(snapshot.totalBalance || 0),
       pendingCount: pending.length,
-      pendingAmount,
+      pendingAmount: pending.reduce((sum, item) => sum + Number(item.amount || 0), 0),
     }
   }, [affiliates, withdrawals, globalStatsData, selectedMonths])
 
@@ -472,21 +489,33 @@ export default function AdminDashboard() {
               )}
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
-          {[
-            ['Afiliadas', stats.affiliates],
-            ['Ativas', stats.active],
-            ['Inativas', stats.inactive],
-            ['Vendas acumuladas', stats.totalSales],
-            ['Faturamento', brl(stats.totalRevenue)],
-            ['Ticket médio', brl(stats.averageTicket)],
-            ['Saldo das afiliadas', brl(stats.totalBalance)],
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
-              <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">{label}</p>
-              <p className="mt-2 text-2xl font-black text-zinc-950">{value}</p>
-            </div>
-          ))}
+          <div className="grid gap-3 sm:grid-cols-3">
+            {[
+              ['Vendas acumuladas', stats.totalSales],
+              ['Ticket médio', brl(stats.averageTicket)],
+              ['Faturamento', brl(stats.totalRevenue)],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
+                <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">{label}</p>
+                <p className="mt-2 text-2xl font-black text-zinc-950">{value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="my-5 h-px w-full bg-zinc-200/70" aria-hidden="true" />
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              ['Afiliadas', stats.affiliates],
+              ['Ativas', stats.active],
+              ['Inativas', stats.inactive],
+              ['Saldo das afiliadas', brl(stats.totalBalance)],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
+                <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">{label}</p>
+                <p className="mt-2 text-2xl font-black text-zinc-950">{value}</p>
+              </div>
+            ))}
           </div>
         </section>
 
