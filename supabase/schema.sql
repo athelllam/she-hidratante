@@ -61,3 +61,10 @@ create table if not exists public.affiliate_withdrawals (
 
 create index if not exists affiliate_withdrawals_affiliate_idx on public.affiliate_withdrawals(affiliate_id, requested_at desc);
 alter table public.affiliate_withdrawals enable row level security;
+
+-- Status administrativo separado do status operacional da afiliada.
+-- Não interfere em login, links, checkout ou recebimento de comissão.
+alter table public.affiliates
+  add column if not exists admin_active boolean not null default true;
+
+create index if not exists affiliates_admin_active_idx on public.affiliates(admin_active);

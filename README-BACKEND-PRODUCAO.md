@@ -81,3 +81,20 @@ O `src/` desta entrega já contém as alterações de frontend.
 ## Observação
 
 O código está preparado para Vercel Serverless + Supabase e não depende de uma biblioteca adicional de backend. As credenciais da sua conta Supabase/Yampi são a única parte que não pode ser criada por código dentro do ZIP.
+
+## Atualização do painel administrativo
+
+Antes de publicar esta versão, execute no Supabase SQL Editor o trecho abaixo (ele também está no final de `supabase/schema.sql`):
+
+```sql
+alter table public.affiliates
+  add column if not exists admin_active boolean not null default true;
+
+create index if not exists affiliates_admin_active_idx on public.affiliates(admin_active);
+```
+
+`admin_active` é separado de `active`. Portanto, marcar uma afiliada como INATIVA no painel administrativo não bloqueia o login dela, não altera os links, não interrompe checkout e não interfere no cálculo de comissão.
+
+O painel considera venda apenas pedido pago conforme `isPaidOrder` e, se a afiliada ficar 7 dias sem nenhuma venda paga, marca automaticamente `admin_active=false` na próxima atualização do painel.
+
+A senha atual das afiliadas não é recuperável pelo Supabase Auth. O painel mostra o e-mail e permite ao administrador definir uma nova senha pelo botão de dados de acesso, sem armazenar senha em texto puro.

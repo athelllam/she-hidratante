@@ -10,7 +10,7 @@ module.exports = async function handler(req, res) {
 
     if (req.method === 'GET') {
       const [affiliates, orders, withdrawals] = await Promise.all([
-        supabaseFetch('/rest/v1/affiliates?select=id,slug,name,email,active,commission_rate,created_at&order=created_at.desc'),
+        supabaseFetch('/rest/v1/affiliates?select=id,slug,name,email,active,admin_active,commission_rate,created_at&order=created_at.desc'),
         supabaseFetch('/rest/v1/affiliate_orders?select=affiliate_id,status,total,commission,created_at&order=created_at.desc&limit=20000'),
         supabaseFetch('/rest/v1/affiliate_withdrawals?select=affiliate_id,amount,status,requested_at&order=requested_at.desc&limit=10000'),
       ]);
@@ -22,10 +22,41 @@ module.exports = async function handler(req, res) {
         ordersByAffiliate.get(id).push(order);
       }
 
+      const cutoff = Date.now() - (7 * 24 * 60 * 60 * 1000);
+      const staleAffiliateIds = [];
+
+      for (const affiliate of affiliates || []) {
+        const affiliateOrders = ordersByAffiliate.get(Number(affiliate.id)) || [];
+        const paidOrders = affiliateOrders.filter(isPaidOrder);
+        const lastSaleAt = paidOrders.reduce((latest, order) => {
+          const value = order.created_at ? new Date(order.created_at).getTime() : 0;
+          return value > latest ? value : latest;
+        }, 0);
+        if (Boolean(affiliate.admin_active) && (!lastSaleAt || lastSaleAt < cutoff)) {
+          staleAffiliateIds.push(Number(affiliate.id));
+        }
+      }
+
+      if (staleAffiliateIds.length) {
+        await Promise.all(staleAffiliateIds.map(id =>
+          supabaseFetch(`/rest/v1/affiliates?id=eq.${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ admin_active: false }),
+          }).catch(() => null)
+        ));
+        for (const affiliate of affiliates || []) {
+          if (staleAffiliateIds.includes(Number(affiliate.id))) affiliate.admin_active = false;
+        }
+      }
+
       const stats = new Map();
       for (const affiliate of affiliates || []) {
         const affiliateOrders = ordersByAffiliate.get(Number(affiliate.id)) || [];
         const paidOrders = affiliateOrders.filter(isPaidOrder);
+        const lastSaleAt = paidOrders.reduce((latest, order) => {
+          const value = order.created_at ? new Date(order.created_at).getTime() : 0;
+          return value > latest ? value : latest;
+        }, 0);
         const commissionData = commissionForOrders(affiliateOrders);
         const revenue = paidOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
         stats.set(Number(affiliate.id), {
@@ -33,6 +64,8 @@ module.exports = async function handler(req, res) {
           revenue,
           commission: commissionData.total,
           withdrawals: 0,
+          lastSaleAt: lastSaleAt ? new Date(lastSaleAt).toISOString() : null,
+          autoInactive: !lastSaleAt || lastSaleAt < cutoff,
         });
       }
 
@@ -54,6 +87,9 @@ module.exports = async function handler(req, res) {
           averageTicket: money(bucket.sales ? bucket.revenue / bucket.sales : 0),
           earnedCommission: money(bucket.commission),
           balance: money(Math.max(0, bucket.commission - bucket.withdrawals)),
+          adminActive: Boolean(affiliate.admin_active),
+          lastSaleAt: bucket.lastSaleAt,
+          autoInactive: Boolean(bucket.autoInactive),
         };
       });
 
@@ -61,18 +97,36 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'PATCH') {
-      const { id, active, commissionRate } = req.body || {};
+      const { id, active, adminActive, commissionRate, password } = req.body || {};
       if (!id) return json(res, 400, { error: 'ID obrigatório.' });
       const patch = {};
       if (typeof active === 'boolean') patch.active = active;
+      if (typeof adminActive === 'boolean') patch.admin_active = adminActive;
       if (commissionRate != null) patch.commission_rate = Number(commissionRate);
-      if (!Object.keys(patch).length) return json(res, 400, { error: 'Nenhuma alteração informada.' });
-      const rows = await supabaseFetch(`/rest/v1/affiliates?id=eq.${Number(id)}`, {
+      const wantsPasswordChange = typeof password === 'string' && password.length > 0;
+      if (wantsPasswordChange && password.length < 8) return json(res, 400, { error: 'A nova senha precisa ter pelo menos 8 caracteres.' });
+      if (!Object.keys(patch).length && !wantsPasswordChange) return json(res, 400, { error: 'Nenhuma alteração informada.' });
+
+      const current = await supabaseFetch(`/rest/v1/affiliates?id=eq.${Number(id)}&select=id,auth_user_id&limit=1`);
+      if (!current?.[0]) return json(res, 404, { error: 'Afiliada não encontrada.' });
+
+      let rows = [];
+      if (Object.keys(patch).length) {
+        rows = await supabaseFetch(`/rest/v1/affiliates?id=eq.${Number(id)}`, {
         method: 'PATCH',
         headers: { Prefer: 'return=representation' },
-        body: JSON.stringify(patch),
-      });
-      return json(res, 200, { affiliate: rows?.[0] || null });
+          body: JSON.stringify(patch),
+        });
+      }
+
+      if (wantsPasswordChange) {
+        await supabaseFetch(`/auth/v1/admin/users/${encodeURIComponent(current[0].auth_user_id)}`, {
+          method: 'PUT',
+          body: JSON.stringify({ password }),
+        });
+      }
+
+      return json(res, 200, { affiliate: rows?.[0] || current[0], passwordUpdated: wantsPasswordChange });
     }
 
     return json(res, 405, { error: 'Método não permitido.' });
