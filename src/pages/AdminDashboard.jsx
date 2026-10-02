@@ -84,6 +84,7 @@ export default function AdminDashboard() {
   const [togglingId, setTogglingId] = useState(null)
   const [message, setMessage] = useState('')
   const [affiliateFilter, setAffiliateFilter] = useState('all')
+  const [affiliateSearch, setAffiliateSearch] = useState('')
   const [withdrawalFilter, setWithdrawalFilter] = useState('all')
   const [credentialsAffiliate, setCredentialsAffiliate] = useState(null)
   const [newPassword, setNewPassword] = useState('')
@@ -261,10 +262,23 @@ export default function AdminDashboard() {
   }, [affiliates, withdrawals])
 
   const filteredAffiliates = useMemo(() => {
-    if (affiliateFilter === 'active') return affiliates.filter(item => item.adminActive)
-    if (affiliateFilter === 'inactive') return affiliates.filter(item => !item.adminActive)
-    return affiliates
-  }, [affiliates, affiliateFilter])
+    const query = affiliateSearch.trim().toLocaleLowerCase('pt-BR')
+    const filtered = affiliates.filter(item => {
+      const matchesStatus = affiliateFilter === 'all'
+        ? true
+        : affiliateFilter === 'active'
+          ? Boolean(item.adminActive)
+          : !item.adminActive
+      const matchesName = !query || String(item.name || '').toLocaleLowerCase('pt-BR').includes(query)
+      return matchesStatus && matchesName
+    })
+
+    return [...filtered].sort((a, b) => {
+      const salesDifference = Number(b.sales || 0) - Number(a.sales || 0)
+      if (salesDifference !== 0) return salesDifference
+      return String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR', { sensitivity: 'base' })
+    })
+  }, [affiliates, affiliateFilter, affiliateSearch])
 
   const filteredWithdrawals = useMemo(() => {
     if (withdrawalFilter === 'pending') return withdrawals.filter(item => item.status === 'pending' || item.status === 'approved')
@@ -368,7 +382,34 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <div className="mt-5 overflow-x-auto">
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full sm:max-w-sm">
+              <svg viewBox="0 0 24 24" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-4-4" />
+              </svg>
+              <input
+                value={affiliateSearch}
+                onChange={event => setAffiliateSearch(event.target.value)}
+                placeholder="Pesquisar afiliada pelo nome"
+                type="search"
+                className="w-full rounded-xl border border-zinc-200 bg-white py-3 pl-9 pr-9 text-sm font-semibold text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-pink-400"
+              />
+              {affiliateSearch && (
+                <button
+                  type="button"
+                  onClick={() => setAffiliateSearch('')}
+                  aria-label="Limpar pesquisa"
+                  className="absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2 rounded-full text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+            <p className="text-xs font-semibold text-zinc-400">Ordenado por maior número de vendas</p>
+          </div>
+
+          <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[1120px] text-sm">
               <thead>
                 <tr className="border-b border-zinc-100 text-left text-[10px] font-black uppercase tracking-[.14em] text-zinc-400">
@@ -436,9 +477,15 @@ export default function AdminDashboard() {
                     </td>
                   </tr>
                 ))}
+                {!filteredAffiliates.length && (
+                  <tr>
+                    <td colSpan={8} className="py-10 text-center text-sm font-semibold text-zinc-400">
+                      Nenhuma afiliada encontrada{affiliateSearch ? ` para "${affiliateSearch}"` : ''}.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
-            {!filteredAffiliates.length && <div className="py-10 text-center text-sm text-zinc-400">Nenhuma afiliada encontrada nesse filtro.</div>}
           </div>
         </section>
 
