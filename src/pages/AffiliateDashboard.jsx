@@ -275,20 +275,31 @@ export default function AffiliateDashboard() {
             </div>
           </div>
 
-          <div className="relative mt-7 h-5 rounded-full bg-black/10">
-            <div className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-orange-400 via-zinc-400 to-amber-400 transition-all duration-700" style={{ width: `${level.progress}%` }} />
+          <div className="relative mt-8 h-[92px] px-3 sm:px-5">
+            <div className="absolute left-3 right-3 top-4 h-4 rounded-full bg-black/10 sm:left-5 sm:right-5">
+              <div className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-orange-400 via-zinc-400 to-amber-400 transition-all duration-700" style={{ width: `${level.progress}%` }} />
+            </div>
+
+            <div className="absolute left-0 top-0 text-left">
+              <div className="whitespace-nowrap text-[15px] font-black leading-none text-zinc-900 sm:text-base">R$ 30,00 <span className="text-[10px] font-bold text-zinc-500 sm:text-xs">/pedido</span></div>
+            </div>
+
             {[
-              { label: 'Bronze', min: 10, image: '/badge-bronze.svg' },
-              { label: 'Prata', min: 50, image: '/badge-silver.svg' },
-              { label: 'Ouro', min: 101, image: '/badge-gold.svg' },
-            ].map(item => (
-              <div key={item.label} className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ left: `${(item.min / 101) * 100}%` }}>
-                <div className="relative h-12 w-12 rounded-full border-2 border-white bg-white shadow-[0_6px_18px_rgba(0,0,0,.16)]">
-                  <img src={item.image} alt={`Broche ${item.label}`} className="h-full w-full object-contain" />
+              { label: 'Bronze', min: 10, image: '/badge-bronze.svg', rate: 'R$ 40,00', tone: 'text-[#9a5a22]' },
+              { label: 'Prata', min: 50, image: '/badge-silver.svg', rate: 'R$ 50,00', tone: 'text-zinc-500' },
+              { label: 'Ouro', min: 101, image: '/badge-gold.svg', rate: 'R$ 60,00', tone: 'text-amber-600' },
+            ].map(item => {
+              const markerLeft = item.label === 'Bronze' ? '10%' : item.label === 'Prata' ? '55%' : '100%'
+              return (
+                <div key={item.label} className="absolute top-0 -translate-x-1/2 text-center" style={{ left: markerLeft }}>
+                  <div className="mx-auto h-10 w-10 rounded-full border-2 border-white bg-white shadow-[0_5px_14px_rgba(0,0,0,.14)] sm:h-12 sm:w-12">
+                    <img src={item.image} alt={`Broche ${item.label}`} className="h-full w-full object-contain" />
+                  </div>
+                  <div className={`mt-1 whitespace-nowrap text-[11px] font-black leading-none sm:text-xs ${item.tone}`}>{item.rate}<span className="ml-0.5 text-[8px] font-bold sm:text-[9px]">/pedido</span></div>
+                  <div className="mt-1 text-[8px] font-black uppercase tracking-wider text-zinc-400 sm:text-[9px]">{item.label}</div>
                 </div>
-                <div className="absolute left-1/2 top-[3.25rem] -translate-x-1/2 whitespace-nowrap text-[10px] font-black uppercase tracking-wider text-zinc-600">{item.label}</div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </section>
 
@@ -332,8 +343,8 @@ export default function AffiliateDashboard() {
           </div>
         </section>
 
-        <section className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
-          <div className="self-start rounded-[1.5rem] bg-white p-5 border border-pink-100 shadow-sm">
+        <section className="mt-6 grid items-start gap-6 lg:grid-cols-[520px_380px]">
+          <div className="self-start w-full max-w-[520px] rounded-[1.5rem] bg-white p-5 border border-pink-100 shadow-sm">
             <div className="flex items-end justify-between gap-4">
               <div>
                 <h2 className="font-black text-xl">Desempenho diário</h2>
@@ -342,14 +353,14 @@ export default function AffiliateDashboard() {
               <div className="hidden sm:block text-right text-xs text-zinc-400">Arraste para ver os dias anteriores</div>
             </div>
 
-            <div ref={chartScrollRef} className="mt-4 h-[190px] overflow-x-auto overflow-y-hidden rounded-xl bg-white pb-2 overscroll-x-contain">
-              <div className="h-[165px] min-w-max px-1">
-                <div className="flex h-[145px] items-end gap-1 border-b border-zinc-100">
+            <div ref={chartScrollRef} className="mt-4 h-[155px] w-full max-w-[300px] overflow-x-auto overflow-y-hidden rounded-xl bg-white pb-2 overscroll-x-contain scroll-smooth">
+              <div className="h-[135px] w-max px-1">
+                <div className="flex h-[118px] items-end gap-1 border-b border-zinc-100">
                   {chart.map((item) => {
                     const revenue = Number(item.revenue || 0)
                     const height = revenue ? Math.max(8, (revenue / maxRevenue) * 100) : 3
                     return (
-                      <div key={item.date} className="group flex h-full w-[42px] shrink-0 flex-col justify-end">
+                      <div key={item.date} className="group flex h-full w-[48px] shrink-0 flex-col justify-end">
                         <div className="relative flex flex-1 items-end justify-center">
                           {revenue > 0 && (
                             <span className="absolute bottom-[calc(var(--bar-height)+5px)] left-1/2 -translate-x-1/2 whitespace-nowrap text-[8px] font-black text-zinc-700" style={{ '--bar-height': `${height}%` }}>
