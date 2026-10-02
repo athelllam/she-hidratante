@@ -1,6 +1,7 @@
 const DEFAULT_COMMISSION_CONFIG = {
   ticketThreshold: 170,
   ticketBonus: 5,
+  teamCommissionPerSale: 10,
   commissions: {
     none: 30,
     bronze: 40,
@@ -29,6 +30,7 @@ function normalizeConfig(config = {}) {
   return {
     ticketThreshold: Number.isFinite(Number(config.ticketThreshold)) ? Number(config.ticketThreshold) : DEFAULT_COMMISSION_CONFIG.ticketThreshold,
     ticketBonus: Number.isFinite(Number(config.ticketBonus)) ? Number(config.ticketBonus) : DEFAULT_COMMISSION_CONFIG.ticketBonus,
+    teamCommissionPerSale: Number.isFinite(Number(config.teamCommissionPerSale)) ? Number(config.teamCommissionPerSale) : DEFAULT_COMMISSION_CONFIG.teamCommissionPerSale,
     commissions: {
       none: Number.isFinite(Number(commissions.none)) ? Number(commissions.none) : DEFAULT_COMMISSION_CONFIG.commissions.none,
       bronze: Number.isFinite(Number(commissions.bronze)) ? Number(commissions.bronze) : DEFAULT_COMMISSION_CONFIG.commissions.bronze,

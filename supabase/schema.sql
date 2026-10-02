@@ -118,3 +118,23 @@ values (1)
 on conflict (id) do nothing;
 
 alter table public.affiliate_settings enable row level security;
+
+
+-- Rede de equipe de 1 nível. Cada afiliada pode ter uma única afiliada mãe.
+-- Ao excluir a mãe, a filha permanece no sistema, mas fica sem equipe.
+alter table public.affiliates
+  add column if not exists team_parent_id bigint references public.affiliates(id) on delete set null;
+
+create index if not exists affiliates_team_parent_idx on public.affiliates(team_parent_id);
+
+-- Origem do saque: pessoal ou comissão de equipe.
+alter table public.affiliate_withdrawals
+  add column if not exists source text not null default 'personal';
+
+update public.affiliate_withdrawals
+set source = 'personal'
+where source is null or source = '';
+
+-- Comissão paga por cada venda de uma afiliada direta da equipe.
+alter table public.affiliate_settings
+  add column if not exists team_commission_per_sale numeric(12,2) not null default 10.00;

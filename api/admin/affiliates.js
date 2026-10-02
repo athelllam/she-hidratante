@@ -12,15 +12,16 @@ module.exports = async function handler(req, res) {
       const [affiliates, orders, withdrawals, events, statusHistory, settingRows] = await Promise.all([
         supabaseFetch('/rest/v1/affiliates?select=id,slug,name,email,whatsapp,pix_key,active,admin_active,commission_rate,created_at&order=created_at.desc'),
         supabaseFetch('/rest/v1/affiliate_orders?select=affiliate_id,status,total,commission,created_at&order=created_at.desc&limit=20000'),
-        supabaseFetch('/rest/v1/affiliate_withdrawals?select=affiliate_id,amount,status,requested_at&order=requested_at.desc&limit=10000'),
+        supabaseFetch('/rest/v1/affiliate_withdrawals?select=affiliate_id,amount,status,source,requested_at&order=requested_at.desc&limit=10000'),
         supabaseFetch('/rest/v1/affiliate_events?select=affiliate_id,type,created_at&order=created_at.desc&limit=20000'),
         supabaseFetch('/rest/v1/affiliate_admin_status_history?select=affiliate_id,admin_active,effective_at&order=effective_at.asc&limit=20000').catch(() => []),
-        supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,commission_none,commission_bronze,commission_silver,commission_gold&limit=1'),
+        supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold&limit=1'),
       ]);
 
       const settings = normalizeConfig(settingRows?.[0] ? {
         ticketThreshold: settingRows[0].ticket_threshold,
         ticketBonus: settingRows[0].ticket_bonus,
+        teamCommissionPerSale: settingRows[0].team_commission_per_sale,
         commissions: {
           none: settingRows[0].commission_none,
           bronze: settingRows[0].commission_bronze,
@@ -102,7 +103,7 @@ module.exports = async function handler(req, res) {
         const id = Number(withdrawal.affiliate_id);
         const bucket = stats.get(id);
         if (!bucket) continue;
-        if (['pending', 'approved', 'paid'].includes(String(withdrawal.status || '').toLowerCase())) {
+        if (String(withdrawal.source || 'personal') === 'personal' && ['pending', 'approved', 'paid'].includes(String(withdrawal.status || '').toLowerCase())) {
           bucket.withdrawals += Number(withdrawal.amount || 0);
         }
       }
@@ -234,7 +235,7 @@ module.exports = async function handler(req, res) {
 
           const affiliateOrdersUntilEnd = monthOrders.filter(order => Number(order.affiliate_id) === Number(affiliate.id));
           const commissionUntilEnd = commissionForOrders(affiliateOrdersUntilEnd, settings).total;
-          const withdrawalsUntilEnd = (withdrawals || []).filter(w => Number(w.affiliate_id) === Number(affiliate.id) && new Date(w.requested_at).getTime() < endExclusive.getTime() && ['pending','approved','paid'].includes(String(w.status || '').toLowerCase()))
+          const withdrawalsUntilEnd = (withdrawals || []).filter(w => String(w.source || 'personal') === 'personal' && Number(w.affiliate_id) === Number(affiliate.id) && new Date(w.requested_at).getTime() < endExclusive.getTime() && ['pending','approved','paid'].includes(String(w.status || '').toLowerCase()))
             .reduce((sum, w) => sum + Number(w.amount || 0), 0);
           balance += Math.max(0, commissionUntilEnd - withdrawalsUntilEnd);
         }
@@ -324,15 +325,17 @@ module.exports = async function handler(req, res) {
       const { id, active, adminActive, commissionRate, password, settings: requestedSettings } = req.body || {};
 
       if (requestedSettings) {
-        const currentRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,commission_none,commission_bronze,commission_silver,commission_gold&limit=1');
+        const currentRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold&limit=1');
         const currentSettings = normalizeConfig(currentRows?.[0] ? {
           ticketThreshold: currentRows[0].ticket_threshold,
           ticketBonus: currentRows[0].ticket_bonus,
+          teamCommissionPerSale: currentRows[0].team_commission_per_sale,
           commissions: { none: currentRows[0].commission_none, bronze: currentRows[0].commission_bronze, silver: currentRows[0].commission_silver, gold: currentRows[0].commission_gold },
         } : DEFAULT_COMMISSION_CONFIG);
         const nextSettings = normalizeConfig({
           ticketThreshold: requestedSettings.ticketThreshold,
           ticketBonus: currentSettings.ticketBonus,
+          teamCommissionPerSale: requestedSettings.teamCommissionPerSale,
           commissions: requestedSettings.commissions,
         });
         if (nextSettings.ticketThreshold <= 0 || Object.values(nextSettings.commissions).some(value => value < 0)) {
@@ -343,6 +346,7 @@ module.exports = async function handler(req, res) {
           headers: { Prefer: 'return=representation' },
           body: JSON.stringify({
             ticket_threshold: nextSettings.ticketThreshold,
+            team_commission_per_sale: nextSettings.teamCommissionPerSale,
             commission_none: nextSettings.commissions.none,
             commission_bronze: nextSettings.commissions.bronze,
             commission_silver: nextSettings.commissions.silver,

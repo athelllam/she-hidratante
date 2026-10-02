@@ -93,8 +93,8 @@ export default function AdminDashboard() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deletePhrase, setDeletePhrase] = useState('')
   const [deletingIds, setDeletingIds] = useState([])
-  const [settings, setSettings] = useState({ ticketThreshold: 170, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 } })
-  const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', none: '30', bronze: '40', silver: '50', gold: '60' })
+  const [settings, setSettings] = useState({ ticketThreshold: 170, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 } })
+  const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', teamCommissionPerSale: '10', none: '30', bronze: '40', silver: '50', gold: '60' })
   const [savingSettings, setSavingSettings] = useState(false)
   const [globalStatsData, setGlobalStatsData] = useState({ all: { sales: 0, revenue: 0, averageTicket: 0, accesses: 0 }, byMonth: {}, snapshots: {} })
   const [availableMonths, setAvailableMonths] = useState([])
@@ -110,10 +110,11 @@ export default function AdminDashboard() {
     setWithdrawals(withdrawalData.withdrawals || [])
     setGlobalStatsData(affiliateData.globalStats || { all: { sales: 0, revenue: 0, averageTicket: 0, accesses: 0 }, byMonth: {}, snapshots: {} })
     setAvailableMonths(affiliateData.availableMonths || [])
-    const nextSettings = affiliateData.settings || { ticketThreshold: 170, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 } }
+    const nextSettings = affiliateData.settings || { ticketThreshold: 170, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 } }
     setSettings(nextSettings)
     setSettingsForm({
       ticketThreshold: String(nextSettings.ticketThreshold),
+      teamCommissionPerSale: String(nextSettings.teamCommissionPerSale ?? 10),
       none: String(nextSettings.commissions?.none ?? 30),
       bronze: String(nextSettings.commissions?.bronze ?? 40),
       silver: String(nextSettings.commissions?.silver ?? 50),
@@ -261,6 +262,7 @@ export default function AdminDashboard() {
     try {
       const payload = {
         ticketThreshold: Number(String(settingsForm.ticketThreshold).replace(',', '.')),
+        teamCommissionPerSale: Number(String(settingsForm.teamCommissionPerSale).replace(',', '.')),
         commissions: {
           none: Number(String(settingsForm.none).replace(',', '.')),
           bronze: Number(String(settingsForm.bronze).replace(',', '.')),
@@ -268,7 +270,7 @@ export default function AdminDashboard() {
           gold: Number(String(settingsForm.gold).replace(',', '.')),
         },
       }
-      if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0)) {
+      if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || !Number.isFinite(payload.teamCommissionPerSale) || payload.teamCommissionPerSale < 0 || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0)) {
         throw new Error('Informe valores válidos. A meta do ticket deve ser maior que zero e as comissões não podem ser negativas.')
       }
       const result = await api('/api/admin/affiliates', {
@@ -278,12 +280,13 @@ export default function AdminDashboard() {
       setSettings(result.settings)
       setSettingsForm({
         ticketThreshold: String(result.settings.ticketThreshold),
+        teamCommissionPerSale: String(result.settings.teamCommissionPerSale ?? 10),
         none: String(result.settings.commissions.none),
         bronze: String(result.settings.commissions.bronze),
         silver: String(result.settings.commissions.silver),
         gold: String(result.settings.commissions.gold),
       })
-      setMessage('Configurações de comissão e ticket médio atualizadas para todas as afiliadas.')
+      setMessage('Configurações de comissão pessoal, comissão de equipe e ticket médio atualizadas para todas as afiliadas.')
       await loadPanel()
     } catch (e) {
       setMessage(e.message || 'Não foi possível atualizar as configurações.')
@@ -670,7 +673,7 @@ export default function AdminDashboard() {
             <p className="mt-1 text-sm text-zinc-400">Altere a meta de ticket médio e os valores pagos por pedido em cada faixa. A mudança vale para todas as afiliadas.</p>
           </div>
 
-          <form onSubmit={saveSettings} className="mt-5 grid gap-4 md:grid-cols-5">
+          <form onSubmit={saveSettings} className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
             <label className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
               <span className="text-[10px] font-black uppercase tracking-[.14em] text-amber-700">Meta ticket médio</span>
               <div className="mt-2 flex items-center gap-2">
@@ -678,6 +681,15 @@ export default function AdminDashboard() {
                 <input value={settingsForm.ticketThreshold} onChange={e => setSettingsForm(v => ({ ...v, ticketThreshold: e.target.value }))} inputMode="decimal" className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-lg font-black outline-none focus:border-amber-400" />
               </div>
               <p className="mt-2 text-[10px] font-semibold text-amber-700">Acima dessa meta, entra o bônus de +R$ 5,00/pedido.</p>
+            </label>
+
+            <label className="rounded-2xl border border-pink-200 bg-pink-50 p-4">
+              <span className="text-[10px] font-black uppercase tracking-[.14em] text-pink-600">Equipe · por venda</span>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="font-black text-zinc-500">R$</span>
+                <input value={settingsForm.teamCommissionPerSale} onChange={e => setSettingsForm(v => ({ ...v, teamCommissionPerSale: e.target.value }))} inputMode="decimal" className="w-full rounded-xl border border-pink-200 bg-white px-3 py-2.5 text-lg font-black outline-none focus:border-pink-400" />
+              </div>
+              <p className="mt-2 text-[10px] font-semibold text-pink-600">Valor pago por cada venda aprovada de uma afiliada direta da equipe.</p>
             </label>
 
             {[['none', 'Início'], ['bronze', 'Bronze'], ['silver', 'Prata'], ['gold', 'Ouro']].map(([key, label]) => (
@@ -690,8 +702,8 @@ export default function AdminDashboard() {
               </label>
             ))}
 
-            <div className="md:col-span-5 flex flex-col gap-3 border-t border-zinc-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-zinc-400">Atual: meta {brl(settings.ticketThreshold)} · Início {brl(settings.commissions?.none)} · Bronze {brl(settings.commissions?.bronze)} · Prata {brl(settings.commissions?.silver)} · Ouro {brl(settings.commissions?.gold)}</p>
+            <div className="md:col-span-2 xl:col-span-6 flex flex-col gap-3 border-t border-zinc-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-zinc-400">Atual: meta {brl(settings.ticketThreshold)} · Equipe {brl(settings.teamCommissionPerSale ?? 10)} / venda · Início {brl(settings.commissions?.none)} · Bronze {brl(settings.commissions?.bronze)} · Prata {brl(settings.commissions?.silver)} · Ouro {brl(settings.commissions?.gold)}</p>
               <button disabled={savingSettings} className="rounded-xl bg-zinc-950 px-5 py-3 text-sm font-black text-white transition hover:bg-pink-500 disabled:opacity-50">{savingSettings ? 'Atualizando…' : 'Atualizar valores'}</button>
             </div>
           </form>
@@ -722,6 +734,7 @@ export default function AdminDashboard() {
                       <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${withdrawal.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : pending ? 'bg-amber-100 text-amber-800' : 'bg-zinc-200 text-zinc-600'}`}>
                         {withdrawalLabel(withdrawal.status)}
                       </span>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${withdrawal.source === 'team' ? 'bg-pink-100 text-pink-700' : 'bg-zinc-100 text-zinc-600'}`}>{withdrawal.source === 'team' ? 'Equipe' : 'Pessoal'}</span>
                     </div>
                     <p className="mt-1 text-xs text-zinc-400">Solicitado em {dateTime(withdrawal.requested_at)} · Saque #{withdrawal.id}</p>
                     <p className="mt-1 text-xs font-semibold text-zinc-600">PIX para recebimento: <span className="break-all font-bold text-zinc-900">{withdrawal.pix_key || 'Não informado (saque antigo)'}</span></p>

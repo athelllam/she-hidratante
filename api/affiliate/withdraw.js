@@ -1,5 +1,5 @@
 const { requireAffiliate, supabaseFetch, json } = require('../_lib/supabase');
-const { commissionForOrders, DEFAULT_COMMISSION_CONFIG, normalizeConfig } = require('../_lib/affiliateCommission');
+const { commissionForOrders, DEFAULT_COMMISSION_CONFIG, normalizeConfig, isPaidOrder } = require('../_lib/affiliateCommission');
 
 module.exports = async function handler(req, res) {
   try {
@@ -33,22 +33,36 @@ module.exports = async function handler(req, res) {
       return json(res, 400, { error: 'Cadastre seu PIX de recebimento antes de solicitar um saque.' });
     }
 
-    const [orders, settingRows] = await Promise.all([
-      supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=status,total,commission,created_at`),
-      supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,commission_none,commission_bronze,commission_silver,commission_gold&limit=1'),
-    ]);
+    const source = String(req.body?.source || 'personal').toLowerCase();
+    if (!['personal', 'team'].includes(source)) return json(res, 400, { error: 'Tipo de saque inválido.' });
+
+    const settingRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold&limit=1');
     const settings = normalizeConfig(settingRows?.[0] ? {
       ticketThreshold: settingRows[0].ticket_threshold,
       ticketBonus: settingRows[0].ticket_bonus,
+      teamCommissionPerSale: settingRows[0].team_commission_per_sale,
       commissions: { none: settingRows[0].commission_none, bronze: settingRows[0].commission_bronze, silver: settingRows[0].commission_silver, gold: settingRows[0].commission_gold },
     } : DEFAULT_COMMISSION_CONFIG);
-    const withdrawals = await supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${affiliate.id}&status=in.(pending,approved,paid)&select=amount`);
-    const { total: earned } = commissionForOrders(orders || [], settings);
+
+    const withdrawals = await supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${affiliate.id}&source=eq.${source}&status=in.(pending,approved,paid)&select=amount`);
+    let earned = 0;
+
+    if (source === 'personal') {
+      const orders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=status,total,commission,created_at`);
+      earned = commissionForOrders(orders || [], settings).total;
+    } else {
+      const children = await supabaseFetch(`/rest/v1/affiliates?team_parent_id=eq.${affiliate.id}&select=id&limit=1000`);
+      const ids = (children || []).map(row => Number(row.id)).filter(Boolean);
+      if (!ids.length) return json(res, 400, { error: 'Sua equipe ainda não possui vendas para saque.' });
+      const childOrders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=in.(${ids.join(',')})&select=affiliate_id,status,created_at&limit=20000`);
+      earned = (childOrders || []).filter(isPaidOrder).length * Number(settings.teamCommissionPerSale || 10);
+    }
+
     const reserved = (withdrawals || []).reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const available = Math.max(0, earned - reserved);
 
     if (amount > available + 0.001) {
-      return json(res, 400, { error: 'Saldo disponível insuficiente.', available });
+      return json(res, 400, { error: source === 'team' ? 'Comissão de equipe disponível insuficiente.' : 'Saldo disponível insuficiente.', available });
     }
 
     const rows = await supabaseFetch('/rest/v1/affiliate_withdrawals', {
@@ -58,6 +72,7 @@ module.exports = async function handler(req, res) {
         affiliate_id: affiliate.id,
         amount,
         pix_key: pixKey,
+        source,
         status: 'pending',
       }),
     });

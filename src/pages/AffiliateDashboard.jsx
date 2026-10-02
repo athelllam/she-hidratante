@@ -71,6 +71,12 @@ export default function AffiliateDashboard() {
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [withdrawBusy, setWithdrawBusy] = useState(false)
   const [withdrawMessage, setWithdrawMessage] = useState('')
+  const [teamWithdrawAmount, setTeamWithdrawAmount] = useState('')
+  const [teamWithdrawBusy, setTeamWithdrawBusy] = useState(false)
+  const [teamWithdrawMessage, setTeamWithdrawMessage] = useState('')
+  const [teamCode, setTeamCode] = useState('')
+  const [teamJoinBusy, setTeamJoinBusy] = useState(false)
+  const [teamJoinMessage, setTeamJoinMessage] = useState('')
   const [pixKey, setPixKey] = useState('')
   const [pixOpen, setPixOpen] = useState(false)
   const [pixBusy, setPixBusy] = useState(false)
@@ -179,7 +185,7 @@ export default function AffiliateDashboard() {
       const amount = Number(String(withdrawAmount).replace(',', '.'))
       await api('/api/affiliate/withdraw', {
         method: 'POST',
-        body: JSON.stringify({ amount }),
+        body: JSON.stringify({ amount, source: 'personal' }),
       })
       setWithdrawAmount('')
       setWithdrawMessage(`Solicitação enviada. ${brl(amount)} ficou reservado para análise.`)
@@ -189,6 +195,48 @@ export default function AffiliateDashboard() {
       setWithdrawMessage(e.message || 'Não foi possível solicitar o saque.')
     } finally {
       setWithdrawBusy(false)
+    }
+  }
+
+  const joinTeam = async (event) => {
+    event.preventDefault()
+    setTeamJoinBusy(true)
+    setTeamJoinMessage('')
+    try {
+      const result = await api('/api/affiliate/dashboard', {
+        method: 'POST',
+        body: JSON.stringify({ teamParentId: Number(teamCode) }),
+      })
+      setAffiliate(current => current ? { ...current, team_parent_id: result.affiliate?.team_parent_id || Number(teamCode) } : current)
+      setTeamJoinMessage('Você entrou na equipe com sucesso.')
+      setTeamCode('')
+      const refreshed = await api(`/api/affiliate/dashboard?month=${encodeURIComponent(selectedMonth)}`)
+      setDashboard(refreshed)
+    } catch (e) {
+      setTeamJoinMessage(e.message || 'Não foi possível entrar na equipe.')
+    } finally {
+      setTeamJoinBusy(false)
+    }
+  }
+
+  const requestTeamWithdraw = async (event) => {
+    event.preventDefault()
+    setTeamWithdrawBusy(true)
+    setTeamWithdrawMessage('')
+    try {
+      const amount = Number(String(teamWithdrawAmount).replace(',', '.'))
+      await api('/api/affiliate/withdraw', {
+        method: 'POST',
+        body: JSON.stringify({ amount, source: 'team' }),
+      })
+      setTeamWithdrawAmount('')
+      setTeamWithdrawMessage(`Solicitação de saque de equipe enviada. ${brl(amount)} ficou reservado para análise.`)
+      const refreshed = await api(`/api/affiliate/dashboard?month=${encodeURIComponent(selectedMonth)}`)
+      setDashboard(refreshed)
+    } catch (e) {
+      setTeamWithdrawMessage(e.message || 'Não foi possível solicitar o saque de equipe.')
+    } finally {
+      setTeamWithdrawBusy(false)
     }
   }
 
@@ -268,10 +316,11 @@ export default function AffiliateDashboard() {
 
   const publicUrl = `${window.location.origin}/${affiliate.slug}`
   const qrUrl = `https://quickchart.io/qr?size=220&text=${encodeURIComponent(publicUrl)}`
-  const config = dashboard?.settings || { ticketThreshold: 170, ticketBonus: 5, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 } }
+  const config = dashboard?.settings || { ticketThreshold: 170, ticketBonus: 5, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 } }
   const level = dashboard?.level || { key: 'none', label: 'Início', sales: 0, commissionPerOrder: Number(config.commissions?.none || 30), progress: 0, nextLevel: 'Bronze', nextMinSales: 10, salesToNext: 10 }
   const months = dashboard?.months?.length ? dashboard.months : [selectedMonth]
   const availableCommission = Number(dashboard?.metrics?.availableCommission || 0)
+  const team = dashboard?.team || { code: affiliate.id, joined: false, canJoin: false, commissionPerSale: 10, earnedCommission: 0, availableCommission: 0, members: [] }
 
   return (
     <main className="min-h-screen bg-[#fffafc] px-5 py-8 md:px-10">
@@ -309,6 +358,27 @@ export default function AffiliateDashboard() {
             <button onClick={logout} className="rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-bold text-white">Sair</button>
           </div>
         </header>
+
+        <section className="mt-7 rounded-[1.5rem] border border-pink-100 bg-white p-4 shadow-sm md:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[.2em] text-zinc-400">Código de Equipe</p>
+              {team.joined ? (
+                <p className="mt-1 text-sm font-bold text-zinc-800">Você está na equipe de <span className="font-black">{team.parent?.name || `ID ${affiliate.team_parent_id}`}</span> · ID {team.parent?.id || affiliate.team_parent_id}</p>
+              ) : (
+                <p className="mt-1 text-xs text-zinc-400">Informe o ID da afiliada que convidou você. Depois da primeira venda, essa opção fica bloqueada.</p>
+              )}
+            </div>
+            {!team.joined && (
+              <form onSubmit={joinTeam} className="flex w-full gap-2 sm:w-auto">
+                <input value={teamCode} onChange={e => setTeamCode(e.target.value.replace(/\D/g, ''))} disabled={!team.canJoin || teamJoinBusy} inputMode="numeric" placeholder="ID da equipe" className="min-w-0 flex-1 rounded-xl border border-zinc-200 px-3 py-2.5 text-sm font-bold outline-none focus:border-pink-400 disabled:bg-zinc-100 disabled:text-zinc-400 sm:w-36" />
+                <button disabled={!team.canJoin || teamJoinBusy} className="rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{teamJoinBusy ? 'Entrando…' : 'Entrar na equipe'}</button>
+              </form>
+            )}
+          </div>
+          {teamJoinMessage && <p className="mt-2 text-xs font-semibold text-zinc-500">{teamJoinMessage}</p>}
+          {!team.joined && !team.canJoin && <p className="mt-2 text-xs font-semibold text-amber-600">A entrada em equipe está bloqueada porque já existe uma venda aprovada.</p>}
+        </section>
 
         <section className={`mt-7 overflow-hidden rounded-[2rem] border border-white bg-gradient-to-r ${levelTone(level.key)} p-5 shadow-sm md:p-7`}>
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
@@ -355,6 +425,45 @@ export default function AffiliateDashboard() {
             })}
           </div>
           <p className="mt-3 text-[10px] leading-4 text-zinc-400">Os níveis atingidos são retroativos às vendas do mês: ao alcançar um novo nível, o valor por pedido daquele nível é aplicado às vendas realizadas no mês.</p>
+        </section>
+
+        <section className="mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Equipe</p>
+              <h2 className="mt-1 text-2xl font-black text-zinc-950">Sua rede</h2>
+              <p className="mt-1 text-sm text-zinc-500">Passe seu ID para novas afiliadas entrarem diretamente na sua equipe.</p>
+              <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-pink-50 px-4 py-2"><span className="text-xs font-bold text-zinc-500">Seu código</span><span className="text-lg font-black text-pink-600">#{team.code}</span></div>
+            </div>
+            <div className="rounded-2xl bg-zinc-50 px-4 py-3 sm:min-w-[220px]">
+              <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Comissão de equipe</p>
+              <p className="mt-1 text-xl font-black text-zinc-950">{brl(team.commissionPerSale)} / venda</p>
+              <p className="mt-1 text-xs text-zinc-400">Gerada pelas afiliadas diretamente na sua equipe.</p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4"><p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Comissão gerada</p><p className="mt-1 text-2xl font-black text-zinc-950">{brl(team.earnedCommission)}</p></div>
+            <div className="rounded-2xl border border-pink-100 bg-pink-50/60 p-4"><p className="text-[10px] font-black uppercase tracking-[.15em] text-pink-500">Disponível para saque</p><p className="mt-1 text-2xl font-black text-zinc-950">{brl(team.availableCommission)}</p></div>
+          </div>
+
+          <div className="mt-5 overflow-x-auto">
+            <table className="w-full min-w-[520px] text-sm">
+              <thead><tr className="border-b border-zinc-100 text-left text-[10px] font-black uppercase tracking-[.14em] text-zinc-400"><th className="pb-3">Afiliada</th><th className="pb-3">ID</th><th className="pb-3">Vendas</th><th className="pb-3">Comissão gerada</th></tr></thead>
+              <tbody>{(team.members || []).map(member => <tr key={member.id} className="border-b border-zinc-100 last:border-0"><td className="py-3 font-black">{member.name}</td><td className="py-3 text-zinc-500">{member.id}</td><td className="py-3 font-bold">{member.sales}</td><td className="py-3 font-black text-pink-600">{brl(member.commission)}</td></tr>)}</tbody>
+            </table>
+            {!team.members?.length && <div className="py-6 text-center text-sm text-zinc-400">Nenhuma afiliada entrou na sua equipe ainda.</div>}
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-pink-100 bg-white p-4">
+            <p className="text-sm font-black text-zinc-900">Sacar comissão de equipe</p>
+            <p className="mt-1 text-xs text-zinc-400">Esse saldo é separado da sua comissão pessoal. Saque mínimo de R$ 100,00, sempre em múltiplos de R$ 100,00.</p>
+            <form onSubmit={requestTeamWithdraw} className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <input value={teamWithdrawAmount} onChange={e => setTeamWithdrawAmount(e.target.value)} inputMode="decimal" placeholder="Ex.: 100" className="flex-1 rounded-xl border border-zinc-200 px-4 py-3 font-bold outline-none focus:border-pink-400" />
+              <button disabled={teamWithdrawBusy || team.availableCommission < 100} className="rounded-xl bg-pink-500 px-5 py-3 font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{teamWithdrawBusy ? 'Enviando…' : 'Solicitar saque de equipe'}</button>
+            </form>
+            {teamWithdrawMessage && <p className="mt-2 rounded-xl bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-600">{teamWithdrawMessage}</p>}
+          </div>
         </section>
 
         <section className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -534,7 +643,7 @@ export default function AffiliateDashboard() {
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-pink-100 text-pink-600">↗</div>
                   <div>
-                    <p className="font-black text-zinc-900">Solicitação de Saque</p>
+                    <p className="font-black text-zinc-900">Solicitação de Saque {withdrawal.source === 'team' ? '· Equipe' : '· Pessoal'}</p>
                     <p className="mt-0.5 text-xs text-zinc-400">{new Date(withdrawal.requested_at).toLocaleDateString('pt-BR')}</p>
                   </div>
                 </div>
