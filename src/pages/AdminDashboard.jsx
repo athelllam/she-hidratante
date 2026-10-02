@@ -63,6 +63,10 @@ export default function AdminDashboard() {
   const [credentialsAffiliate, setCredentialsAffiliate] = useState(null)
   const [newPassword, setNewPassword] = useState('')
   const [savingPassword, setSavingPassword] = useState(false)
+  const [deleteAffiliate, setDeleteAffiliate] = useState(null)
+  const [deleteConfirmation, setDeleteConfirmation] = useState('')
+  const [deletePhrase, setDeletePhrase] = useState('')
+  const [deletingId, setDeletingId] = useState(null)
 
   const loadPanel = async () => {
     const [affiliateData, withdrawalData] = await Promise.all([
@@ -154,6 +158,44 @@ export default function AdminDashboard() {
       setMessage(e.message || 'Não foi possível marcar o saque como pago.')
     } finally {
       setPayingId(null)
+    }
+  }
+
+  const openDeleteConfirmation = (affiliate) => {
+    const confirmed = window.confirm(
+      `ATENÇÃO: você está prestes a excluir permanentemente a afiliada ${affiliate.name}.\n\nIsso apagará a conta de acesso, o cadastro SQL, eventos, pedidos, comissões e saques vinculados. Essa ação NÃO pode ser desfeita.\n\nDeseja continuar para a confirmação final?`
+    )
+    if (!confirmed) return
+    setDeleteAffiliate(affiliate)
+    setDeleteConfirmation('')
+    setDeletePhrase('')
+  }
+
+  const permanentlyDeleteAffiliate = async (event) => {
+    event.preventDefault()
+    if (!deleteAffiliate) return
+    if (deleteConfirmation.trim() !== deleteAffiliate.name.trim() || deletePhrase !== 'EXCLUIR') return
+
+    setDeletingId(deleteAffiliate.id)
+    setMessage('')
+    try {
+      await api('/api/admin/affiliates', {
+        method: 'DELETE',
+        body: JSON.stringify({
+          id: deleteAffiliate.id,
+          confirmName: deleteConfirmation.trim(),
+          confirmPhrase: deletePhrase,
+        }),
+      })
+      setAffiliates(current => current.filter(item => item.id !== deleteAffiliate.id))
+      setDeleteAffiliate(null)
+      setDeleteConfirmation('')
+      setDeletePhrase('')
+      setMessage(`Afiliada ${deleteAffiliate.name} excluída completamente do sistema.`)
+    } catch (e) {
+      setMessage(e.message || 'Não foi possível excluir a afiliada.')
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -311,7 +353,8 @@ export default function AdminDashboard() {
                   <th className="pb-3 pr-4">Ticket médio</th>
                   <th className="pb-3 pr-4">Saldo</th>
                   <th className="pb-3 pr-4">Ativa/Inativa</th>
-                  <th className="pb-3">Dados de acesso</th>
+                  <th className="pb-3 pr-4">Dados de acesso</th>
+                  <th className="pb-3">Excluir</th>
                 </tr>
               </thead>
               <tbody>
@@ -347,13 +390,23 @@ export default function AdminDashboard() {
                         {affiliate.autoInactive && <span className="text-[9px] font-bold text-amber-600">7 dias sem venda</span>}
                       </div>
                     </td>
-                    <td className="py-4">
+                    <td className="py-4 pr-4">
                       <button
                         type="button"
                         onClick={() => { setCredentialsAffiliate(affiliate); setNewPassword('') }}
                         className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-black text-zinc-700 transition hover:border-pink-300 hover:text-pink-600"
                       >
                         Ver dados
+                      </button>
+                    </td>
+                    <td className="py-4">
+                      <button
+                        type="button"
+                        onClick={() => openDeleteConfirmation(affiliate)}
+                        disabled={deletingId === affiliate.id}
+                        className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-black text-red-600 transition hover:bg-red-600 hover:text-white disabled:opacity-50"
+                      >
+                        {deletingId === affiliate.id ? 'Excluindo…' : 'Excluir'}
                       </button>
                     </td>
                   </tr>
@@ -414,6 +467,64 @@ export default function AdminDashboard() {
           </div>
         </section>
       </div>
+
+      {deleteAffiliate && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 px-5 py-8" onMouseDown={(event) => { if (event.target === event.currentTarget && !deletingId) setDeleteAffiliate(null) }}>
+          <div className="w-full max-w-lg rounded-[2rem] bg-white p-6 shadow-[0_30px_100px_rgba(0,0,0,.3)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[.22em] text-red-500">Exclusão permanente</p>
+                <h3 className="mt-1 text-2xl font-black text-zinc-950">Excluir {deleteAffiliate.name}?</h3>
+              </div>
+              <button type="button" disabled={Boolean(deletingId)} onClick={() => setDeleteAffiliate(null)} className="h-9 w-9 rounded-full bg-zinc-100 text-zinc-500 disabled:opacity-50">×</button>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4">
+              <p className="text-sm font-black text-red-800">Esta ação não pode ser desfeita.</p>
+              <p className="mt-1 text-xs leading-5 text-red-700">Serão excluídos o cadastro da afiliada, a conta de autenticação e todos os eventos, pedidos, comissões e solicitações de saque relacionados.</p>
+            </div>
+
+            <form onSubmit={permanentlyDeleteAffiliate} className="mt-5 space-y-4">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Confirmação 1 de 2</label>
+                <p className="mt-1 text-xs text-zinc-500">Digite exatamente o nome da afiliada: <strong className="text-zinc-900">{deleteAffiliate.name}</strong></p>
+                <input
+                  value={deleteConfirmation}
+                  onChange={event => setDeleteConfirmation(event.target.value)}
+                  autoComplete="off"
+                  disabled={Boolean(deletingId)}
+                  placeholder="Nome da afiliada"
+                  className="mt-2 w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm outline-none focus:border-red-400 disabled:bg-zinc-50"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Confirmação 2 de 2</label>
+                <p className="mt-1 text-xs text-zinc-500">Digite <strong className="text-red-600">EXCLUIR</strong> para confirmar a exclusão definitiva.</p>
+                <input
+                  value={deletePhrase}
+                  onChange={event => setDeletePhrase(event.target.value.toUpperCase())}
+                  autoComplete="off"
+                  disabled={Boolean(deletingId)}
+                  placeholder="EXCLUIR"
+                  className="mt-2 w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm font-black uppercase tracking-[.15em] outline-none focus:border-red-400 disabled:bg-zinc-50"
+                />
+              </div>
+
+              <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
+                <button type="button" disabled={Boolean(deletingId)} onClick={() => setDeleteAffiliate(null)} className="rounded-xl border border-zinc-200 px-4 py-3 text-sm font-black text-zinc-600 disabled:opacity-50">Cancelar</button>
+                <button
+                  type="submit"
+                  disabled={Boolean(deletingId) || deleteConfirmation.trim() !== deleteAffiliate.name.trim() || deletePhrase !== 'EXCLUIR'}
+                  className="rounded-xl bg-red-600 px-4 py-3 text-sm font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {deletingId ? 'Excluindo definitivamente…' : 'Excluir definitivamente'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {credentialsAffiliate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-5 py-8" onMouseDown={(event) => { if (event.target === event.currentTarget) setCredentialsAffiliate(null) }}>

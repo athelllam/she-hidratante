@@ -96,6 +96,63 @@ module.exports = async function handler(req, res) {
       return json(res, 200, { affiliates: result });
     }
 
+    if (req.method === 'DELETE') {
+      const { id, confirmName, confirmPhrase } = req.body || {};
+      const affiliateId = Number(id);
+      if (!Number.isInteger(affiliateId) || affiliateId <= 0) {
+        return json(res, 400, { error: 'ID da afiliada inválido.' });
+      }
+      if (String(confirmPhrase || '') !== 'EXCLUIR') {
+        return json(res, 400, { error: 'Confirmação final inválida.' });
+      }
+
+      const current = await supabaseFetch(
+        `/rest/v1/affiliates?id=eq.${affiliateId}&select=id,auth_user_id,name,slug,email&limit=1`
+      );
+      if (!current?.[0]) return json(res, 404, { error: 'Afiliada não encontrada.' });
+
+      const affiliate = current[0];
+      if (String(confirmName || '').trim() !== String(affiliate.name || '').trim()) {
+        return json(res, 400, { error: 'O nome digitado não corresponde à afiliada selecionada.' });
+      }
+
+      // A remoção da linha em public.affiliates dispara CASCADE nos
+      // registros de eventos, pedidos e saques relacionados.
+      // O usuário do Supabase Auth é removido separadamente logo depois.
+      try {
+        await supabaseFetch(`/rest/v1/affiliates?id=eq.${affiliateId}`, {
+          method: 'DELETE',
+          headers: { Prefer: 'return=minimal' },
+        });
+      } catch (error) {
+        return json(res, 500, {
+          error: 'Os dados SQL não puderam ser excluídos. A conta de autenticação não foi removida.',
+          partial: false,
+          details: error.message,
+        });
+      }
+
+      if (affiliate.auth_user_id) {
+        try {
+          await supabaseFetch(`/auth/v1/admin/users/${encodeURIComponent(affiliate.auth_user_id)}`, {
+            method: 'DELETE',
+          });
+        } catch (error) {
+          return json(res, 500, {
+            error: 'Os dados SQL foram excluídos, mas a conta de autenticação não pôde ser removida. Exclua o usuário correspondente no Supabase Auth.',
+            partial: true,
+            details: error.message,
+          });
+        }
+      }
+
+      return json(res, 200, {
+        deleted: true,
+        affiliateId,
+        message: 'Afiliada, conta de autenticação e registros relacionados foram excluídos.',
+      });
+    }
+
     if (req.method === 'PATCH') {
       const { id, active, adminActive, commissionRate, password } = req.body || {};
       if (!id) return json(res, 400, { error: 'ID obrigatório.' });
