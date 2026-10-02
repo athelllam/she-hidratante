@@ -35,7 +35,7 @@ async function login(req, res) {
 }
 
 async function register(req, res) {
-  const { name, slug, email, password, whatsapp } = req.body || {};
+  const { name, slug, email, password, whatsapp, termsAccepted, termsVersion } = req.body || {};
   const cleanName = String(name || '').trim();
   const cleanEmail = String(email || '').trim().toLowerCase();
   const cleanSlug = slugify(slug || name);
@@ -44,6 +44,13 @@ async function register(req, res) {
   if (!cleanName || !cleanSlug || !cleanEmail || !cleanWhatsapp || String(password || '').length < 8) {
     return json(res, 400, { error: 'Informe nome, slug, WhatsApp, e-mail e senha com pelo menos 8 caracteres.' });
   }
+
+  if (termsAccepted !== true || String(termsVersion || '') !== '2.0') {
+    return json(res, 400, { error: 'É necessário ler e aceitar os Termos e Condições para concluir o cadastro.' });
+  }
+
+  const acceptanceIp = String(req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || '').split(',')[0].trim().slice(0, 100);
+  const acceptanceUserAgent = String(req.headers['user-agent'] || '').slice(0, 500);
 
   const existing = await supabaseFetch(
     `/rest/v1/affiliates?or=(slug.eq.${encodeURIComponent(cleanSlug)},email.eq.${encodeURIComponent(cleanEmail)})&select=id,slug,email&limit=1`
@@ -74,6 +81,10 @@ async function register(req, res) {
         active: true,
         admin_active: true,
         commission_rate: 0.10,
+        terms_version: '2.0',
+        terms_accepted_at: new Date().toISOString(),
+        terms_acceptance_ip: acceptanceIp || null,
+        terms_acceptance_user_agent: acceptanceUserAgent || null,
       }),
     });
 

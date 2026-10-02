@@ -770,7 +770,7 @@ export default function AdminDashboard() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2"><p className="font-black text-zinc-950">{video.affiliates?.name || 'Afiliada'}</p><span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-zinc-500">ID {video.affiliate_id}</span><span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${video.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : video.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>{video.status === 'approved' ? 'Aprovado' : video.status === 'rejected' ? 'Rejeitado' : 'Pendente'}</span></div>
                     <p className="mt-1 text-xs text-zinc-400">Enviado em {dateTime(video.created_at)} · Solicitação #{video.id}</p>
-                    <div className="mt-3 rounded-xl border border-zinc-200 bg-white px-3 py-2"><p className="break-all text-xs font-semibold text-zinc-600">{video.video_url}</p><p className="mt-1 text-[10px] font-black uppercase tracking-wider text-zinc-400">O link é exibido apenas como texto e não é aberto automaticamente.</p></div>
+                    <div className="mt-3 rounded-xl border border-zinc-200 bg-white px-3 py-2"><p className="break-all text-xs font-semibold text-zinc-600">{video.video_url}</p></div>
                   </div>
                   <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row">
                     {video.status === 'pending' && <>
