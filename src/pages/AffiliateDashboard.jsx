@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 function brl(value) {
@@ -66,6 +66,7 @@ export default function AffiliateDashboard() {
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [withdrawBusy, setWithdrawBusy] = useState(false)
   const [withdrawMessage, setWithdrawMessage] = useState('')
+  const chartScrollRef = useRef(null)
 
   const load = async ({ sync = false, month = selectedMonth } = {}) => {
     try {
@@ -171,7 +172,7 @@ export default function AffiliateDashboard() {
           <div className="text-center">
             <p className="text-xs font-bold tracking-[.28em] text-pink-500 uppercase">She</p>
             <h1 className="mt-2 text-3xl font-black text-zinc-950">Área da afiliada</h1>
-            <p className="mt-2 text-sm text-zinc-500">{registerMode ? 'Crie seu perfil e seu link exclusivo.' : 'Entre para acompanhar seus resultados.'}</p>
+            <p className="mt-1 text-xs text-zinc-500 sm:mt-2 sm:text-sm">{registerMode ? 'Crie seu perfil e seu link exclusivo.' : 'Entre para acompanhar seus resultados.'}</p>
           </div>
 
           {!registerMode ? (
@@ -202,6 +203,14 @@ export default function AffiliateDashboard() {
 
   const chart = dashboard?.chart || []
   const maxRevenue = Math.max(1, ...chart.map(x => Number(x.revenue || 0)))
+
+  useEffect(() => {
+    const node = chartScrollRef.current
+    if (!node) return
+    requestAnimationFrame(() => {
+      node.scrollLeft = node.scrollWidth
+    })
+  }, [selectedMonth, chart.length])
   const publicUrl = `${window.location.origin}/${affiliate.slug}`
   const qrUrl = `https://quickchart.io/qr?size=220&text=${encodeURIComponent(publicUrl)}`
   const level = dashboard?.level || { key: 'none', label: 'Início', sales: 0, commissionPerOrder: 30, progress: 0, nextLevel: 'Bronze', nextMinSales: 10, salesToNext: 10 }
@@ -215,7 +224,7 @@ export default function AffiliateDashboard() {
           <div>
             <p className="text-xs font-bold uppercase tracking-[.28em] text-pink-500">She Afiliadas</p>
             <h1 className="mt-1 text-3xl md:text-4xl font-black text-zinc-950">Olá, {affiliate.name}.</h1>
-            <p className="mt-2 text-sm text-zinc-500">Análise de {monthLabel(selectedMonth)}</p>
+            <p className="mt-1 text-xs text-zinc-500 sm:mt-2 sm:text-sm">Análise de {monthLabel(selectedMonth)}</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -244,39 +253,64 @@ export default function AffiliateDashboard() {
           </div>
         </header>
 
-        <section className={`mt-7 overflow-hidden rounded-[2rem] border border-white bg-gradient-to-r ${levelTone(level.key)} p-5 shadow-sm md:p-7`}>
-          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+        <section className={`mt-7 overflow-visible rounded-[2rem] border border-white bg-gradient-to-r ${levelTone(level.key)} p-4 shadow-sm sm:p-5 md:p-7`}>
+          <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[.2em] text-zinc-400">Seu nível no mês</p>
-              <div className="mt-1 flex flex-wrap items-baseline gap-3">
-                <h2 className={`text-3xl font-black ${levelAccent(level.key)}`}>{level.label}</h2>
-                <span className="text-sm font-bold text-zinc-600">{level.sales} vendas</span>
-                <span className="rounded-full bg-white/80 px-3 py-1 text-sm font-black text-zinc-800">{brl(level.commissionPerOrder)} / pedido</span>
+              <p className="text-[8px] font-black uppercase sm:text-[9px] md:text-[10px] tracking-[.18em] text-zinc-400 sm:text-xs sm:tracking-[.2em]">Seu nível no mês</p>
+              <div className="mt-1 flex flex-wrap items-baseline gap-2 sm:gap-3">
+                <h2 className={`text-2xl font-black ${levelAccent(level.key)} sm:text-3xl`}>{level.label}</h2>
+                <span className="text-xs font-bold text-zinc-600 sm:text-sm">{level.sales} vendas</span>
+                <span className="rounded-full bg-white/80 px-2.5 py-1 text-xs font-black text-zinc-800 sm:px-3 sm:text-sm">{brl(level.commissionPerOrder)} / pedido</span>
               </div>
-              <p className="mt-2 text-sm text-zinc-500">
+              <p className="mt-1 text-xs text-zinc-500 sm:mt-2 sm:text-sm">
                 {level.nextLevel
                   ? `Faltam ${level.salesToNext} venda(s) para ${level.nextLevel}.`
                   : 'Você atingiu o nível máximo deste mês.'}
               </p>
             </div>
-            <div className="min-w-[220px] text-right">
-              <p className="text-xs font-bold text-zinc-400">PROGRESSO</p>
-              <p className="mt-1 text-2xl font-black text-zinc-900">{Math.round(level.progress)}%</p>
+            <div className="flex items-center justify-between text-left md:min-w-[220px] md:block md:text-right">
+              <p className="text-[10px] font-bold text-zinc-400 sm:text-xs">PROGRESSO</p>
+              <p className="text-xl font-black text-zinc-900 sm:mt-1 sm:text-2xl">{Math.round(level.progress)}%</p>
             </div>
           </div>
 
-          <div className="relative mt-7 h-5 rounded-full bg-black/10">
-            <div className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-orange-400 via-zinc-400 to-amber-400 transition-all duration-700" style={{ width: `${level.progress}%` }} />
+          <div className="relative mx-1 mt-5 h-20 rounded-full bg-black/10 sm:mx-2 sm:mt-7 sm:h-24">
+            <div
+              className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-orange-400 via-zinc-400 to-amber-400 transition-all duration-700"
+              style={{ width: `${(() => {
+                const sales = Number(level.sales) || 0
+                if (sales <= 10) return Math.min(14, (sales / 10) * 14)
+                if (sales <= 50) return 14 + ((sales - 10) / 40) * 42
+                return Math.min(100, 56 + ((sales - 50) / 51) * 44)
+              })()}%` }}
+            />
+
+            <div className="absolute left-0 top-full mt-2 sm:mt-3">
+              <div className="whitespace-nowrap text-left font-black leading-none text-zinc-900">
+                <span className="text-sm sm:text-base md:text-lg">R$ 30,00</span>
+                <span className="ml-1 text-[8px] font-bold text-zinc-500 sm:text-[9px] md:text-[10px]">/pedido</span>
+              </div>
+            </div>
+
             {[
-              { label: 'Bronze', min: 10, image: '/badge-bronze.svg' },
-              { label: 'Prata', min: 50, image: '/badge-silver.svg' },
-              { label: 'Ouro', min: 101, image: '/badge-gold.svg' },
+              { label: 'Bronze', min: 10, position: 14, image: '/badge-bronze.svg', amount: 'R$ 40,00', tone: 'text-orange-700' },
+              { label: 'Prata', min: 50, position: 56, image: '/badge-silver.svg', amount: 'R$ 50,00', tone: 'text-zinc-500' },
+              { label: 'Ouro', min: 101, position: 100, image: '/badge-gold.svg', amount: 'R$ 60,00', tone: 'text-amber-600' },
             ].map(item => (
-              <div key={item.label} className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ left: `${(item.min / 101) * 100}%` }}>
-                <div className="relative h-12 w-12 rounded-full border-2 border-white bg-white shadow-[0_6px_18px_rgba(0,0,0,.16)]">
+              <div
+                key={item.label}
+                className={`absolute top-1/2 -translate-y-1/2 ${item.position === 100 ? '-translate-x-full' : item.position === 14 ? '' : '-translate-x-1/2'}`}
+                style={{ left: `${item.position}%` }}
+              >
+                <div className="relative h-8 w-8 rounded-full border-2 border-white bg-white shadow-[0_4px_12px_rgba(0,0,0,.14)] sm:h-10 sm:w-10 md:h-12 md:w-12">
                   <img src={item.image} alt={`Broche ${item.label}`} className="h-full w-full object-contain" />
                 </div>
-                <div className="absolute left-1/2 top-[3.25rem] -translate-x-1/2 whitespace-nowrap text-[10px] font-black uppercase tracking-wider text-zinc-600">{item.label}</div>
+                <div
+                  className={`absolute top-[2.35rem] whitespace-nowrap font-black leading-none sm:top-[2.8rem] md:top-[3.25rem] ${item.position === 100 ? 'right-0 text-right' : item.position === 14 ? 'left-0 text-left' : 'left-1/2 -translate-x-1/2 text-center'}`}
+                >
+                  <div className={`text-[10px] sm:text-xs md:text-sm ${item.tone}`}>{item.amount}</div>
+                  <div className={`mt-0.5 text-[7px] font-bold sm:text-[8px] md:text-[9px] ${item.tone}`}>/pedido</div>
+                </div>
               </div>
             ))}
           </div>
@@ -311,44 +345,44 @@ export default function AffiliateDashboard() {
 
         <section className="mt-5 grid gap-3 sm:grid-cols-2">
           <div className="rounded-[1.25rem] border border-pink-100 bg-white px-5 py-4 shadow-sm">
-            <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">Saldo inicial do mês</p>
+            <p className="text-[8px] font-black uppercase sm:text-[9px] md:text-[10px] tracking-[.18em] text-zinc-400">Saldo inicial do mês</p>
             <p className="mt-1 text-xl font-black text-zinc-950">{brl(dashboard?.metrics?.openingBalance)}</p>
             <p className="mt-1 text-xs text-zinc-400">É o saldo final do mês anterior.</p>
           </div>
           <div className="rounded-[1.25rem] border border-pink-100 bg-white px-5 py-4 shadow-sm">
-            <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">Saldo final do mês</p>
+            <p className="text-[8px] font-black uppercase sm:text-[9px] md:text-[10px] tracking-[.18em] text-zinc-400">Saldo final do mês</p>
             <p className="mt-1 text-xl font-black text-zinc-950">{brl(dashboard?.metrics?.closingBalance)}</p>
             <p className="mt-1 text-xs text-zinc-400">Já desconta as solicitações de saque deste mês.</p>
           </div>
         </section>
 
-        <section className="mt-6 grid gap-6 lg:grid-cols-[1fr_380px]">
-          <div className="rounded-[1.5rem] bg-white p-6 border border-pink-100 shadow-sm">
+        <section className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="self-start rounded-[1.5rem] bg-white p-5 border border-pink-100 shadow-sm">
             <div className="flex items-end justify-between gap-4">
               <div>
                 <h2 className="font-black text-xl">Desempenho diário</h2>
                 <p className="mt-1 text-sm text-zinc-400">Faturamento por dia em {monthLabel(selectedMonth)}</p>
               </div>
-              <div className="hidden sm:block text-right text-xs text-zinc-400">Cada barra representa um dia</div>
+              <div className="hidden sm:block text-right text-xs text-zinc-400">Arraste para ver os dias anteriores</div>
             </div>
 
-            <div className="mt-5 overflow-x-auto pb-7">
-              <div className="min-w-[760px]">
-                <div className="flex h-44 items-end gap-0.5 border-b border-zinc-100 px-1">
+            <div ref={chartScrollRef} className="mt-4 h-[190px] overflow-x-auto overflow-y-hidden rounded-xl bg-white pb-2 overscroll-x-contain">
+              <div className="h-[165px] min-w-max px-1">
+                <div className="flex h-[145px] items-end gap-1 border-b border-zinc-100">
                   {chart.map((item) => {
                     const revenue = Number(item.revenue || 0)
                     const height = revenue ? Math.max(8, (revenue / maxRevenue) * 100) : 3
                     return (
-                      <div key={item.date} className="group flex h-full min-w-[21px] flex-1 flex-col justify-end">
+                      <div key={item.date} className="group flex h-full w-[42px] shrink-0 flex-col justify-end">
                         <div className="relative flex flex-1 items-end justify-center">
                           {revenue > 0 && (
-                            <span className="absolute bottom-[calc(var(--bar-height)+6px)] left-1/2 -translate-x-1/2 whitespace-nowrap text-[8px] font-black text-zinc-700" style={{ '--bar-height': `${height}%` }}>
+                            <span className="absolute bottom-[calc(var(--bar-height)+5px)] left-1/2 -translate-x-1/2 whitespace-nowrap text-[8px] font-black text-zinc-700" style={{ '--bar-height': `${height}%` }}>
                               {brl(revenue).replace('R$ ', 'R$')}
                             </span>
                           )}
                           <div
                             title={`${shortDate(item.date)} — ${brl(revenue)} — ${item.sales} venda(s)`}
-                            className="w-full max-w-[18px] rounded-t-md bg-pink-400 transition-all duration-300 group-hover:bg-pink-500"
+                            className="w-[18px] rounded-t-md bg-pink-400 transition-all duration-300 group-hover:bg-pink-500"
                             style={{ height: `${height}%`, minHeight: revenue ? undefined : '3px' }}
                           />
                         </div>
@@ -359,12 +393,13 @@ export default function AffiliateDashboard() {
                 </div>
               </div>
             </div>
+            <p className="mt-1 text-center text-[10px] text-zinc-400 sm:hidden">Deslize para a esquerda para ver os dias anteriores</p>
           </div>
 
           <div className="space-y-6">
             <div className="rounded-[1.5rem] bg-white p-6 border border-pink-100 shadow-sm">
               <h2 className="font-black text-xl">Solicitar saque</h2>
-              <p className="mt-2 text-sm text-zinc-500">Disponível para saque: <strong className="text-zinc-900">{brl(availableCommission)}</strong></p>
+              <p className="mt-1 text-xs text-zinc-500 sm:mt-2 sm:text-sm">Disponível para saque: <strong className="text-zinc-900">{brl(availableCommission)}</strong></p>
               <form onSubmit={requestWithdraw} className="mt-5">
                 <input
                   value={withdrawAmount}
@@ -383,7 +418,7 @@ export default function AffiliateDashboard() {
 
             <div className="rounded-[1.5rem] bg-white p-6 border border-pink-100 shadow-sm">
               <h2 className="font-black text-xl">Seu link</h2>
-              <p className="mt-2 text-sm text-zinc-500">Compartilhe sua página exclusiva.</p>
+              <p className="mt-1 text-xs text-zinc-500 sm:mt-2 sm:text-sm">Compartilhe sua página exclusiva.</p>
               <div className="mt-5 rounded-xl bg-zinc-50 p-4 text-sm font-semibold break-all">{publicUrl}</div>
               <button onClick={() => navigator.clipboard?.writeText(publicUrl)} className="mt-3 w-full rounded-xl bg-pink-500 py-3 font-bold text-white">Copiar link</button>
               <img src={qrUrl} alt="QR Code da afiliada" className="mx-auto mt-5 h-44 w-44 rounded-xl border border-zinc-100 p-2" />
