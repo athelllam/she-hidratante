@@ -61,8 +61,8 @@ async function register(req, res) {
   const cleanWhatsapp = normalizeWhatsapp(whatsapp);
   const cleanCpf = normalizeCpf(cpf);
 
-  if (!cleanName || !cleanSlug || !cleanEmail || !cleanWhatsapp || !isValidCpf(cleanCpf) || String(password || '').length < 8) {
-    return json(res, 400, { error: 'Informe nome, CPF válido, slug, WhatsApp, e-mail e senha com pelo menos 8 caracteres.' });
+  if (!cleanName || !cleanEmail || !cleanWhatsapp || !isValidCpf(cleanCpf) || String(password || '').length < 8) {
+    return json(res, 400, { error: 'Informe nome, CPF válido, WhatsApp, e-mail e senha com pelo menos 8 caracteres.' });
   }
 
   const existing = await supabaseFetch(
@@ -91,7 +91,7 @@ async function register(req, res) {
       body: JSON.stringify({
         auth_user_id: created.id,
         name: cleanName,
-        slug: `pending-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        slug: null,
         email: cleanEmail,
         cpf: cleanCpf,
         whatsapp: cleanWhatsapp,
@@ -103,15 +103,6 @@ async function register(req, res) {
     });
 
     if (rows?.[0]?.id) {
-      const affiliateId = Number(rows[0].id);
-      const finalSlug = `${cleanSlug}${affiliateId}`.slice(0, 50);
-      const updated = await supabaseFetch(`/rest/v1/affiliates?id=eq.${affiliateId}`, {
-        method: 'PATCH',
-        headers: { Prefer: 'return=representation' },
-        body: JSON.stringify({ slug: finalSlug }),
-      });
-      rows[0] = updated?.[0] || { ...rows[0], slug: finalSlug };
-
       await supabaseFetch('/rest/v1/affiliate_admin_status_history', {
         method: 'POST',
         headers: { Prefer: 'return=minimal' },

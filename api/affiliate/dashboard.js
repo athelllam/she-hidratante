@@ -85,6 +85,32 @@ module.exports = async function handler(req, res) {
     }
   }
 
+  if (req.method === 'POST' && String(req.body?.action || '') === 'create_link') {
+    try {
+      const { affiliate } = await requireAffiliate(req);
+      if (affiliate.slug) return json(res, 400, { error: 'Seu link já foi criado.' });
+      const rawSlug = String(req.body?.slug || '').trim();
+      const cleanSlug = rawSlug
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase().replace(/[^a-z0-9-]+/g, '-')
+        .replace(/^-+|-+$/g, '').slice(0, 40);
+      if (!cleanSlug || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(cleanSlug)) {
+        return json(res, 400, { error: 'Digite um nome válido para o seu link.' });
+      }
+      const finalSlug = `${cleanSlug}${Number(affiliate.id)}`;
+      const existing = await supabaseFetch(`/rest/v1/affiliates?slug=eq.${encodeURIComponent(finalSlug)}&select=id&limit=1`);
+      if (existing?.length) return json(res, 409, { error: 'Esse link já está em uso. Escolha outro nome.' });
+      const rows = await supabaseFetch(`/rest/v1/affiliates?id=eq.${Number(affiliate.id)}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ slug: finalSlug }),
+      });
+      return json(res, 200, { affiliate: rows?.[0] || { ...affiliate, slug: finalSlug } });
+    } catch (error) {
+      return json(res, error.statusCode || 500, { error: error.message || 'Não foi possível criar seu link.' });
+    }
+  }
+
   if (req.method === 'POST') {
     try {
       const { affiliate } = await requireAffiliate(req);
