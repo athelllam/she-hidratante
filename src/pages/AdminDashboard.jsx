@@ -85,6 +85,11 @@ export default function AdminDashboard() {
   const [message, setMessage] = useState('')
   const [affiliateFilter, setAffiliateFilter] = useState('all')
   const [affiliateSearch, setAffiliateSearch] = useState('')
+  const [affiliateSort, setAffiliateSort] = useState('sales_desc')
+  const [detailAffiliate, setDetailAffiliate] = useState(null)
+  const [detailMonth, setDetailMonth] = useState('all')
+  const [detailData, setDetailData] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(false)
   const [withdrawalFilter, setWithdrawalFilter] = useState('all')
   const [credentialsAffiliate, setCredentialsAffiliate] = useState(null)
   const [newPassword, setNewPassword] = useState('')
@@ -131,6 +136,18 @@ export default function AdminDashboard() {
       .catch(() => setAuthenticated(false))
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (!detailAffiliate) return
+    let cancelled = false
+    setDetailLoading(true)
+    setDetailData(null)
+    api(`/api/admin/affiliates?detail=${encodeURIComponent(detailAffiliate.id)}&month=${encodeURIComponent(detailMonth)}`)
+      .then(data => { if (!cancelled) setDetailData(data) })
+      .catch(error => { if (!cancelled) setMessage(error.message || 'Não foi possível carregar o desempenho.') })
+      .finally(() => { if (!cancelled) setDetailLoading(false) })
+    return () => { cancelled = true }
+  }, [detailAffiliate, detailMonth])
 
   const submitLogin = async (event) => {
     event.preventDefault()
@@ -387,11 +404,16 @@ export default function AdminDashboard() {
     })
 
     return [...filtered].sort((a, b) => {
-      const salesDifference = Number(b.sales || 0) - Number(a.sales || 0)
-      if (salesDifference !== 0) return salesDifference
-      return String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR', { sensitivity: 'base' })
+      const nameCompare = String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR', { sensitivity: 'base' })
+      if (affiliateSort === 'days_desc') return Number(b.daysWithoutSales || 0) - Number(a.daysWithoutSales || 0) || nameCompare
+      if (affiliateSort === 'revenue_desc') return Number(b.revenue || 0) - Number(a.revenue || 0) || nameCompare
+      if (affiliateSort === 'accesses_desc') return Number(b.accesses || 0) - Number(a.accesses || 0) || nameCompare
+      if (affiliateSort === 'ticket_desc') return Number(b.averageTicket || 0) - Number(a.averageTicket || 0) || nameCompare
+      if (affiliateSort === 'name_asc') return nameCompare
+      if (affiliateSort === 'created_desc') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime() || nameCompare
+      return Number(b.sales || 0) - Number(a.sales || 0) || nameCompare
     })
-  }, [affiliates, affiliateFilter, affiliateSearch])
+  }, [affiliates, affiliateFilter, affiliateSearch, affiliateSort])
 
   const filteredWithdrawals = useMemo(() => {
     if (withdrawalFilter === 'pending') return withdrawals.filter(item => item.status === 'pending' || item.status === 'approved')
@@ -565,7 +587,18 @@ export default function AdminDashboard() {
               )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-xs font-semibold text-zinc-400">Ordenado por maior número de vendas</p>
+              <label className="flex items-center gap-2 text-xs font-semibold text-zinc-400">
+                <span>Ordenar por</span>
+                <select value={affiliateSort} onChange={event => setAffiliateSort(event.target.value)} className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-black text-zinc-700 outline-none focus:border-pink-400">
+                  <option value="days_desc">Mais dias sem vendas</option>
+                  <option value="sales_desc">Mais vendas</option>
+                  <option value="revenue_desc">Maior faturamento</option>
+                  <option value="accesses_desc">Mais acessos</option>
+                  <option value="ticket_desc">Maior ticket médio</option>
+                  <option value="created_desc">Mais novas</option>
+                  <option value="name_asc">Nome A–Z</option>
+                </select>
+              </label>
               <button
                 type="button"
                 onClick={openDeleteConfirmation}
@@ -589,6 +622,8 @@ export default function AdminDashboard() {
                   <th className="pb-3 pr-4">Saldo</th>
                   <th className="pb-3 pr-4">ID</th>
                   <th className="pb-3 pr-4">Ativa/Inativa</th>
+                  <th className="pb-3 pr-4">Sem vendas</th>
+                  <th className="pb-3 pr-4">Desempenho</th>
                   <th className="pb-3 pr-4">Dados de acesso</th>
                   <th className="pb-3">Selecionar</th>
                 </tr>
@@ -629,6 +664,20 @@ export default function AdminDashboard() {
                       </div>
                     </td>
                     <td className="py-4 pr-4">
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black ${Number(affiliate.daysWithoutSales || 0) >= 7 ? 'bg-amber-100 text-amber-800' : 'bg-zinc-100 text-zinc-600'}`}>
+                        {Number(affiliate.daysWithoutSales || 0)} {Number(affiliate.daysWithoutSales || 0) === 1 ? 'dia' : 'dias'} sem vendas
+                      </span>
+                    </td>
+                    <td className="py-4 pr-4">
+                      <button
+                        type="button"
+                        onClick={() => { setDetailAffiliate(affiliate); setDetailMonth('all') }}
+                        className="rounded-xl bg-zinc-950 px-3 py-2 text-xs font-black text-white transition hover:bg-pink-500"
+                      >
+                        Ver desempenho
+                      </button>
+                    </td>
+                    <td className="py-4 pr-4">
                       <button
                         type="button"
                         onClick={() => { setCredentialsAffiliate(affiliate); setNewPassword('') }}
@@ -657,7 +706,7 @@ export default function AdminDashboard() {
                 ))}
                 {!filteredAffiliates.length && (
                   <tr>
-                    <td colSpan={10} className="py-10 text-center text-sm font-semibold text-zinc-400">
+                    <td colSpan={12} className="py-10 text-center text-sm font-semibold text-zinc-400">
                       Nenhuma afiliada encontrada{affiliateSearch ? ` para "${affiliateSearch}"` : ''}.
                     </td>
                   </tr>
@@ -761,6 +810,96 @@ export default function AdminDashboard() {
           </div>
         </section>
       </div>
+
+      {detailAffiliate && (
+        <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/55 px-3 py-5 sm:px-6" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailAffiliate(null) }}>
+          <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-[2rem] bg-zinc-50 p-4 shadow-[0_30px_100px_rgba(0,0,0,.3)] sm:p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Desempenho detalhado</p>
+                <h3 className="mt-1 text-2xl font-black text-zinc-950">{detailAffiliate.name}</h3>
+                <p className="mt-1 text-sm text-zinc-400">Vendas da afiliada em rosa e vendas da equipe em preto, no mesmo período.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <select value={detailMonth} onChange={event => setDetailMonth(event.target.value)} className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-black text-zinc-700 outline-none focus:border-pink-400">
+                  <option value="all">Todo o período</option>
+                  {availableMonths.map(month => <option key={month} value={month}>{monthLabel(month)}</option>)}
+                </select>
+                <button type="button" onClick={() => setDetailAffiliate(null)} className="h-11 w-11 rounded-full bg-white text-xl text-zinc-500 shadow-sm">×</button>
+              </div>
+            </div>
+
+            {detailLoading ? (
+              <div className="mt-6 rounded-[1.5rem] border border-zinc-200 bg-white py-24 text-center text-sm font-bold text-zinc-400">Carregando desempenho…</div>
+            ) : detailData ? (
+              <>
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {[
+                    ['Acessos', detailData.metrics?.accesses || 0],
+                    ['Vendas', detailData.metrics?.sales || 0],
+                    ['Faturamento', brl(detailData.metrics?.revenue || 0)],
+                    ['Ticket médio', brl(detailData.metrics?.averageTicket || 0)],
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
+                      <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">{label}</p>
+                      <p className="mt-2 text-2xl font-black text-zinc-950">{value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-5 rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-xl font-black text-zinc-950">{detailMonth === 'all' ? 'Desempenho mensal' : 'Desempenho diário'}</h4>
+                      <p className="mt-1 text-sm text-zinc-400">{detailMonth === 'all' ? 'Barras por mês em todo o período' : `Barras por dia em ${monthLabel(detailMonth)}`}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-3 text-[10px] font-black uppercase tracking-wider text-zinc-500">
+                      <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-pink-400" /> Afiliada</span>
+                      <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-zinc-900" /> Equipe</span>
+                    </div>
+                  </div>
+
+                  {(() => {
+                    const rows = detailData.chart || []
+                    const maxTotal = Math.max(1, ...rows.map(item => Number(item.ownSales || 0) + Number(item.teamSales || 0)))
+                    return (
+                      <div className="mt-5 overflow-x-auto pb-2">
+                        <div className={`flex h-[310px] min-w-full items-end gap-1 border-b border-zinc-200 px-2 pt-8 ${detailMonth === 'all' ? '' : 'min-w-[720px]'}`}>
+                          {rows.map(item => {
+                            const own = Number(item.ownSales || 0)
+                            const team = Number(item.teamSales || 0)
+                            const total = own + team
+                            const totalHeight = total ? Math.max(10, (total / maxTotal) * 220) : 3
+                            const ownHeight = total ? (own / total) * totalHeight : 0
+                            const teamHeight = total ? (team / total) * totalHeight : 0
+                            return (
+                              <div key={item.date} className="group flex h-full min-w-[42px] flex-1 flex-col justify-end">
+                                <div className="relative flex flex-1 items-end justify-center">
+                                  {total > 0 && <span className="absolute bottom-[calc(100%+6px)] whitespace-nowrap text-[9px] font-black text-zinc-700">{total} {total === 1 ? 'venda' : 'vendas'}</span>}
+                                  <div className="flex w-[24px] flex-col justify-end overflow-hidden rounded-t-md" style={{ height: `${totalHeight}px` }} title={`${item.label}: ${own} da afiliada + ${team} da equipe`}>
+                                    {team > 0 && <div className="w-full bg-zinc-900" style={{ height: `${teamHeight}px`, minHeight: 3 }} />}
+                                    {own > 0 && <div className="w-full bg-pink-400" style={{ height: `${ownHeight}px`, minHeight: 3 }} />}
+                                  </div>
+                                </div>
+                                <span className="mt-2 truncate text-center text-[8px] font-bold text-zinc-400">{item.label}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                  <div className="mt-4 grid gap-2 text-xs font-bold text-zinc-500 sm:grid-cols-2">
+                    <div className="rounded-xl bg-pink-50 px-3 py-2">Afiliada: <strong className="text-pink-600">{detailData.metrics?.ownSales || 0} vendas</strong> · {brl(detailData.metrics?.ownRevenue || 0)}</div>
+                    <div className="rounded-xl bg-zinc-100 px-3 py-2">Equipe: <strong className="text-zinc-900">{detailData.metrics?.teamSales || 0} vendas</strong> · {brl(detailData.metrics?.teamRevenue || 0)}</div>
+                  </div>
+                </div>
+              </>
+            ) : null}
+          </div>
+        </div>
+      )}
 
       {deleteModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 px-5 py-8" onMouseDown={(event) => { if (event.target === event.currentTarget && !deletingIds.length) setDeleteModalOpen(false) }}>
