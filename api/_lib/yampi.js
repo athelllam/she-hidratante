@@ -125,13 +125,22 @@ function getOrderId(order) {
 function getStatus(order) {
   return String(
     order?.status?.data?.alias ||
+    order?.status?.data?.slug ||
     order?.status?.data?.name ||
     order?.status?.alias ||
+    order?.status?.slug ||
     order?.status?.name ||
     order?.status ||
+    order?.transactions?.data?.status?.alias ||
+    order?.transactions?.data?.status?.slug ||
+    order?.transactions?.data?.status?.name ||
     order?.transactions?.data?.status ||
     ''
   ).toLowerCase().trim().replace(/\s+/g, '_');
+}
+
+function isPaymentApprovedStatus(status) {
+  return new Set(['payment_approved', 'pagamento_aprovado', 'paid']).has(String(status || '').toLowerCase());
 }
 
 function getTotal(order) {
@@ -229,7 +238,7 @@ async function syncAffiliateOrders(affiliateId, commissionRate) {
       }
 
       const status = getStatus(order);
-      if (status !== 'payment_approved') continue;
+      if (!isPaymentApprovedStatus(status)) continue;
 
       const metadataId = Number(getMetadata(order, 'affiliate_id'));
       if (!metadataId || metadataId !== Number(affiliateId)) continue;
@@ -256,6 +265,7 @@ module.exports = {
   getMetadata,
   getOrderId,
   getStatus,
+  isPaymentApprovedStatus,
   getTotal,
   getCreatedAt,
   syncAffiliateOrders,
