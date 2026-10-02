@@ -13,6 +13,11 @@ function monthLabel(value) {
     .replace(/^./, char => char.toUpperCase())
 }
 
+function periodLabel(value) {
+  if (value === 'all') return 'Todos os meses'
+  return monthLabel(value)
+}
+
 function shortDate(value) {
   const [year, month, day] = value.split('-')
   return `${day}/${month}`
@@ -75,7 +80,7 @@ export default function AffiliateDashboard() {
   useEffect(() => {
     const node = chartScrollRef.current
     const chartData = dashboard?.chart || []
-    if (!node || !chartData.length) return
+    if (selectedMonth === 'all' || !node || !chartData.length) return
 
     const lastDataIndex = [...chartData]
       .map((item, index) => ({ item, index }))
@@ -275,7 +280,7 @@ export default function AffiliateDashboard() {
           <div>
             <p className="text-xs font-bold uppercase tracking-[.28em] text-pink-500">She Afiliadas</p>
             <h1 className="mt-1 text-3xl md:text-4xl font-black text-zinc-950">Olá, {affiliate.name}.</h1>
-            <p className="mt-2 text-sm text-zinc-500">Análise de {monthLabel(selectedMonth)}</p>
+            <p className="mt-2 text-sm text-zinc-500">Análise de {periodLabel(selectedMonth)}</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -291,7 +296,8 @@ export default function AffiliateDashboard() {
                 }}
                 className="appearance-none rounded-xl border border-pink-100 bg-white py-2.5 pl-4 pr-10 text-sm font-bold text-zinc-800 shadow-sm outline-none transition focus:border-pink-300"
               >
-                {months.map(month => <option key={month} value={month}>{monthLabel(month)}</option>)}
+                <option value="all">Todos os meses</option>
+                {months.slice().sort().reverse().map(month => <option key={month} value={month}>{monthLabel(month)}</option>)}
               </select>
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400">⌄</span>
             </label>
@@ -394,20 +400,20 @@ export default function AffiliateDashboard() {
           <div className="self-start w-full max-w-[520px] rounded-[1.5rem] bg-white p-5 border border-pink-100 shadow-sm">
             <div className="flex items-end justify-between gap-4">
               <div>
-                <h2 className="font-black text-xl">Desempenho diário</h2>
-                <p className="mt-1 text-sm text-zinc-400">Faturamento por dia em {monthLabel(selectedMonth)}</p>
+                <h2 className="font-black text-xl">{selectedMonth === 'all' ? 'Desempenho mensal' : 'Desempenho diário'}</h2>
+                <p className="mt-1 text-sm text-zinc-400">{selectedMonth === 'all' ? 'Resultados por mês em todo o período' : `Faturamento por dia em ${monthLabel(selectedMonth)}`}</p>
               </div>
-              <div className="hidden sm:block text-right text-xs text-zinc-400">Arraste para ver os dias anteriores</div>
+              <div className="hidden sm:block text-right text-xs text-zinc-400">{selectedMonth === 'all' ? 'Evolução mês a mês' : 'Arraste para ver os dias anteriores'}</div>
             </div>
 
-            <div ref={chartScrollRef} className="mt-4 h-[155px] w-full max-w-[300px] overflow-x-auto overflow-y-hidden rounded-xl bg-white pb-2 overscroll-x-contain scroll-smooth">
-              <div className="h-[135px] w-max px-1">
+            <div ref={chartScrollRef} className={`mt-4 h-[155px] w-full ${selectedMonth === 'all' ? 'max-w-full overflow-x-auto' : 'max-w-[300px] overflow-x-auto'} overflow-y-hidden rounded-xl bg-white pb-2 overscroll-x-contain scroll-smooth`}>
+              <div className={`h-[135px] ${selectedMonth === 'all' ? 'w-full min-w-[520px]' : 'w-max'} px-1`}>
                 <div className="flex h-[118px] items-end gap-1 border-b border-zinc-100">
                   {chart.map((item) => {
                     const revenue = Number(item.revenue || 0)
                     const height = revenue ? Math.max(8, (revenue / maxRevenue) * 100) : 3
                     return (
-                      <div key={item.date} data-chart-index={chart.indexOf(item)} className="group flex h-full w-[48px] shrink-0 flex-col justify-end">
+                      <div key={item.date} data-chart-index={chart.indexOf(item)} className={`group flex h-full ${selectedMonth === 'all' ? 'min-w-[72px] flex-1' : 'w-[48px] shrink-0'} flex-col justify-end`}>
                         <div className="relative flex flex-1 items-end justify-center">
                           {revenue > 0 && (
                             <span className="absolute bottom-[calc(var(--bar-height)+5px)] left-1/2 -translate-x-1/2 whitespace-nowrap text-[8px] font-black text-zinc-700" style={{ '--bar-height': `${height}%` }}>
@@ -415,19 +421,19 @@ export default function AffiliateDashboard() {
                             </span>
                           )}
                           <div
-                            title={`${shortDate(item.date)} — ${brl(revenue)} — ${item.sales} venda(s)`}
+                            title={`${selectedMonth === 'all' ? (item.label || monthLabel(item.date)) : shortDate(item.date)} — ${brl(revenue)} — ${item.sales} venda(s)`}
                             className="w-[18px] rounded-t-md bg-pink-400 transition-all duration-300 group-hover:bg-pink-500"
                             style={{ height: `${height}%`, minHeight: revenue ? undefined : '3px' }}
                           />
                         </div>
-                        <span className="mt-2 text-center text-[8px] font-bold text-zinc-400">{shortDate(item.date)}</span>
+                        <span className="mt-2 text-center text-[8px] font-bold text-zinc-400">{selectedMonth === 'all' ? (item.label || monthLabel(item.date)) : shortDate(item.date)}</span>
                       </div>
                     )
                   })}
                 </div>
               </div>
             </div>
-            <p className="mt-1 text-center text-[10px] text-zinc-400 sm:hidden">Deslize para a esquerda para ver os dias anteriores</p>
+            <p className="mt-1 text-center text-[10px] text-zinc-400 sm:hidden">{selectedMonth === 'all' ? 'Deslize para ver os meses anteriores' : 'Deslize para a esquerda para ver os dias anteriores'}</p>
           </div>
 
           <div className="space-y-6">
@@ -504,7 +510,7 @@ export default function AffiliateDashboard() {
           <div className="flex items-end justify-between gap-4">
             <div>
               <h2 className="font-black text-xl">Pedidos atribuídos</h2>
-              <p className="mt-1 text-sm text-zinc-400">Pedidos aprovados em {monthLabel(selectedMonth)}</p>
+              <p className="mt-1 text-sm text-zinc-400">Pedidos aprovados em {periodLabel(selectedMonth)}</p>
             </div>
             <span className="rounded-full bg-pink-50 px-3 py-1 text-xs font-black text-pink-500">{dashboard?.metrics?.sales || 0} venda(s)</span>
           </div>
@@ -529,7 +535,7 @@ export default function AffiliateDashboard() {
           <div className="flex items-end justify-between gap-4">
             <div>
               <h2 className="font-black text-xl">Movimentações de saldo</h2>
-              <p className="mt-1 text-sm text-zinc-400">Solicitações de saque do mês selecionado.</p>
+              <p className="mt-1 text-sm text-zinc-400">{selectedMonth === 'all' ? 'Solicitações de saque de todo o período.' : 'Solicitações de saque do mês selecionado.'}</p>
             </div>
             <span className="rounded-full bg-zinc-50 px-3 py-1 text-xs font-black text-zinc-500">{(dashboard?.withdrawals || []).length} solicitação(ões)</span>
           </div>

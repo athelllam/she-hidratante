@@ -30,6 +30,14 @@ function dayKey(date) {
   return String(date || '').slice(0, 10);
 }
 
+function monthLabelForChart(value) {
+  const [year, month] = String(value || '').split('-').map(Number);
+  if (!year || !month) return String(value || '');
+  return new Intl.DateTimeFormat('pt-BR', { month: 'short', year: '2-digit' })
+    .format(new Date(Date.UTC(year, month - 1, 1)))
+    .replace('.', '');
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') return json(res, 405, { error: 'Método não permitido.' });
 
@@ -38,8 +46,10 @@ module.exports = async function handler(req, res) {
     const id = affiliate.id;
     const now = new Date();
     const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const selectedMonth = validMonth(req.query?.month) || defaultMonth;
-    const { start, end } = monthRange(selectedMonth);
+    const requestedMonth = String(req.query?.month || '');
+    const isAllMonths = requestedMonth === 'all';
+    const selectedMonth = isAllMonths ? 'all' : (validMonth(requestedMonth) || defaultMonth);
+    const { start, end } = isAllMonths ? { start: new Date(0), end: new Date(8640000000000000) } : monthRange(selectedMonth);
 
     const [events, orders, withdrawals, settingRows] = await Promise.all([
       supabaseFetch(`/rest/v1/affiliate_events?affiliate_id=eq.${id}&select=type,created_at&order=created_at.desc&limit=10000`),
@@ -73,7 +83,7 @@ module.exports = async function handler(req, res) {
     const selectedSales = selectedOrders.length;
     const selectedRevenue = selectedOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
     const selectedAverageTicket = selectedSales ? selectedRevenue / selectedSales : 0;
-    const ticketMultiplierActive = selectedAverageTicket > settings.ticketThreshold;
+    const ticketMultiplierActive = !isAllMonths && selectedAverageTicket > settings.ticketThreshold;
     const selectedCommission = selectedOrders.reduce((sum, o) => sum + Number(o.commission || 0), 0);
     const reserved = (withdrawals || []).reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const availableCommission = Math.max(0, totalEarnedCommission - reserved);
@@ -82,33 +92,18 @@ module.exports = async function handler(req, res) {
     // Saldo acumulado: o saldo de abertura do mês é o saldo final do mês anterior.
     // Saques pending/approved/paid já reduzem o saldo disponível imediatamente.
     const selectedWithdrawalsTotal = selectedWithdrawals.reduce((sum, w) => sum + Number(w.amount || 0), 0);
-    const commissionBeforeSelectedMonth = annotatedPaidOrders
+    const commissionBeforeSelectedMonth = isAllMonths ? 0 : annotatedPaidOrders
       .filter(o => o.month < selectedMonth)
       .reduce((sum, o) => sum + Number(o.commission || 0), 0);
-    const withdrawalsBeforeSelectedMonth = (withdrawals || [])
+    const withdrawalsBeforeSelectedMonth = isAllMonths ? 0 : (withdrawals || [])
       .filter(w => String(w.requested_at || '').slice(0, 7) < selectedMonth)
       .reduce((sum, w) => sum + Number(w.amount || 0), 0);
-    const openingBalance = Math.max(0, commissionBeforeSelectedMonth - withdrawalsBeforeSelectedMonth);
-    const closingBalance = Math.max(0, openingBalance + selectedCommission - selectedWithdrawalsTotal);
-
-    const days = daysInMonth(selectedMonth);
-    const byDay = Array.from({ length: days }, (_, index) => {
-      const day = String(index + 1).padStart(2, '0');
-      return { date: `${selectedMonth}-${day}`, day: index + 1, access: 0, revenue: 0, sales: 0 };
-    });
-    const dayMap = Object.fromEntries(byDay.map(item => [item.date, item]));
-
-    for (const e of selectedAccesses) {
-      const item = dayMap[dayKey(e.created_at)];
-      if (item) item.access++;
-    }
-    for (const o of selectedOrders) {
-      const item = dayMap[dayKey(o.created_at)];
-      if (item) {
-        item.revenue += Number(o.total || 0);
-        item.sales++;
-      }
-    }
+    const openingBalance = isAllMonths
+      ? 0
+      : Math.max(0, commissionBeforeSelectedMonth - withdrawalsBeforeSelectedMonth);
+    const closingBalance = isAllMonths
+      ? availableCommission
+      : Math.max(0, openingBalance + selectedCommission - selectedWithdrawalsTotal);
 
     const eventMonths = accessEvents.map(e => String(e.created_at).slice(0, 7)).filter(Boolean);
     const withdrawalMonths = (withdrawals || []).map(w => String(w.requested_at).slice(0, 7)).filter(Boolean);
@@ -116,13 +111,54 @@ module.exports = async function handler(req, res) {
       ...Object.keys(salesByMonth),
       ...eventMonths,
       ...withdrawalMonths,
-      selectedMonth,
-    ])).sort().reverse();
+      ...(isAllMonths ? [] : [selectedMonth]),
+    ])).filter(Boolean).sort();
+
+    let chart;
+    if (isAllMonths) {
+      const monthMap = {};
+      for (const month of historicalMonths) {
+        monthMap[month] = { date: month, label: monthLabelForChart(month), access: 0, revenue: 0, sales: 0 };
+      }
+      for (const e of selectedAccesses) {
+        const key = String(e.created_at || '').slice(0, 7);
+        if (!monthMap[key]) monthMap[key] = { date: key, label: monthLabelForChart(key), access: 0, revenue: 0, sales: 0 };
+        monthMap[key].access++;
+      }
+      for (const o of selectedOrders) {
+        const key = o.month || String(o.created_at || '').slice(0, 7);
+        if (!monthMap[key]) monthMap[key] = { date: key, label: monthLabelForChart(key), access: 0, revenue: 0, sales: 0 };
+        monthMap[key].revenue += Number(o.total || 0);
+        monthMap[key].sales++;
+      }
+      chart = Object.values(monthMap).sort((a, b) => a.date.localeCompare(b.date));
+    } else {
+      const days = daysInMonth(selectedMonth);
+      const byDay = Array.from({ length: days }, (_, index) => {
+        const day = String(index + 1).padStart(2, '0');
+        return { date: `${selectedMonth}-${day}`, day: index + 1, access: 0, revenue: 0, sales: 0 };
+      });
+      const dayMap = Object.fromEntries(byDay.map(item => [item.date, item]));
+
+      for (const e of selectedAccesses) {
+        const item = dayMap[dayKey(e.created_at)];
+        if (item) item.access++;
+      }
+      for (const o of selectedOrders) {
+        const item = dayMap[dayKey(o.created_at)];
+        if (item) {
+          item.revenue += Number(o.total || 0);
+          item.sales++;
+        }
+      }
+      chart = byDay;
+    }
 
     return json(res, 200, {
       affiliate,
       settings,
       selectedMonth,
+      isAllMonths,
       metrics: {
         accesses: selectedAccesses.length,
         sales: selectedSales,
@@ -154,7 +190,7 @@ module.exports = async function handler(req, res) {
       orders: selectedOrders.slice(0, 100),
       withdrawals: selectedWithdrawals,
       monthlyStats,
-      chart: byDay,
+      chart,
     });
   } catch (error) {
     return json(res, error.statusCode || 500, { error: error.message || 'Erro ao carregar dashboard.' });
