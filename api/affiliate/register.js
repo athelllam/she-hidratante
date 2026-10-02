@@ -1,5 +1,13 @@
 const { supabaseFetch, authFetch, setAuthCookie, json } = require('../_lib/supabase');
 
+function normalizeWhatsapp(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('55')) return digits;
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
+  return digits;
+}
+
 function slugify(value) {
   return String(value || '')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -11,13 +19,14 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Método não permitido.' });
 
   try {
-    const { name, slug, email, password } = req.body || {};
+    const { name, slug, email, password, whatsapp } = req.body || {};
     const cleanName = String(name || '').trim();
     const cleanEmail = String(email || '').trim().toLowerCase();
     const cleanSlug = slugify(slug || name);
+    const cleanWhatsapp = normalizeWhatsapp(whatsapp);
 
-    if (!cleanName || !cleanSlug || !cleanEmail || String(password || '').length < 8) {
-      return json(res, 400, { error: 'Informe nome, slug, e-mail e senha com pelo menos 8 caracteres.' });
+    if (!cleanName || !cleanSlug || !cleanEmail || !cleanWhatsapp || String(password || '').length < 8) {
+      return json(res, 400, { error: 'Informe nome, slug, WhatsApp, e-mail e senha com pelo menos 8 caracteres.' });
     }
 
     const existing = await supabaseFetch(
@@ -45,6 +54,8 @@ module.exports = async function handler(req, res) {
           name: cleanName,
           slug: cleanSlug,
           email: cleanEmail,
+          whatsapp: cleanWhatsapp,
+          pix_key: null,
           active: true,
           commission_rate: 0.10,
         }),

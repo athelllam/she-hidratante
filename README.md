@@ -14,3 +14,12 @@ The React Compiler is not enabled on this template because of its impact on dev 
 ## Expanding the ESLint configuration
 
 If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+
+## WhatsApp e PIX de recebimento
+
+A migration do `supabase/schema.sql` adiciona:
+- `affiliates.whatsapp`: número usado pelo administrativo para abrir conversa no WhatsApp.
+- `affiliates.pix_key`: PIX atual cadastrado pela afiliada.
+- `affiliate_withdrawals.pix_key`: cópia do PIX usado no momento de cada solicitação de saque.
+
+A afiliada pode substituir o PIX pelo painel. Saques novos usam a nova chave; saques antigos preservam a chave que foi registrada quando foram solicitados.

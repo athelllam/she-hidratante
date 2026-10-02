@@ -10,7 +10,7 @@ module.exports = async function handler(req, res) {
 
     if (req.method === 'GET') {
       const [affiliates, orders, withdrawals] = await Promise.all([
-        supabaseFetch('/rest/v1/affiliates?select=id,slug,name,email,active,admin_active,commission_rate,created_at&order=created_at.desc'),
+        supabaseFetch('/rest/v1/affiliates?select=id,slug,name,email,whatsapp,pix_key,active,admin_active,commission_rate,created_at&order=created_at.desc'),
         supabaseFetch('/rest/v1/affiliate_orders?select=affiliate_id,status,total,commission,created_at&order=created_at.desc&limit=20000'),
         supabaseFetch('/rest/v1/affiliate_withdrawals?select=affiliate_id,amount,status,requested_at&order=requested_at.desc&limit=10000'),
       ]);

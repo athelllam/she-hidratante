@@ -44,7 +44,7 @@ module.exports = async function handler(req, res) {
     const [events, orders, withdrawals] = await Promise.all([
       supabaseFetch(`/rest/v1/affiliate_events?affiliate_id=eq.${id}&select=type,created_at&order=created_at.desc&limit=10000`),
       supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${id}&select=yampi_order_id,status,total,commission,created_at,updated_at&order=created_at.desc&limit=5000`),
-      supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${id}&status=in.(pending,approved,paid)&select=id,amount,status,requested_at,processed_at,note&order=requested_at.desc&limit=500`),
+      supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${id}&status=in.(pending,approved,paid)&select=id,amount,status,pix_key,requested_at,processed_at,note&order=requested_at.desc&limit=500`),
     ]);
 
     const accessEvents = (events || []).filter((e) => e.type === 'access');

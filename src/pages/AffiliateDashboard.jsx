@@ -56,7 +56,7 @@ export default function AffiliateDashboard() {
   const [dashboard, setDashboard] = useState(null)
   const [selectedMonth, setSelectedMonth] = useState('')
   const [registerMode, setRegisterMode] = useState(false)
-  const [form, setForm] = useState({ name: '', slug: '', email: '', password: '' })
+  const [form, setForm] = useState({ name: '', slug: '', email: '', password: '', whatsapp: '' })
   const [login, setLogin] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -66,6 +66,10 @@ export default function AffiliateDashboard() {
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [withdrawBusy, setWithdrawBusy] = useState(false)
   const [withdrawMessage, setWithdrawMessage] = useState('')
+  const [pixKey, setPixKey] = useState('')
+  const [pixOpen, setPixOpen] = useState(false)
+  const [pixBusy, setPixBusy] = useState(false)
+  const [pixMessage, setPixMessage] = useState('')
   const chartScrollRef = useRef(null)
 
   useEffect(() => {
@@ -81,6 +85,7 @@ export default function AffiliateDashboard() {
       const query = month ? `?month=${encodeURIComponent(month)}` : ''
       const data = await api(`/api/affiliate/dashboard${query}`)
       setAffiliate(data.affiliate)
+      setPixKey(data.affiliate?.pix_key || '')
       setDashboard(data)
       if (data.selectedMonth) setSelectedMonth(data.selectedMonth)
       setLoading(false)
@@ -160,6 +165,27 @@ export default function AffiliateDashboard() {
     }
   }
 
+  const savePix = async (event) => {
+    event.preventDefault()
+    setPixBusy(true)
+    setPixMessage('')
+    try {
+      const result = await api('/api/affiliate/withdraw', {
+        method: 'PATCH',
+        body: JSON.stringify({ pixKey: pixKey.trim() }),
+      })
+      const saved = result.pixKey || pixKey.trim()
+      setPixKey(saved)
+      setAffiliate(current => current ? { ...current, pix_key: saved } : current)
+      setPixOpen(false)
+      setPixMessage('PIX de recebimento salvo. Se você cadastrar outro, ele substituirá o atual para os próximos saques.')
+    } catch (e) {
+      setPixMessage(e.message || 'Não foi possível salvar o PIX.')
+    } finally {
+      setPixBusy(false)
+    }
+  }
+
   const cards = useMemo(() => {
     const m = dashboard?.metrics || {}
     return [
@@ -194,6 +220,7 @@ export default function AffiliateDashboard() {
             <form onSubmit={submitRegister} className="mt-7 space-y-3">
               <input value={form.name} onChange={e => setForm({...form,name:e.target.value})} required placeholder="Seu nome" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
               <input value={form.slug} onChange={e => setForm({...form,slug:e.target.value})} required placeholder="Seu link (ex.: ana)" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
+              <input value={form.whatsapp} onChange={e => setForm({...form,whatsapp:e.target.value})} type="tel" required placeholder="WhatsApp (31) 99999-9999" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
               <input value={form.email} onChange={e => setForm({...form,email:e.target.value})} type="email" required placeholder="E-mail" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
               <input value={form.password} onChange={e => setForm({...form,password:e.target.value})} type="password" minLength={8} required placeholder="Senha (mín. 8 caracteres)" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
               {error && <p className="text-xs text-red-500">{error}</p>}
@@ -398,6 +425,46 @@ export default function AffiliateDashboard() {
               </form>
               <p className="mt-3 text-xs leading-5 text-zinc-400">Saque mínimo de R$ 100,00. Os pedidos devem ser feitos em múltiplos de R$ 100,00.</p>
               {withdrawMessage && <p className="mt-3 rounded-xl bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-600">{withdrawMessage}</p>}
+            </div>
+
+            <div className="rounded-[1.5rem] bg-white p-6 border border-pink-100 shadow-sm">
+              <h2 className="font-black text-xl">PIX de recebimento</h2>
+              <p className="mt-2 text-sm text-zinc-500">Cadastre a chave PIX onde você quer receber seus saques.</p>
+              {pixKey ? (
+                <div className="mt-4 rounded-2xl bg-zinc-50 px-4 py-3">
+                  <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">PIX cadastrado</p>
+                  <p className="mt-1 break-all text-sm font-bold text-zinc-900">{pixKey}</p>
+                </div>
+              ) : (
+                <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold leading-5 text-amber-800">
+                  Cadastre seu PIX antes de solicitar um saque.
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => { setPixOpen(value => !value); setPixMessage('') }}
+                className="mt-3 w-full rounded-2xl bg-pink-500 py-3.5 font-black text-white transition hover:bg-pink-600"
+              >
+                {pixOpen ? 'Fechar' : (pixKey ? 'Alterar PIX de recebimento' : 'Cadastrar PIX de recebimento')}
+              </button>
+              {pixOpen && (
+                <form onSubmit={savePix} className="mt-4 border-t border-zinc-100 pt-4">
+                  <label className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Nova chave PIX</label>
+                  <input
+                    value={pixKey}
+                    onChange={e => setPixKey(e.target.value)}
+                    required
+                    maxLength={255}
+                    autoComplete="off"
+                    placeholder="CPF, CNPJ, e-mail, telefone ou chave aleatória"
+                    className="mt-2 w-full rounded-2xl border border-zinc-200 px-4 py-3.5 text-sm outline-none focus:border-pink-400"
+                  />
+                  <button disabled={pixBusy} className="mt-3 w-full rounded-2xl bg-zinc-950 py-3.5 font-black text-white disabled:opacity-60">
+                    {pixBusy ? 'Salvando…' : 'Salvar PIX'}
+                  </button>
+                </form>
+              )}
+              {pixMessage && <p className="mt-3 rounded-xl bg-zinc-50 px-3 py-2 text-xs font-semibold leading-5 text-zinc-600">{pixMessage}</p>}
             </div>
 
             <div className="rounded-[1.5rem] bg-white p-6 border border-pink-100 shadow-sm">

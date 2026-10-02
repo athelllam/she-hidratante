@@ -6,7 +6,7 @@ module.exports = async function handler(req, res) {
     await requireAdmin(req);
 
     if (req.method === 'GET') {
-      const rows = await supabaseFetch('/rest/v1/affiliate_withdrawals?select=id,affiliate_id,amount,status,note,requested_at,processed_at,affiliates(id,slug,name,email)&order=requested_at.desc&limit=1000');
+      const rows = await supabaseFetch('/rest/v1/affiliate_withdrawals?select=id,affiliate_id,amount,status,pix_key,note,requested_at,processed_at,affiliates(id,slug,name,email,whatsapp)&order=requested_at.desc&limit=1000');
       return json(res, 200, { withdrawals: rows || [] });
     }
 
