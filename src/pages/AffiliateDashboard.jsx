@@ -159,7 +159,6 @@ export default function AffiliateDashboard() {
       ['Faturamento', brl(m.revenue)],
       ['Ticket médio', brl(m.averageTicket)],
       ['Comissão do mês', brl(m.commission)],
-      ['Saldo disponível', brl(m.availableCommission)],
     ]
   }, [dashboard])
 
@@ -205,7 +204,7 @@ export default function AffiliateDashboard() {
   const maxRevenue = Math.max(1, ...chart.map(x => Number(x.revenue || 0)))
   const publicUrl = `${window.location.origin}/${affiliate.slug}`
   const qrUrl = `https://quickchart.io/qr?size=220&text=${encodeURIComponent(publicUrl)}`
-  const level = dashboard?.level || { key: 'none', label: 'Início', sales: 0, commissionPerOrder: 0, progress: 0, nextLevel: 'Bronze', nextMinSales: 10, salesToNext: 10 }
+  const level = dashboard?.level || { key: 'none', label: 'Início', sales: 0, commissionPerOrder: 30, progress: 0, nextLevel: 'Bronze', nextMinSales: 10, salesToNext: 10 }
   const months = dashboard?.months?.length ? dashboard.months : [selectedMonth]
   const availableCommission = Number(dashboard?.metrics?.availableCommission || 0)
 
@@ -266,18 +265,24 @@ export default function AffiliateDashboard() {
             </div>
           </div>
 
-          <div className="relative mt-5 h-4 rounded-full bg-black/10">
+          <div className="relative mt-7 h-5 rounded-full bg-black/10">
             <div className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-orange-400 via-zinc-400 to-amber-400 transition-all duration-700" style={{ width: `${level.progress}%` }} />
-            {[{ label: 'Bronze', min: 10 }, { label: 'Prata', min: 50 }, { label: 'Ouro', min: 100 }].map(item => (
-              <div key={item.label} className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ left: `${item.min}%` }}>
-                <div className="h-7 w-7 rounded-full border-4 border-white bg-zinc-900 shadow-sm" />
-                <div className="absolute left-1/2 top-8 -translate-x-1/2 whitespace-nowrap text-[10px] font-black uppercase tracking-wider text-zinc-500">{item.label}</div>
+            {[
+              { label: 'Bronze', min: 10, image: '/badge-bronze.svg' },
+              { label: 'Prata', min: 50, image: '/badge-silver.svg' },
+              { label: 'Ouro', min: 101, image: '/badge-gold.svg' },
+            ].map(item => (
+              <div key={item.label} className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ left: `${(item.min / 101) * 100}%` }}>
+                <div className="relative h-12 w-12 rounded-full border-2 border-white bg-white shadow-[0_6px_18px_rgba(0,0,0,.16)]">
+                  <img src={item.image} alt={`Broche ${item.label}`} className="h-full w-full object-contain" />
+                </div>
+                <div className="absolute left-1/2 top-[3.25rem] -translate-x-1/2 whitespace-nowrap text-[10px] font-black uppercase tracking-wider text-zinc-600">{item.label}</div>
               </div>
             ))}
           </div>
         </section>
 
-        <section className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+        <section className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {cards.map(([label, value]) => {
             const multiplierActive = label === 'Ticket médio' && dashboard?.metrics?.ticketMultiplierActive
             return (
@@ -296,7 +301,7 @@ export default function AffiliateDashboard() {
                 )}
                 {label === 'Ticket médio' && (
                   <p className={`mt-2 text-[10px] leading-4 ${multiplierActive ? 'text-amber-700' : 'text-zinc-400'}`}>
-                    Ticket de R$ 170,00 ou mais ativa + R$ 5,00 por venda no mês. Se cair abaixo, o benefício é perdido até voltar a atingir a meta.
+                    Ticket acima de R$ 170,00 ativa + R$ 5,00 por venda no mês. Se cair para R$ 170,00 ou menos, o benefício é perdido até voltar a superar a meta.
                   </p>
                 )}
               </div>
@@ -327,27 +332,27 @@ export default function AffiliateDashboard() {
               <div className="hidden sm:block text-right text-xs text-zinc-400">Cada barra representa um dia</div>
             </div>
 
-            <div className="mt-7 overflow-x-auto pb-8">
-              <div className="min-w-[900px]">
-                <div className="flex h-64 items-end gap-1 border-b border-zinc-100 px-1">
+            <div className="mt-5 overflow-x-auto pb-7">
+              <div className="min-w-[760px]">
+                <div className="flex h-44 items-end gap-0.5 border-b border-zinc-100 px-1">
                   {chart.map((item) => {
                     const revenue = Number(item.revenue || 0)
                     const height = revenue ? Math.max(8, (revenue / maxRevenue) * 100) : 3
                     return (
-                      <div key={item.date} className="group flex h-full min-w-[27px] flex-1 flex-col justify-end">
+                      <div key={item.date} className="group flex h-full min-w-[21px] flex-1 flex-col justify-end">
                         <div className="relative flex flex-1 items-end justify-center">
                           {revenue > 0 && (
-                            <span className="absolute bottom-[calc(var(--bar-height)+6px)] left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] font-black text-zinc-700" style={{ '--bar-height': `${height}%` }}>
+                            <span className="absolute bottom-[calc(var(--bar-height)+6px)] left-1/2 -translate-x-1/2 whitespace-nowrap text-[8px] font-black text-zinc-700" style={{ '--bar-height': `${height}%` }}>
                               {brl(revenue).replace('R$ ', 'R$')}
                             </span>
                           )}
                           <div
                             title={`${shortDate(item.date)} — ${brl(revenue)} — ${item.sales} venda(s)`}
-                            className="w-full max-w-[24px] rounded-t-lg bg-pink-400 transition-all duration-300 group-hover:bg-pink-500"
+                            className="w-full max-w-[18px] rounded-t-md bg-pink-400 transition-all duration-300 group-hover:bg-pink-500"
                             style={{ height: `${height}%`, minHeight: revenue ? undefined : '3px' }}
                           />
                         </div>
-                        <span className="mt-2 text-center text-[9px] font-bold text-zinc-400">{shortDate(item.date)}</span>
+                        <span className="mt-2 text-center text-[8px] font-bold text-zinc-400">{shortDate(item.date)}</span>
                       </div>
                     )
                   })}

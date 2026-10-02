@@ -1,8 +1,8 @@
 const LEVELS = [
-  { key: 'none', label: 'Início', minSales: 0, commissionPerOrder: 0 },
+  { key: 'none', label: 'Início', minSales: 0, commissionPerOrder: 30 },
   { key: 'bronze', label: 'Bronze', minSales: 10, commissionPerOrder: 40 },
   { key: 'silver', label: 'Prata', minSales: 50, commissionPerOrder: 50 },
-  { key: 'gold', label: 'Ouro', minSales: 100, commissionPerOrder: 60 },
+  { key: 'gold', label: 'Ouro', minSales: 101, commissionPerOrder: 60 },
 ];
 
 const TICKET_MULTIPLIER_THRESHOLD = 170;
@@ -15,7 +15,7 @@ function getLevel(sales) {
     if (count >= level.minSales) current = level;
   }
   const next = LEVELS.find(level => level.minSales > count) || null;
-  const progress = Math.min(100, (count / 100) * 100);
+  const progress = Math.min(100, (count / 101) * 100);
   return {
     ...current,
     sales: count,
@@ -46,7 +46,7 @@ function calculateMonthlyStats(orders) {
 
   for (const stats of Object.values(byMonth)) {
     stats.averageTicket = stats.sales ? stats.revenue / stats.sales : 0;
-    stats.multiplierActive = stats.averageTicket >= TICKET_MULTIPLIER_THRESHOLD;
+    stats.multiplierActive = stats.averageTicket > TICKET_MULTIPLIER_THRESHOLD;
   }
 
   return byMonth;

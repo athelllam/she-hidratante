@@ -66,7 +66,7 @@ module.exports = async function handler(req, res) {
     const selectedSales = selectedOrders.length;
     const selectedRevenue = selectedOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
     const selectedAverageTicket = selectedSales ? selectedRevenue / selectedSales : 0;
-    const ticketMultiplierActive = selectedAverageTicket >= TICKET_MULTIPLIER_THRESHOLD;
+    const ticketMultiplierActive = selectedAverageTicket > TICKET_MULTIPLIER_THRESHOLD;
     const selectedCommission = selectedOrders.reduce((sum, o) => sum + Number(o.commission || 0), 0);
     const reserved = (withdrawals || []).reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const availableCommission = Math.max(0, totalEarnedCommission - reserved);
