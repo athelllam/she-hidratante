@@ -96,6 +96,8 @@ export default function AffiliateDashboard() {
   const [pixMessage, setPixMessage] = useState('')
   const [levelHelpOpen, setLevelHelpOpen] = useState(false)
   const [videoHelpOpen, setVideoHelpOpen] = useState(false)
+  const [registerTermsCardOpen, setRegisterTermsCardOpen] = useState(false)
+  const [registerTermsOpen, setRegisterTermsOpen] = useState(false)
   const chartScrollRef = useRef(null)
 
   useEffect(() => {
@@ -181,11 +183,18 @@ export default function AffiliateDashboard() {
     } finally { setBusy(false) }
   }
 
-  const submitRegister = async (event) => {
+  const submitRegister = (event) => {
     event.preventDefault()
+    setError('')
+    setRegisterTermsCardOpen(true)
+  }
+
+  const acceptRegisterTermsAndCreate = async () => {
     setBusy(true); setError('')
     try {
       await api('/api/affiliate/register', { method: 'POST', body: JSON.stringify(form) })
+      setRegisterTermsCardOpen(false)
+      setRegisterTermsOpen(false)
       await load({ sync: true })
     } catch (e) {
       setError(e.message)
@@ -347,13 +356,49 @@ export default function AffiliateDashboard() {
               <input value={form.email} onChange={e => setForm({...form,email:e.target.value})} type="email" required placeholder="E-mail" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
               <input value={form.password} onChange={e => setForm({...form,password:e.target.value})} type="password" minLength={8} required placeholder="Senha (mín. 8 caracteres)" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
               {error && <p className="text-xs text-red-500">{error}</p>}
-              <button disabled={busy} className="w-full rounded-2xl bg-pink-500 py-3.5 font-bold text-white disabled:opacity-60">{busy ? 'Criando…' : 'Criar conta'}</button>
+              <button type="submit" disabled={busy} className="w-full rounded-2xl bg-pink-500 py-3.5 font-bold text-white disabled:opacity-60">Criar conta</button>
+
+              {registerTermsCardOpen && (
+                <div className="mt-4 rounded-2xl border border-pink-100 bg-pink-50/70 p-4">
+                  <p className="text-sm font-black text-zinc-900">Termos e Condições</p>
+                  <p className="mt-1 text-xs leading-5 text-zinc-500">Antes de criar sua conta, leia e aceite os Termos e Condições do programa de afiliadas.</p>
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                    <button type="button" onClick={() => setRegisterTermsOpen(true)} className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-xs font-black text-zinc-700">Ler Termos e Condições</button>
+                    <button type="button" disabled={busy} onClick={acceptRegisterTermsAndCreate} className="rounded-xl bg-zinc-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50">{busy ? 'Criando…' : 'Aceitar e cadastrar'}</button>
+                  </div>
+                </div>
+              )}
             </form>
           )}
 
-          <button type="button" onClick={() => { setRegisterMode(v => !v); setError('') }} className="mt-4 w-full text-sm font-bold text-pink-500">
+          <button type="button" onClick={() => { setRegisterMode(v => !v); setError(''); setRegisterTermsCardOpen(false); setRegisterTermsOpen(false) }} className="mt-4 w-full text-sm font-bold text-pink-500">
             {registerMode ? 'Já tenho uma conta' : 'Quero ser afiliada'}
           </button>
+
+          {registerTermsOpen && (
+            <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 px-5 py-8" onMouseDown={event => { if (event.target === event.currentTarget) setRegisterTermsOpen(false) }}>
+              <div role="dialog" aria-modal="true" className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] bg-white p-6 shadow-[0_30px_100px_rgba(0,0,0,.3)]">
+                <div className="flex items-start justify-between gap-4">
+                  <div><p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Termos e Condições</p><h3 className="mt-1 text-2xl font-black text-zinc-950">Programa de Afiliadas SHE</h3></div>
+                  <button type="button" onClick={() => setRegisterTermsOpen(false)} className="h-9 w-9 rounded-full bg-zinc-100 text-zinc-500">×</button>
+                </div>
+                <div className="mt-5 space-y-4 text-sm leading-6 text-zinc-600">
+                  <p><strong>1. Natureza da relação.</strong> O programa de afiliadas é uma relação comercial independente para divulgação de produtos e geração de vendas. A afiliada atua por sua própria conta e risco, sem salário, jornada, controle de ponto, subordinação, exclusividade ou garantia de remuneração mínima.</p>
+                  <p><strong>2. Autonomia.</strong> A afiliada organiza livremente seus horários, métodos, canais e rotina de divulgação, podendo exercer outras atividades e trabalhar com outras empresas, desde que respeite a legislação e estes termos.</p>
+                  <p><strong>3. Comissões.</strong> Os valores pagos decorrem exclusivamente de vendas elegíveis atribuídas ao link da afiliada e das regras comerciais vigentes. Comissão não constitui salário, ajuda de custo, benefício ou remuneração por disponibilidade.</p>
+                  <p><strong>4. Ausência de garantia.</strong> A SHE não garante quantidade de vendas, faturamento, comissão ou renda. Resultados dependem das vendas efetivamente realizadas e validadas.</p>
+                  <p><strong>5. Custos e obrigações.</strong> A afiliada é responsável por seus próprios equipamentos, internet, produção de conteúdo, publicidade, tributos e demais custos relacionados à sua atividade, salvo quando a SHE expressamente assumir determinado custo.</p>
+                  <p><strong>6. Saques.</strong> Solicitações de saque estão sujeitas à conferência e processamento e podem levar <strong>até 3 dias</strong>. O prazo pode ser afetado por informações incorretas, inconsistências, fraude ou indisponibilidade de meios de pagamento.</p>
+                  <p><strong>7. Conteúdo e publicidade.</strong> A afiliada deve divulgar os produtos de forma verdadeira, responsável e compatível com as orientações da SHE, sem prometer resultados garantidos, fazer alegações não autorizadas ou utilizar conteúdo que viole direitos de terceiros.</p>
+                  <p><strong>8. Sistema de equipes.</strong> O sistema de equipes <strong>não é um sistema de pirâmide financeira</strong>. Não há cobrança para recrutar pessoas nem pagamento simplesmente pelo recrutamento. A equipe é apenas um mecanismo de incentivo comercial destinado a recompensar a afiliada mãe pelo suporte, treinamento e orientação que voluntariamente oferece às afiliadas de sua equipe. A afiliada mãe não é empregadora, chefe ou supervisora das demais afiliadas.</p>
+                  <p><strong>9. Conduta.</strong> É proibido manipular vendas, utilizar fraude, autoindicação indevida, pedidos fictícios, spam, informações falsas, práticas enganosas ou qualquer conduta destinada a gerar comissão de maneira irregular. A SHE poderá suspender ou encerrar contas que violem estas regras.</p>
+                  <p><strong>10. Alterações.</strong> A SHE poderá atualizar regras comerciais, percentuais, critérios de validação e funcionamento do programa, comunicando alterações pelos canais disponíveis. A continuidade de uso do programa após a alteração representa concordância com as novas regras, quando permitido pela legislação.</p>
+                  <p><strong>11. Lei e direitos legais.</strong> Estes termos descrevem a natureza pretendida da relação comercial e não têm por objetivo afastar direitos que não possam ser renunciados por lei. A realidade da relação entre as partes deverá permanecer compatível com a autonomia aqui descrita.</p>
+                </div>
+                <div className="mt-6 flex justify-end"><button type="button" onClick={() => setRegisterTermsOpen(false)} className="rounded-xl bg-zinc-950 px-5 py-3 text-sm font-black text-white">Fechar</button></div>
+              </div>
+            </div>
+          )}
         </div>
       </main>
     )
