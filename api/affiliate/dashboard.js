@@ -236,10 +236,19 @@ module.exports = async function handler(req, res) {
       : [];
     const teamRate = Number(settings.teamCommissionPerSale || 10);
     const levelMonth = isAllMonths ? defaultMonth : selectedMonth;
-    const ownSalesForLevel = isAllMonths
-      ? annotatedPaidOrders.filter(order => order.month === levelMonth).length
-      : selectedSales;
-    const teamSalesForLevel = (teamOrders || []).filter(order => isPaidOrder(order) && String(order.created_at || '').slice(0, 7) === levelMonth).length;
+    // Os pontos do nível são sempre as vendas pessoais + vendas da equipe
+    // diretamente vinculada, dentro do mês do nível. Usamos o mesmo intervalo
+    // de datas do dashboard para evitar diferenças causadas por formatação de data.
+    const levelMonthRange = monthRange(levelMonth);
+    const ownSalesForLevel = annotatedPaidOrders.filter(order => {
+      const date = new Date(order.created_at);
+      return date >= levelMonthRange.start && date < levelMonthRange.end;
+    }).length;
+    const teamSalesForLevel = (teamOrders || []).filter(order => {
+      if (!isPaidOrder(order)) return false;
+      const date = new Date(order.created_at);
+      return date >= levelMonthRange.start && date < levelMonthRange.end;
+    }).length;
     const levelSales = ownSalesForLevel + teamSalesForLevel;
     const joinedThisLevelMonth = Boolean(joinedMonth && joinedMonth === levelMonth);
     const effectiveLevelSales = joinedThisLevelMonth ? Math.max(10, levelSales) : levelSales;
