@@ -351,7 +351,13 @@ export default function AffiliateDashboard() {
           ) : (
             <form onSubmit={submitRegister} className="mt-7 space-y-3">
               <input value={form.name} onChange={e => setForm({...form,name:e.target.value})} required placeholder="Seu nome" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
-              <input value={form.slug} onChange={e => setForm({...form,slug:e.target.value})} required placeholder="Seu link (ex.: ana)" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
+              <div>
+                <div className="flex overflow-hidden rounded-2xl border border-zinc-200 bg-white focus-within:border-pink-400">
+                  <input value={form.slug} onChange={e => setForm({...form,slug:e.target.value})} required placeholder="Seu link (ex.: ana)" className="min-w-0 flex-1 px-4 py-3 outline-none" />
+                  <span className="flex items-center bg-zinc-100 px-4 text-sm font-black text-zinc-400">ID</span>
+                </div>
+                <p className="mt-1.5 px-1 text-[11px] text-zinc-400">Seu link: shecoisademulher.com/{form.slug || 'ana'}ID</p>
+              </div>
               <input value={form.whatsapp} onChange={e => setForm({...form,whatsapp:e.target.value})} type="tel" required placeholder="WhatsApp (31) 99999-9999" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
               <input value={form.cpf} onChange={e => setForm({...form,cpf:e.target.value})} inputMode="numeric" maxLength={14} required placeholder="CPF" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
               <input value={form.email} onChange={e => setForm({...form,email:e.target.value})} type="email" required placeholder="E-mail" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />

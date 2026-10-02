@@ -57,7 +57,7 @@ async function register(req, res) {
   const { name, slug, email, password, whatsapp, cpf } = req.body || {};
   const cleanName = String(name || '').trim();
   const cleanEmail = String(email || '').trim().toLowerCase();
-  const cleanSlug = slugify(slug || name);
+  const cleanSlug = slugify(slug || name).slice(0, 44);
   const cleanWhatsapp = normalizeWhatsapp(whatsapp);
   const cleanCpf = normalizeCpf(cpf);
 
@@ -66,12 +66,12 @@ async function register(req, res) {
   }
 
   const existing = await supabaseFetch(
-    `/rest/v1/affiliates?or=(slug.eq.${encodeURIComponent(cleanSlug)},email.eq.${encodeURIComponent(cleanEmail)},cpf.eq.${encodeURIComponent(cleanCpf)})&select=id,slug,email,cpf&limit=1`
+    `/rest/v1/affiliates?or=(email.eq.${encodeURIComponent(cleanEmail)},cpf.eq.${encodeURIComponent(cleanCpf)})&select=id,slug,email,cpf&limit=1`
   );
   if (existing?.length) {
     const duplicate = existing[0];
     if (duplicate.cpf === cleanCpf) return json(res, 409, { error: 'Este CPF já está cadastrado.' });
-    return json(res, 409, { error: 'Slug ou e-mail já cadastrado.' });
+    return json(res, 409, { error: 'E-mail já cadastrado.' });
   }
 
   const created = await supabaseFetch('/auth/v1/admin/users', {
@@ -91,7 +91,7 @@ async function register(req, res) {
       body: JSON.stringify({
         auth_user_id: created.id,
         name: cleanName,
-        slug: cleanSlug,
+        slug: `pending-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         email: cleanEmail,
         cpf: cleanCpf,
         whatsapp: cleanWhatsapp,
@@ -103,6 +103,15 @@ async function register(req, res) {
     });
 
     if (rows?.[0]?.id) {
+      const affiliateId = Number(rows[0].id);
+      const finalSlug = `${cleanSlug}${affiliateId}`.slice(0, 50);
+      const updated = await supabaseFetch(`/rest/v1/affiliates?id=eq.${affiliateId}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ slug: finalSlug }),
+      });
+      rows[0] = updated?.[0] || { ...rows[0], slug: finalSlug };
+
       await supabaseFetch('/rest/v1/affiliate_admin_status_history', {
         method: 'POST',
         headers: { Prefer: 'return=minimal' },
