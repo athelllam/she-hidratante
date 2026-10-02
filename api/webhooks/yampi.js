@@ -30,11 +30,43 @@ function getStatus(payload) {
   const order = getOrder(payload);
   return String(
     order?.status?.slug ||
+    order?.status?.alias ||
+    order?.status?.data?.slug ||
+    order?.status?.data?.alias ||
     order?.status?.name ||
+    order?.status?.data?.name ||
     order?.status ||
     payload?.event ||
     ''
-  ).toLowerCase().replace(/\s+/g, '_');
+  ).toLowerCase().trim().replace(/\s+/g, '_');
+}
+
+function getStatusDiagnostics(payload) {
+  const order = getOrder(payload);
+  return {
+    event: payload?.event ?? null,
+    orderId: order?.id ?? order?.number ?? order?.order_id ?? order?.code ?? null,
+    status: {
+      raw: order?.status ?? null,
+      slug: order?.status?.slug ?? null,
+      alias: order?.status?.alias ?? null,
+      dataSlug: order?.status?.data?.slug ?? null,
+      dataAlias: order?.status?.data?.alias ?? null,
+      name: order?.status?.name ?? null,
+      dataName: order?.status?.data?.name ?? null,
+      normalized: getStatus(payload) || null,
+    },
+    metadata: {
+      orderMetadata: order?.metadata ?? null,
+      payloadMetadata: payload?.metadata ?? null,
+      affiliateId: getMetadata(payload),
+    },
+    keys: {
+      payload: Object.keys(payload || {}),
+      data: Object.keys(payload?.data || {}),
+      order: Object.keys(order || {}),
+    },
+  };
 }
 
 function getTotal(payload) {
@@ -72,16 +104,48 @@ module.exports = async function handler(req, res) {
     }
 
     const payload = req.body || {};
+    const diagnostics = getStatusDiagnostics(payload);
+
+    // DIAGNÓSTICO TEMPORÁRIO:
+    // Não registra PII nem o payload inteiro. O objetivo é descobrir exatamente
+    // qual status/alias a Yampi envia e onde o metadata[affiliate_id] aparece.
+    console.log('[YAMPI WEBHOOK DIAGNOSTIC]', JSON.stringify(diagnostics));
+
     const affiliateId = Number(getMetadata(payload));
     const yampiOrderId = String(getOrderId(payload) || '');
-    if (!affiliateId || !yampiOrderId) return json(res, 200, { ok: true, ignored: true, reason: 'Sem affiliate_id ou order id.' });
+    if (!affiliateId || !yampiOrderId) {
+      console.log('[YAMPI WEBHOOK DIAGNOSTIC] Ignorado por identificação:', JSON.stringify({
+        affiliateId: getMetadata(payload),
+        orderId: diagnostics.orderId,
+        event: diagnostics.event,
+        normalizedStatus: diagnostics.status.normalized,
+      }));
+      return json(res, 200, { ok: true, ignored: true, reason: 'Sem affiliate_id ou order id.' });
+    }
 
     const affiliates = await supabaseFetch(`/rest/v1/affiliates?id=eq.${affiliateId}&select=id,commission_rate&limit=1`);
     if (!affiliates?.[0]) return json(res, 200, { ok: true, ignored: true, reason: 'Afiliada inexistente.' });
 
     const status = getStatus(payload) || 'created';
     if (status !== 'payment_approved') {
-      return json(res, 200, { ok: true, ignored: true, reason: 'Status não é payment_approved.' });
+      console.log('[YAMPI WEBHOOK DIAGNOSTIC] STATUS NÃO CONFIRMADO:', JSON.stringify({
+        event: diagnostics.event,
+        orderId: diagnostics.orderId,
+        normalizedStatus: status,
+        statusObject: diagnostics.status,
+        affiliateId: diagnostics.metadata.affiliateId,
+      }));
+      return json(res, 200, {
+        ok: true,
+        ignored: true,
+        reason: 'Status não é payment_approved.',
+        diagnostic: {
+          event: diagnostics.event,
+          orderId: diagnostics.orderId,
+          normalizedStatus: status,
+          affiliateId: diagnostics.metadata.affiliateId,
+        },
+      });
     }
     const total = getTotal(payload);
     const commission = total * Number(affiliates[0].commission_rate || 0);
