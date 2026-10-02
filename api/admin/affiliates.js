@@ -105,7 +105,34 @@ module.exports = async function handler(req, res) {
         };
       });
 
-      return json(res, 200, { affiliates: result, settings });
+      const monthlyMap = new Map();
+      for (const order of orders || []) {
+        if (!isPaidOrder(order) || !order.created_at) continue;
+        const date = new Date(order.created_at);
+        if (Number.isNaN(date.getTime())) continue;
+        const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        const bucket = monthlyMap.get(month) || { sales: 0, revenue: 0 };
+        bucket.sales += 1;
+        bucket.revenue += Number(order.total || 0);
+        monthlyMap.set(month, bucket);
+      }
+      const monthlyStats = Object.fromEntries(Array.from(monthlyMap.entries()).map(([month, value]) => [month, {
+        sales: value.sales,
+        revenue: money(value.revenue),
+        averageTicket: money(value.sales ? value.revenue / value.sales : 0),
+      }]));
+      const globalAll = Object.values(monthlyStats).reduce((acc, value) => ({
+        sales: acc.sales + value.sales,
+        revenue: acc.revenue + value.revenue,
+      }), { sales: 0, revenue: 0 });
+      globalAll.averageTicket = money(globalAll.sales ? globalAll.revenue / globalAll.sales : 0);
+
+      return json(res, 200, {
+        affiliates: result,
+        settings,
+        globalStats: { all: globalAll, byMonth: monthlyStats },
+        availableMonths: Object.keys(monthlyStats).sort().reverse(),
+      });
     }
 
     if (req.method === 'DELETE') {

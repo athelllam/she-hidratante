@@ -96,6 +96,10 @@ export default function AdminDashboard() {
   const [settings, setSettings] = useState({ ticketThreshold: 170, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 } })
   const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', none: '30', bronze: '40', silver: '50', gold: '60' })
   const [savingSettings, setSavingSettings] = useState(false)
+  const [globalStatsData, setGlobalStatsData] = useState({ all: { sales: 0, revenue: 0, averageTicket: 0 }, byMonth: {} })
+  const [availableMonths, setAvailableMonths] = useState([])
+  const [selectedMonths, setSelectedMonths] = useState([])
+  const [monthFilterOpen, setMonthFilterOpen] = useState(false)
 
   const loadPanel = async () => {
     const [affiliateData, withdrawalData] = await Promise.all([
@@ -104,6 +108,8 @@ export default function AdminDashboard() {
     ])
     setAffiliates(affiliateData.affiliates || [])
     setWithdrawals(withdrawalData.withdrawals || [])
+    setGlobalStatsData(affiliateData.globalStats || { all: { sales: 0, revenue: 0, averageTicket: 0 }, byMonth: {} })
+    setAvailableMonths(affiliateData.availableMonths || [])
     const nextSettings = affiliateData.settings || { ticketThreshold: 170, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 } }
     setSettings(nextSettings)
     setSettingsForm({
@@ -307,7 +313,16 @@ export default function AdminDashboard() {
   }
 
   const stats = useMemo(() => {
-    const totalSales = affiliates.reduce((sum, affiliate) => sum + Number(affiliate.sales || 0), 0)
+    const selected = selectedMonths.length
+      ? selectedMonths.reduce((acc, month) => {
+          const value = globalStatsData.byMonth?.[month]
+          if (!value) return acc
+          acc.sales += Number(value.sales || 0)
+          acc.revenue += Number(value.revenue || 0)
+          return acc
+        }, { sales: 0, revenue: 0 })
+      : { sales: Number(globalStatsData.all?.sales || 0), revenue: Number(globalStatsData.all?.revenue || 0) }
+    selected.averageTicket = selected.sales ? selected.revenue / selected.sales : 0
     const totalBalance = affiliates.reduce((sum, affiliate) => sum + Number(affiliate.balance || 0), 0)
     const pending = withdrawals.filter(item => item.status === 'pending' || item.status === 'approved')
     const pendingAmount = pending.reduce((sum, item) => sum + Number(item.amount || 0), 0)
@@ -315,12 +330,25 @@ export default function AdminDashboard() {
       affiliates: affiliates.length,
       active: affiliates.filter(item => item.adminActive).length,
       inactive: affiliates.filter(item => !item.adminActive).length,
-      totalSales,
+      totalSales: selected.sales,
+      totalRevenue: selected.revenue,
+      averageTicket: selected.averageTicket,
       totalBalance,
       pendingCount: pending.length,
       pendingAmount,
     }
-  }, [affiliates, withdrawals])
+  }, [affiliates, withdrawals, globalStatsData, selectedMonths])
+
+  const monthLabel = (month) => {
+    const [year, monthNumber] = String(month).split('-')
+    return new Date(Number(year), Number(monthNumber) - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+  }
+
+  const toggleMonth = (month) => {
+    setSelectedMonths(current => current.includes(month) ? current.filter(item => item !== month) : [...current, month])
+  }
+
+  const clearMonthFilter = () => setSelectedMonths([])
 
   const filteredAffiliates = useMemo(() => {
     const query = affiliateSearch.trim().toLocaleLowerCase('pt-BR')
@@ -415,12 +443,43 @@ export default function AdminDashboard() {
           </div>
         </header>
 
-        <section className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <section className="mt-7">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">Período dos indicadores globais</p>
+              <p className="mt-1 text-sm font-semibold text-zinc-600">{selectedMonths.length ? `${selectedMonths.length} ${selectedMonths.length === 1 ? 'mês selecionado' : 'meses selecionados'}` : 'Todos os meses'}</p>
+            </div>
+            <div className="relative">
+              <button type="button" onClick={() => setMonthFilterOpen(current => !current)} className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-black text-zinc-800 shadow-sm hover:border-pink-300">
+                {selectedMonths.length ? 'Alterar meses' : 'Filtrar por mês'} ▾
+              </button>
+              {monthFilterOpen && (
+                <div className="absolute right-0 z-30 mt-2 w-72 rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_20px_60px_rgba(0,0,0,.12)]">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-black text-zinc-950">Selecionar meses</p>
+                    <button type="button" onClick={clearMonthFilter} className="text-xs font-bold text-pink-500">Todos</button>
+                  </div>
+                  <div className="mt-3 max-h-64 space-y-2 overflow-auto">
+                    {availableMonths.length ? availableMonths.map(month => (
+                      <label key={month} className="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2 hover:bg-zinc-50">
+                        <input type="checkbox" checked={selectedMonths.includes(month)} onChange={() => toggleMonth(month)} className="h-4 w-4 accent-pink-500" />
+                        <span className="text-sm font-semibold capitalize text-zinc-700">{monthLabel(month)}</span>
+                      </label>
+                    )) : <p className="text-xs text-zinc-400">Ainda não há vendas pagas registradas.</p>}
+                  </div>
+                  <button type="button" onClick={() => setMonthFilterOpen(false)} className="mt-3 w-full rounded-xl bg-zinc-950 py-2.5 text-xs font-black text-white">Aplicar</button>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
           {[
             ['Afiliadas', stats.affiliates],
             ['Ativas', stats.active],
             ['Inativas', stats.inactive],
             ['Vendas acumuladas', stats.totalSales],
+            ['Faturamento', brl(stats.totalRevenue)],
+            ['Ticket médio', brl(stats.averageTicket)],
             ['Saldo das afiliadas', brl(stats.totalBalance)],
           ].map(([label, value]) => (
             <div key={label} className="rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
@@ -428,6 +487,7 @@ export default function AdminDashboard() {
               <p className="mt-2 text-2xl font-black text-zinc-950">{value}</p>
             </div>
           ))}
+          </div>
         </section>
 
         <section className="mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
