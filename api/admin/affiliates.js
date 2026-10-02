@@ -32,7 +32,7 @@ module.exports = async function handler(req, res) {
           const value = order.created_at ? new Date(order.created_at).getTime() : 0;
           return value > latest ? value : latest;
         }, 0);
-        if (Boolean(affiliate.admin_active) && (!lastSaleAt || lastSaleAt < cutoff)) {
+        if (Boolean(affiliate.admin_active) && lastSaleAt > 0 && lastSaleAt < cutoff) {
           staleAffiliateIds.push(Number(affiliate.id));
         }
       }
@@ -65,7 +65,7 @@ module.exports = async function handler(req, res) {
           commission: commissionData.total,
           withdrawals: 0,
           lastSaleAt: lastSaleAt ? new Date(lastSaleAt).toISOString() : null,
-          autoInactive: !lastSaleAt || lastSaleAt < cutoff,
+          autoInactive: lastSaleAt > 0 && lastSaleAt < cutoff,
         });
       }
 
