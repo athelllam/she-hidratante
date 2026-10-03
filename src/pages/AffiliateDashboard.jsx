@@ -68,7 +68,7 @@ export default function AffiliateDashboard() {
   const [dashboard, setDashboard] = useState(null)
   const [selectedMonth, setSelectedMonth] = useState('')
   const [registerMode, setRegisterMode] = useState(false)
-  const [form, setForm] = useState({ name: '', email: '', password: '', whatsapp: '', cpf: '' })
+  const [form, setForm] = useState({ name: '', slug: '', email: '', password: '', whatsapp: '', cpf: '' })
   const [login, setLogin] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -98,9 +98,6 @@ export default function AffiliateDashboard() {
   const [videoHelpOpen, setVideoHelpOpen] = useState(false)
   const [registerTermsCardOpen, setRegisterTermsCardOpen] = useState(false)
   const [registerTermsOpen, setRegisterTermsOpen] = useState(false)
-  const [linkSlug, setLinkSlug] = useState('')
-  const [linkBusy, setLinkBusy] = useState(false)
-  const [linkMessage, setLinkMessage] = useState('')
   const chartScrollRef = useRef(null)
 
   useEffect(() => {
@@ -202,26 +199,6 @@ export default function AffiliateDashboard() {
     } catch (e) {
       setError(e.message)
     } finally { setBusy(false) }
-  }
-
-  const createAffiliateLink = async (event) => {
-    event.preventDefault()
-    setLinkBusy(true)
-    setLinkMessage('')
-    try {
-      const result = await api('/api/affiliate/dashboard', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'create_link', slug: linkSlug }),
-      })
-      setAffiliate(current => current ? { ...current, slug: result.affiliate?.slug || '' } : current)
-      setLinkSlug('')
-      setLinkMessage('Seu link foi criado com sucesso.')
-      await load({ sync: false })
-    } catch (e) {
-      setLinkMessage(e.message || 'Não foi possível criar seu link.')
-    } finally {
-      setLinkBusy(false)
-    }
   }
 
   const logout = async () => {
@@ -374,6 +351,7 @@ export default function AffiliateDashboard() {
           ) : (
             <form onSubmit={submitRegister} className="mt-7 space-y-3">
               <input value={form.name} onChange={e => setForm({...form,name:e.target.value})} required placeholder="Seu nome" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
+              <input value={form.slug} onChange={e => setForm({...form,slug:e.target.value})} required placeholder="Seu link (ex.: ana)" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
               <input value={form.whatsapp} onChange={e => setForm({...form,whatsapp:e.target.value})} type="tel" required placeholder="WhatsApp (31) 99999-9999" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
               <input value={form.cpf} onChange={e => setForm({...form,cpf:e.target.value})} inputMode="numeric" maxLength={14} required placeholder="CPF" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
               <input value={form.email} onChange={e => setForm({...form,email:e.target.value})} type="email" required placeholder="E-mail" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
@@ -433,9 +411,8 @@ export default function AffiliateDashboard() {
   const chartScaleMax = maxRevenue * 1.25
   const chartBarAreaHeight = 88
 
-  const hasAffiliateLink = Boolean(affiliate.slug)
-  const publicUrl = hasAffiliateLink ? `https://shecoisademulher.com/${affiliate.slug}` : ''
-  const qrUrl = publicUrl ? `https://quickchart.io/qr?size=220&text=${encodeURIComponent(publicUrl)}` : ''
+  const publicUrl = `${window.location.origin}/${affiliate.slug}`
+  const qrUrl = `https://quickchart.io/qr?size=220&text=${encodeURIComponent(publicUrl)}`
   const config = dashboard?.settings || { ticketThreshold: 170, ticketBonus: 5, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 } }
   const level = dashboard?.level || { key: 'none', label: 'Início', sales: 0, commissionPerOrder: Number(config.commissions?.none || 30), progress: 0, nextLevel: 'Bronze', nextMinSales: 10, salesToNext: 10 }
   const months = dashboard?.months?.length ? dashboard.months : [selectedMonth]
@@ -474,30 +451,11 @@ export default function AffiliateDashboard() {
             <button onClick={() => load({ sync: true })} disabled={syncing} className="rounded-xl bg-pink-500 px-4 py-2.5 text-sm font-bold text-white shadow-sm disabled:opacity-60">
               {syncing ? 'Atualizando…' : 'Atualizar vendas'}
             </button>
-            {hasAffiliateLink && <Link to={`/${affiliate.slug}`} className="rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-zinc-800 shadow-sm border border-zinc-200">Ver página</Link>}
+            <Link to={`/${affiliate.slug}`} className="rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-zinc-800 shadow-sm border border-zinc-200">Ver página</Link>
             <button onClick={logout} className="rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-bold text-white">Sair</button>
           </div>
         </header>
 
-        {!hasAffiliateLink && (
-          <section className="relative mt-7 overflow-hidden rounded-[2rem] border-2 border-pink-200 bg-white p-6 shadow-[0_0_35px_rgba(236,72,153,.28)] md:p-8">
-            <div className="absolute -inset-1 -z-10 rounded-[2rem] bg-pink-300/20 blur-2xl" />
-            <p className="text-[10px] font-black uppercase tracking-[.22em] text-pink-500">Primeiro passo</p>
-            <h2 className="mt-2 text-2xl font-black text-zinc-950">Crie seu link de afiliada</h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-500">Escolha o nome que você quer usar no seu link. Seu ID já foi criado e será acrescentado automaticamente.</p>
-            <form onSubmit={createAffiliateLink} className="mt-5">
-              <div className="flex overflow-hidden rounded-2xl border-2 border-pink-100 bg-white focus-within:border-pink-400">
-                <input value={linkSlug} onChange={e => setLinkSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 40))} required placeholder="Ex.: ana" className="min-w-0 flex-1 px-4 py-4 text-base font-bold outline-none" />
-                <span className="flex items-center bg-zinc-100 px-4 text-sm font-black text-zinc-400">ID {affiliate.id}</span>
-              </div>
-              <p className="mt-2 px-1 text-xs font-semibold text-zinc-400">Seu link: <span className="text-zinc-500">shecoisademulher.com/{linkSlug || 'ana'}{affiliate.id}</span></p>
-              {linkMessage && <p className="mt-3 rounded-xl bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-600">{linkMessage}</p>}
-              <button disabled={linkBusy || !linkSlug.trim()} className="mt-4 w-full rounded-2xl bg-pink-500 py-4 font-black text-white shadow-lg shadow-pink-200 transition hover:bg-pink-600 disabled:cursor-not-allowed disabled:opacity-50">{linkBusy ? 'Criando seu link…' : 'Criar meu link'}</button>
-            </form>
-          </section>
-        )}
-
-        <div className={!hasAffiliateLink ? 'pointer-events-none select-none grayscale opacity-40' : ''}>
         {Number(dashboard?.lifetimeSales || 0) === 0 && (
           <section className="mt-7 rounded-[1.5rem] border border-pink-100 bg-white p-4 shadow-sm md:p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -715,17 +673,10 @@ export default function AffiliateDashboard() {
               <p className="mt-1 text-sm text-zinc-500">Passe seu código para novas afiliadas entrarem diretamente na sua equipe.</p>
               <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-pink-50 px-4 py-2"><span className="text-xs font-bold text-zinc-500">Seu código</span><span className="text-lg font-black tracking-[.18em] text-pink-600">{team.code}</span></div>
             </div>
-            <div className="grid gap-2 sm:min-w-[320px] sm:grid-cols-2">
-              <div className="rounded-2xl bg-zinc-50 px-4 py-3">
-                <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Vendas da equipe</p>
-                <p className="mt-1 text-xl font-black text-zinc-950">{team.sales || 0}</p>
-                <p className="mt-1 text-xs text-zinc-400">Somatória das vendas das afiliadas diretamente na sua equipe.</p>
-              </div>
-              <div className="rounded-2xl bg-zinc-50 px-4 py-3">
-                <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Comissão de equipe</p>
-                <p className="mt-1 text-xl font-black text-zinc-950">{brl(team.commissionPerSale)} / venda</p>
-                <p className="mt-1 text-xs text-zinc-400">Gerada pelas afiliadas diretamente na sua equipe.</p>
-              </div>
+            <div className="rounded-2xl bg-zinc-50 px-4 py-3 sm:min-w-[220px]">
+              <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Comissão de equipe</p>
+              <p className="mt-1 text-xl font-black text-zinc-950">{brl(team.commissionPerSale)} / venda</p>
+              <p className="mt-1 text-xs text-zinc-400">Gerada pelas afiliadas diretamente na sua equipe.</p>
             </div>
           </div>
 
@@ -880,8 +831,6 @@ export default function AffiliateDashboard() {
           </div>
         </div>
       )}
-
-        </div>
 
       {levelHelpOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-5 py-8 backdrop-blur-[2px]" onMouseDown={() => setLevelHelpOpen(false)}>

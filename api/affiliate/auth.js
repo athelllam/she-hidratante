@@ -57,21 +57,21 @@ async function register(req, res) {
   const { name, slug, email, password, whatsapp, cpf } = req.body || {};
   const cleanName = String(name || '').trim();
   const cleanEmail = String(email || '').trim().toLowerCase();
-  const cleanSlug = slugify(slug || name).slice(0, 44);
+  const cleanSlug = slugify(slug || name);
   const cleanWhatsapp = normalizeWhatsapp(whatsapp);
   const cleanCpf = normalizeCpf(cpf);
 
-  if (!cleanName || !cleanEmail || !cleanWhatsapp || !isValidCpf(cleanCpf) || String(password || '').length < 8) {
-    return json(res, 400, { error: 'Informe nome, CPF válido, WhatsApp, e-mail e senha com pelo menos 8 caracteres.' });
+  if (!cleanName || !cleanSlug || !cleanEmail || !cleanWhatsapp || !isValidCpf(cleanCpf) || String(password || '').length < 8) {
+    return json(res, 400, { error: 'Informe nome, CPF válido, slug, WhatsApp, e-mail e senha com pelo menos 8 caracteres.' });
   }
 
   const existing = await supabaseFetch(
-    `/rest/v1/affiliates?or=(email.eq.${encodeURIComponent(cleanEmail)},cpf.eq.${encodeURIComponent(cleanCpf)})&select=id,slug,email,cpf&limit=1`
+    `/rest/v1/affiliates?or=(slug.eq.${encodeURIComponent(cleanSlug)},email.eq.${encodeURIComponent(cleanEmail)},cpf.eq.${encodeURIComponent(cleanCpf)})&select=id,slug,email,cpf&limit=1`
   );
   if (existing?.length) {
     const duplicate = existing[0];
     if (duplicate.cpf === cleanCpf) return json(res, 409, { error: 'Este CPF já está cadastrado.' });
-    return json(res, 409, { error: 'E-mail já cadastrado.' });
+    return json(res, 409, { error: 'Slug ou e-mail já cadastrado.' });
   }
 
   const created = await supabaseFetch('/auth/v1/admin/users', {
@@ -91,7 +91,7 @@ async function register(req, res) {
       body: JSON.stringify({
         auth_user_id: created.id,
         name: cleanName,
-        slug: null,
+        slug: cleanSlug,
         email: cleanEmail,
         cpf: cleanCpf,
         whatsapp: cleanWhatsapp,

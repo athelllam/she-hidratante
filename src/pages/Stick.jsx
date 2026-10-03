@@ -396,7 +396,7 @@ function SheCart({ open, onClose, affiliateId = null }) {
   }
 
   const total =
-    stickQty * 129.90 +
+    stickQty * 149.90 +
     (bumps.stick ? 97.90 : 0) +
     (bumps.hydrant ? 97.90 : 0) +
     (bumps.blister ? 18.90 : 0) +

@@ -85,32 +85,6 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  if (req.method === 'POST' && String(req.body?.action || '') === 'create_link') {
-    try {
-      const { affiliate } = await requireAffiliate(req);
-      if (affiliate.slug) return json(res, 400, { error: 'Seu link já foi criado.' });
-      const rawSlug = String(req.body?.slug || '').trim();
-      const cleanSlug = rawSlug
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase().replace(/[^a-z0-9-]+/g, '-')
-        .replace(/^-+|-+$/g, '').slice(0, 40);
-      if (!cleanSlug || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(cleanSlug)) {
-        return json(res, 400, { error: 'Digite um nome válido para o seu link.' });
-      }
-      const finalSlug = `${cleanSlug}${Number(affiliate.id)}`;
-      const existing = await supabaseFetch(`/rest/v1/affiliates?slug=eq.${encodeURIComponent(finalSlug)}&select=id&limit=1`);
-      if (existing?.length) return json(res, 409, { error: 'Esse link já está em uso. Escolha outro nome.' });
-      const rows = await supabaseFetch(`/rest/v1/affiliates?id=eq.${Number(affiliate.id)}`, {
-        method: 'PATCH',
-        headers: { Prefer: 'return=representation' },
-        body: JSON.stringify({ slug: finalSlug }),
-      });
-      return json(res, 200, { affiliate: rows?.[0] || { ...affiliate, slug: finalSlug } });
-    } catch (error) {
-      return json(res, error.statusCode || 500, { error: error.message || 'Não foi possível criar seu link.' });
-    }
-  }
-
   if (req.method === 'POST') {
     try {
       const { affiliate } = await requireAffiliate(req);
@@ -236,24 +210,13 @@ module.exports = async function handler(req, res) {
       : [];
     const teamRate = Number(settings.teamCommissionPerSale || 10);
     const levelMonth = isAllMonths ? defaultMonth : selectedMonth;
-    // Os pontos do nível são sempre as vendas pessoais + vendas da equipe
-    // diretamente vinculada, dentro do mês do nível. Usamos o mesmo intervalo
-    // de datas do dashboard para evitar diferenças causadas por formatação de data.
-    const levelMonthRange = monthRange(levelMonth);
-    const ownSalesForLevel = annotatedPaidOrders.filter(order => {
-      const date = new Date(order.created_at);
-      return date >= levelMonthRange.start && date < levelMonthRange.end;
-    }).length;
-    const teamSalesForLevel = (teamOrders || []).filter(order => {
-      if (!isPaidOrder(order)) return false;
-      const date = new Date(order.created_at);
-      return date >= levelMonthRange.start && date < levelMonthRange.end;
-    }).length;
+    const ownSalesForLevel = isAllMonths
+      ? annotatedPaidOrders.filter(order => order.month === levelMonth).length
+      : selectedSales;
+    const teamSalesForLevel = (teamOrders || []).filter(order => isPaidOrder(order) && String(order.created_at || '').slice(0, 7) === levelMonth).length;
     const levelSales = ownSalesForLevel + teamSalesForLevel;
     const joinedThisLevelMonth = Boolean(joinedMonth && joinedMonth === levelMonth);
-    // O bônus de equipe concede 10 pontos adicionais no mês em que a afiliada
-    // entra na equipe. Depois disso, as vendas pessoais + equipe são somadas normalmente.
-    const effectiveLevelSales = joinedThisLevelMonth ? (10 + levelSales) : levelSales;
+    const effectiveLevelSales = joinedThisLevelMonth ? Math.max(10, levelSales) : levelSales;
     const level = getLevel(effectiveLevelSales, settings);
     const teamSalesByAffiliate = new Map();
     for (const order of teamOrders || []) {
@@ -271,7 +234,6 @@ module.exports = async function handler(req, res) {
       canJoin: !affiliate.team_parent_id && lifetimeSales === 0,
       code: String(affiliate.team_code || ''),
       lifetimeSales,
-      sales: Array.from(teamSalesByAffiliate.values()).reduce((sum, sales) => sum + sales, 0),
       commissionPerSale: teamRate,
       earnedCommission: money(teamEarnedCommission),
       reservedWithdrawals: money(teamReserved),
