@@ -248,7 +248,7 @@ async function syncAffiliateOrders(affiliateId, commissionRate) {
   let pages = 0;
 
   while (scanned < config.maxOrders) {
-    const params = new URLSearchParams({ scroll: 'true', limit: '100', include: 'transactions' });
+    const params = new URLSearchParams({ scroll: 'true', limit: '100', include: 'metadata,transactions' });
     if (scrollId) params.set('scroll_id', scrollId);
 
     const response = await yampiFetch(`/orders?${params.toString()}`);
