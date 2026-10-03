@@ -103,8 +103,8 @@ export default function AdminDashboard() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deletePhrase, setDeletePhrase] = useState('')
   const [deletingIds, setDeletingIds] = useState([])
-  const [settings, setSettings] = useState({ ticketThreshold: 170, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 } })
-  const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', teamCommissionPerSale: '10', none: '30', bronze: '40', silver: '50', gold: '60' })
+  const [settings, setSettings] = useState({ ticketThreshold: 170, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 }, monthlyLevels: { bronze: 10, silver: 50, gold: 101 }, fixedLevels: { bronze: 100, silver: 300, gold: 500 } })
+  const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', teamCommissionPerSale: '10', none: '30', bronze: '40', silver: '50', gold: '60', monthlyBronze: '10', monthlySilver: '50', monthlyGold: '101', fixedBronze: '100', fixedSilver: '300', fixedGold: '500' })
   const [savingSettings, setSavingSettings] = useState(false)
   const [globalStatsData, setGlobalStatsData] = useState({ all: { sales: 0, revenue: 0, averageTicket: 0, accesses: 0 }, byMonth: {}, snapshots: {} })
   const [availableMonths, setAvailableMonths] = useState([])
@@ -122,7 +122,7 @@ export default function AdminDashboard() {
     setVideoSubmissions(videoData.videos || [])
     setGlobalStatsData(affiliateData.globalStats || { all: { sales: 0, revenue: 0, averageTicket: 0, accesses: 0 }, byMonth: {}, snapshots: {} })
     setAvailableMonths(affiliateData.availableMonths || [])
-    const nextSettings = affiliateData.settings || { ticketThreshold: 170, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 } }
+    const nextSettings = affiliateData.settings || { ticketThreshold: 170, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 }, monthlyLevels: { bronze: 10, silver: 50, gold: 101 }, fixedLevels: { bronze: 100, silver: 300, gold: 500 } }
     setSettings(nextSettings)
     setSettingsForm({
       ticketThreshold: String(nextSettings.ticketThreshold),
@@ -131,6 +131,12 @@ export default function AdminDashboard() {
       bronze: String(nextSettings.commissions?.bronze ?? 40),
       silver: String(nextSettings.commissions?.silver ?? 50),
       gold: String(nextSettings.commissions?.gold ?? 60),
+      monthlyBronze: String(nextSettings.monthlyLevels?.bronze ?? 10),
+      monthlySilver: String(nextSettings.monthlyLevels?.silver ?? 50),
+      monthlyGold: String(nextSettings.monthlyLevels?.gold ?? 101),
+      fixedBronze: String(nextSettings.fixedLevels?.bronze ?? 100),
+      fixedSilver: String(nextSettings.fixedLevels?.silver ?? 300),
+      fixedGold: String(nextSettings.fixedLevels?.gold ?? 500),
     })
     setSelectedAffiliateIds(new Set())
     setDeleteModalOpen(false)
@@ -317,9 +323,19 @@ export default function AdminDashboard() {
           silver: Number(String(settingsForm.silver).replace(',', '.')),
           gold: Number(String(settingsForm.gold).replace(',', '.')),
         },
+        monthlyLevels: {
+          bronze: Number(settingsForm.monthlyBronze),
+          silver: Number(settingsForm.monthlySilver),
+          gold: Number(settingsForm.monthlyGold),
+        },
+        fixedLevels: {
+          bronze: Number(settingsForm.fixedBronze),
+          silver: Number(settingsForm.fixedSilver),
+          gold: Number(settingsForm.fixedGold),
+        },
       }
-      if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || !Number.isFinite(payload.teamCommissionPerSale) || payload.teamCommissionPerSale < 0 || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0)) {
-        throw new Error('Informe valores válidos. A meta do ticket deve ser maior que zero e as comissões não podem ser negativas.')
+      if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || !Number.isFinite(payload.teamCommissionPerSale) || payload.teamCommissionPerSale < 0 || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0) || Object.values(payload.monthlyLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.fixedLevels).some(value => !Number.isInteger(value) || value <= 0) || !(payload.monthlyLevels.bronze < payload.monthlyLevels.silver && payload.monthlyLevels.silver < payload.monthlyLevels.gold) || !(payload.fixedLevels.bronze < payload.fixedLevels.silver && payload.fixedLevels.silver < payload.fixedLevels.gold)) {
+        throw new Error('Informe valores válidos. As metas devem ser números inteiros e crescentes: Bronze < Prata < Ouro.')
       }
       const result = await api('/api/admin/affiliates', {
         method: 'PATCH',
@@ -333,8 +349,14 @@ export default function AdminDashboard() {
         bronze: String(result.settings.commissions.bronze),
         silver: String(result.settings.commissions.silver),
         gold: String(result.settings.commissions.gold),
+        monthlyBronze: String(result.settings.monthlyLevels?.bronze ?? 10),
+        monthlySilver: String(result.settings.monthlyLevels?.silver ?? 50),
+        monthlyGold: String(result.settings.monthlyLevels?.gold ?? 101),
+        fixedBronze: String(result.settings.fixedLevels?.bronze ?? 100),
+        fixedSilver: String(result.settings.fixedLevels?.silver ?? 300),
+        fixedGold: String(result.settings.fixedLevels?.gold ?? 500),
       })
-      setMessage('Configurações de comissão pessoal, comissão de equipe e ticket médio atualizadas para todas as afiliadas.')
+      setMessage('Configurações de comissões e metas dos Bônus Mensal e Fixo atualizadas para todas as afiliadas.')
       await loadPanel()
     } catch (e) {
       setMessage(e.message || 'Não foi possível atualizar as configurações.')
@@ -789,8 +811,8 @@ export default function AdminDashboard() {
 
         <section className="mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
           <div>
-            <h2 className="text-xl font-black text-zinc-950">Configurações de comissão</h2>
-            <p className="mt-1 text-sm text-zinc-400">Altere a meta de ticket médio e os valores pagos por pedido em cada faixa. A mudança vale para todas as afiliadas.</p>
+            <h2 className="text-xl font-black text-zinc-950">Configurações de bônus</h2>
+            <p className="mt-1 text-sm text-zinc-400">Configure os valores pagos por pedido e as metas de vendas dos Bônus Mensal e Fixo. A mudança vale para todas as afiliadas.</p>
           </div>
 
           <form onSubmit={saveSettings} className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
@@ -822,8 +844,23 @@ export default function AdminDashboard() {
               </label>
             ))}
 
+            <div className="md:col-span-2 xl:col-span-3 rounded-[1.5rem] border border-pink-100 bg-pink-50/50 p-4">
+              <p className="text-xs font-black uppercase tracking-[.16em] text-pink-600">Bônus Mensal · vendas no mês</p>
+              <p className="mt-1 text-[10px] text-pink-500">Quantidade de vendas necessárias para cada nível dentro do mês.</p>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {[['monthlyBronze','Bronze'],['monthlySilver','Prata'],['monthlyGold','Ouro']].map(([key,label]) => <label key={key}><span className="text-[10px] font-black uppercase text-zinc-500">{label}</span><input value={settingsForm[key]} onChange={e => setSettingsForm(v => ({...v,[key]:e.target.value}))} inputMode="numeric" className="mt-1 w-full rounded-xl border border-pink-100 bg-white px-3 py-2.5 text-lg font-black outline-none focus:border-pink-400" /></label>)}
+              </div>
+            </div>
+            <div className="md:col-span-2 xl:col-span-3 rounded-[1.5rem] border border-amber-200 bg-amber-50/60 p-4">
+              <p className="text-xs font-black uppercase tracking-[.16em] text-amber-700">Bônus Fixo · vendas acumuladas</p>
+              <p className="mt-1 text-[10px] text-amber-700">Ao atingir cada meta, o nível vira um piso permanente do Bônus Mensal.</p>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {[['fixedBronze','Bronze'],['fixedSilver','Prata'],['fixedGold','Ouro']].map(([key,label]) => <label key={key}><span className="text-[10px] font-black uppercase text-zinc-500">{label}</span><input value={settingsForm[key]} onChange={e => setSettingsForm(v => ({...v,[key]:e.target.value}))} inputMode="numeric" className="mt-1 w-full rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-lg font-black outline-none focus:border-amber-400" /></label>)}
+              </div>
+            </div>
+
             <div className="md:col-span-2 xl:col-span-6 flex flex-col gap-3 border-t border-zinc-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-zinc-400">Atual: meta {brl(settings.ticketThreshold)} · Equipe {brl(settings.teamCommissionPerSale ?? 10)} / venda · Início {brl(settings.commissions?.none)} · Bronze {brl(settings.commissions?.bronze)} · Prata {brl(settings.commissions?.silver)} · Ouro {brl(settings.commissions?.gold)}</p>
+              <p className="text-xs text-zinc-400">Atual: Mensal {settings.monthlyLevels?.bronze}/{settings.monthlyLevels?.silver}/{settings.monthlyLevels?.gold} vendas · Fixo {settings.fixedLevels?.bronze}/{settings.fixedLevels?.silver}/{settings.fixedLevels?.gold} vendas · Bronze {brl(settings.commissions?.bronze)} · Prata {brl(settings.commissions?.silver)} · Ouro {brl(settings.commissions?.gold)}</p>
               <button disabled={savingSettings} className="rounded-xl bg-zinc-950 px-5 py-3 text-sm font-black text-white transition hover:bg-pink-500 disabled:opacity-50">{savingSettings ? 'Atualizando…' : 'Atualizar valores'}</button>
             </div>
           </form>
