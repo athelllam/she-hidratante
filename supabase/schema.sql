@@ -216,15 +216,3 @@ alter table public.affiliate_video_submissions enable row level security;
 
 -- Permite que a conta seja criada antes da definição do link. O slug definitivo é criado dentro do painel como slug + ID.
 alter table public.affiliates alter column slug drop not null;
-
-
--- Metas configuráveis dos dois sistemas de nível:
--- Bônus Mensal: vendas necessárias dentro do mês.
--- Bônus Fixo: vendas acumuladas que criam um piso permanente para o nível mensal.
-alter table public.affiliate_settings
-  add column if not exists monthly_bronze_sales integer not null default 10,
-  add column if not exists monthly_silver_sales integer not null default 50,
-  add column if not exists monthly_gold_sales integer not null default 101,
-  add column if not exists fixed_bronze_sales integer not null default 100,
-  add column if not exists fixed_silver_sales integer not null default 300,
-  add column if not exists fixed_gold_sales integer not null default 500;

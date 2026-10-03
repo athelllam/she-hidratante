@@ -12,6 +12,11 @@ const options = [
     label: 'Desejo clarear a pele, manchas, cicatrizes, melasma.',
     path: '/stick',
   },
+  {
+    label: 'Quero conhecer os produtos da She.',
+    path: '/home',
+    isHome: true,
+  },
 ]
 
 export default function Welcome({ affiliateSlug = null, affiliate = null }) {
@@ -31,7 +36,7 @@ export default function Welcome({ affiliateSlug = null, affiliate = null }) {
   const handleChoice = (path) => {
     const cleanName = name.trim()
     if (cleanName) localStorage.setItem('sheVisitorName', cleanName)
-    const affiliatePath = affiliateSlug ? `/${affiliateSlug}${path}` : path
+    const affiliatePath = affiliateSlug && path !== '/home' ? `/${affiliateSlug}${path}` : path
     navigate(affiliatePath)
   }
 
@@ -110,29 +115,25 @@ export default function Welcome({ affiliateSlug = null, affiliate = null }) {
             />
           </div>
 
-          <div id="she-options" className="mt-5 space-y-5">
+          <div id="she-options" className="mt-4 space-y-2.5">
             {options.map((option, index) => (
-              <div key={option.label}>
-                <p className="mb-2 px-1 text-center text-[11px] font-black uppercase tracking-[.16em] text-pink-500">
-                  {index === 0 ? 'Hidratante Íntimo' : 'Stick Clareador de Pele'}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => handleChoice(option.path)}
-                  className={`w-full text-left rounded-2xl px-4 py-3.5 md:py-4 border transition-all duration-300 active:scale-[0.985] ${
-                    index === 0
-                      ? 'border-pink-200 bg-pink-50/70 hover:bg-pink-50 hover:border-pink-300'
-                      : 'border-zinc-200 bg-white hover:bg-zinc-50 hover:border-zinc-300'
-                  }`}
-                >
-                  <span className="flex items-center justify-between gap-4">
-                    <span className="text-sm md:text-[15px] font-semibold leading-snug text-zinc-900">
-                      {option.label}
-                    </span>
-                    <span className="text-zinc-400 text-lg shrink-0">→</span>
+              <button
+                key={option.label}
+                type="button"
+                onClick={() => handleChoice(option.path)}
+                className={`w-full text-left rounded-2xl px-4 py-3.5 md:py-4 border transition-all duration-300 active:scale-[0.985] ${
+                  index === 0
+                    ? 'border-pink-200 bg-pink-50/70 hover:bg-pink-50 hover:border-pink-300'
+                    : 'border-zinc-200 bg-white hover:bg-zinc-50 hover:border-zinc-300'
+                }`}
+              >
+                <span className="flex items-center justify-between gap-4">
+                  <span className="text-sm md:text-[15px] font-semibold leading-snug text-zinc-900">
+                    {option.label}
                   </span>
-                </button>
-              </div>
+                  <span className="text-zinc-400 text-lg shrink-0">→</span>
+                </span>
+              </button>
             ))}
           </div>
 
