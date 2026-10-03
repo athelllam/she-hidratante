@@ -433,11 +433,17 @@ function SheCart({ open, onClose, affiliateId = null }) {
 
   const hasFreeShipping = total > 200
 
+  const previousBumpsRef = useRef(bumps)
+
   useEffect(() => {
-    if (!hasFreeShipping) {
-      setShowFreeShippingToast(false)
-      return
-    }
+    const previousBumps = previousBumpsRef.current
+    const bumpWasAdded = Object.keys(bumps).some(
+      (key) => Boolean(bumps[key]) && !Boolean(previousBumps?.[key])
+    )
+
+    previousBumpsRef.current = bumps
+
+    if (!hasFreeShipping || !bumpWasAdded) return
 
     setShowFreeShippingToast(true)
     const timeout = window.setTimeout(() => {
@@ -445,7 +451,7 @@ function SheCart({ open, onClose, affiliateId = null }) {
     }, 2600)
 
     return () => window.clearTimeout(timeout)
-  }, [hasFreeShipping])
+  }, [hasFreeShipping, bumps])
 
   return (
     <AnimatePresence>
