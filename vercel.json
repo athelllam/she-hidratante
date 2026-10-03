@@ -1,7 +1,21 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["gru1"],
+  "regions": [
+    "gru1"
+  ],
   "rewrites": [
+    {
+      "source": "/api/affiliate/login",
+      "destination": "/api/affiliate/auth?action=login"
+    },
+    {
+      "source": "/api/affiliate/register",
+      "destination": "/api/affiliate/auth?action=register"
+    },
+    {
+      "source": "/api/affiliate/logout",
+      "destination": "/api/affiliate/auth?action=logout"
+    },
     {
       "source": "/((?!api(?:/|$)).*)",
       "destination": "/index.html"

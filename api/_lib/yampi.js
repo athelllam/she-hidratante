@@ -140,7 +140,39 @@ function getStatus(order) {
 }
 
 function isPaymentApprovedStatus(status) {
-  return new Set(['payment_approved', 'pagamento_aprovado', 'paid']).has(String(status || '').toLowerCase());
+  return new Set([
+    'payment_approved',
+    'pagamento_aprovado',
+    'paid',
+    'approved',
+    'aprovado',
+  ]).has(String(status || '').toLowerCase());
+}
+
+function getTransaction(order) {
+  const value = order?.transactions?.data ?? order?.transactions ?? null;
+  if (Array.isArray(value)) return value[0] || null;
+  return value && typeof value === 'object' ? value : null;
+}
+
+function isPaymentApprovedOrder(order) {
+  // O status do pedido muda depois do pagamento (separação, faturado,
+  // transporte etc.). A transação é a fonte correta para saber se houve
+  // pagamento aprovado.
+  const transaction = getTransaction(order);
+  const transactionStatus = String(
+    transaction?.status?.alias ||
+    transaction?.status?.slug ||
+    transaction?.status?.name ||
+    transaction?.status ||
+    ''
+  ).toLowerCase().trim().replace(/\s+/g, '_');
+
+  if (isPaymentApprovedStatus(transactionStatus)) return true;
+  if (transaction && transaction.captured === true && transaction.cancelled !== true) return true;
+
+  // Compatibilidade com payloads em que a transação não veio no include.
+  return isPaymentApprovedStatus(getStatus(order));
 }
 
 function getTotal(order) {
@@ -216,7 +248,7 @@ async function syncAffiliateOrders(affiliateId, commissionRate) {
   let pages = 0;
 
   while (scanned < config.maxOrders) {
-    const params = new URLSearchParams({ scroll: 'true', limit: '100', include: 'metadata' });
+    const params = new URLSearchParams({ scroll: 'true', limit: '100', include: 'transactions' });
     if (scrollId) params.set('scroll_id', scrollId);
 
     const response = await yampiFetch(`/orders?${params.toString()}`);
@@ -238,7 +270,7 @@ async function syncAffiliateOrders(affiliateId, commissionRate) {
       }
 
       const status = getStatus(order);
-      if (!isPaymentApprovedStatus(status)) continue;
+      if (!isPaymentApprovedOrder(order)) continue;
 
       const metadataId = Number(getMetadata(order, 'affiliate_id'));
       if (!metadataId || metadataId !== Number(affiliateId)) continue;
@@ -266,6 +298,7 @@ module.exports = {
   getOrderId,
   getStatus,
   isPaymentApprovedStatus,
+  isPaymentApprovedOrder,
   getTotal,
   getCreatedAt,
   syncAffiliateOrders,

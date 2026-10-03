@@ -4,6 +4,9 @@ import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-
 import Welcome from './pages/Welcome'
 import AffiliateDashboard from './pages/AffiliateDashboard'
 import AdminDashboard from './pages/AdminDashboard'
+import TrabalheConosco from './pages/TrabalheConosco'
+import Representantes from './pages/Representantes'
+import TermosAfiliadas from './pages/TermosAfiliadas'
 
 const Home = lazy(() => import('./pages/Home'))
 const Hidratante = lazy(() => import('./pages/Hidratante'))
@@ -72,6 +75,9 @@ export default function App() {
           <Route path="/ovinhos" element={<Ovinhos />} />
           <Route path="/afiliado" element={<AffiliateDashboard />} />
           <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/trabalhe-conosco" element={<TrabalheConosco />} />
+          <Route path="/representantes" element={<Representantes />} />
+          <Route path="/termos-afiliadas" element={<TermosAfiliadas />} />
           <Route path="/afiliadas/*" element={<AffiliateDashboard />} />
           <Route path="/:affiliateSlug/welcome" element={<AffiliateWelcome />} />
           <Route path="/:affiliateSlug/hidratante" element={<AffiliateProduct Product={Hidratante} />} />
