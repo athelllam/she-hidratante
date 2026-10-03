@@ -140,21 +140,6 @@ export default function Welcome({ affiliateSlug = null, affiliate = null }) {
           <p className="mt-5 text-center text-[10px] md:text-xs text-zinc-400">
             Sua experiência será personalizada de acordo com sua escolha.
           </p>
-
-          <div className="mt-5 flex items-center justify-between px-1">
-            <a
-              href="/afiliado"
-              className="text-xs font-medium text-zinc-400 transition-colors hover:text-zinc-600"
-            >
-              Afiliadas
-            </a>
-            <a
-              href="/representantes"
-              className="text-xs font-medium text-zinc-400 transition-colors hover:text-zinc-600"
-            >
-              Representantes
-            </a>
-          </div>
         </section>
       </main>
     </>

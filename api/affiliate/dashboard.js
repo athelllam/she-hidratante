@@ -4,7 +4,6 @@ const {
   commissionForOrders,
   DEFAULT_COMMISSION_CONFIG,
   normalizeConfig,
-  isPaidOrder,
 } = require('../_lib/affiliateCommission');
 
 function money(value) {
@@ -40,90 +39,6 @@ function monthLabelForChart(value) {
 }
 
 module.exports = async function handler(req, res) {
-  if (req.method === 'GET' && String(req.query?.videos || '') === '1') {
-    try {
-      const { affiliate } = await requireAffiliate(req);
-      const rows = await supabaseFetch(`/rest/v1/affiliate_video_submissions?affiliate_id=eq.${Number(affiliate.id)}&select=id,video_url,status,note,terms_version,terms_accepted_at,created_at,reviewed_at&order=created_at.desc&limit=100`);
-      return json(res, 200, { videos: rows || [], termsVersion: '1.0' });
-    } catch (error) {
-      return json(res, error.statusCode || 500, { error: error.message || 'Erro ao carregar solicitações de vídeo.' });
-    }
-  }
-
-  if (req.method === 'POST' && String(req.body?.action || '') === 'submit_video') {
-    try {
-      const { affiliate } = await requireAffiliate(req);
-      const TERMS_VERSION = '1.0';
-      const videoUrl = String(req.body?.videoUrl || '').trim();
-      const termsAccepted = Boolean(req.body?.termsAccepted);
-      const termsVersion = String(req.body?.termsVersion || '');
-      if (!videoUrl) return json(res, 400, { error: 'Informe o link do vídeo.' });
-      if (videoUrl.length > 2000) return json(res, 400, { error: 'O link do vídeo é muito longo.' });
-      try {
-        const parsed = new URL(videoUrl);
-        if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('invalid');
-      } catch {
-        return json(res, 400, { error: 'Informe um link válido começando com http:// ou https://.' });
-      }
-      if (!termsAccepted || termsVersion !== TERMS_VERSION) {
-        return json(res, 400, { error: 'É necessário aceitar os Termos e Condições para enviar o vídeo.' });
-      }
-      const rows = await supabaseFetch('/rest/v1/affiliate_video_submissions', {
-        method: 'POST',
-        headers: { Prefer: 'return=representation' },
-        body: JSON.stringify({
-          affiliate_id: affiliate.id,
-          video_url: videoUrl,
-          status: 'pending',
-          terms_version: TERMS_VERSION,
-          terms_accepted_at: new Date().toISOString(),
-        }),
-      });
-      return json(res, 201, { video: rows?.[0] || null });
-    } catch (error) {
-      return json(res, error.statusCode || 500, { error: error.message || 'Não foi possível enviar o vídeo.' });
-    }
-  }
-
-  if (req.method === 'POST') {
-    try {
-      const { affiliate } = await requireAffiliate(req);
-      const teamParentCode = String(req.body?.teamParentCode || '').trim().toUpperCase();
-      if (!/^[A-Z0-9]{6}$/.test(teamParentCode)) return json(res, 400, { error: 'Informe um código de equipe válido com 6 caracteres.' });
-      if (affiliate.team_parent_id) return json(res, 400, { error: 'Você já está em uma equipe e não pode alterar de equipe.' });
-
-      const existingOrders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=status&limit=5000`);
-      if ((existingOrders || []).some(isPaidOrder)) {
-        return json(res, 400, { error: 'A entrada em uma equipe só pode ser feita antes da primeira venda.' });
-      }
-
-      const parents = await supabaseFetch(`/rest/v1/affiliates?team_code=eq.${encodeURIComponent(teamParentCode)}&select=id,name,active,team_parent_id,team_code&limit=1`);
-      const parent = parents?.[0];
-      if (!parent || !parent.active) return json(res, 404, { error: 'Código de equipe não encontrado ou indisponível.' });
-      if (Number(parent.id) === Number(affiliate.id)) return json(res, 400, { error: 'Você não pode entrar na própria equipe.' });
-
-      // Impede ciclos na árvore de equipe.
-      const allAffiliates = await supabaseFetch('/rest/v1/affiliates?select=id,team_parent_id&limit=20000');
-      const parentMap = new Map((allAffiliates || []).map(row => [Number(row.id), row.team_parent_id ? Number(row.team_parent_id) : null]));
-      let cursor = Number(parent.id);
-      const visited = new Set();
-      while (cursor && !visited.has(cursor)) {
-        if (cursor === Number(affiliate.id)) return json(res, 400, { error: 'Esse vínculo criaria um ciclo na rede.' });
-        visited.add(cursor);
-        cursor = parentMap.get(cursor) || null;
-      }
-
-      const rows = await supabaseFetch(`/rest/v1/affiliates?id=eq.${Number(affiliate.id)}`, {
-        method: 'PATCH',
-        headers: { Prefer: 'return=representation' },
-        body: JSON.stringify({ team_parent_id: Number(parent.id), team_joined_at: new Date().toISOString() }),
-      });
-      return json(res, 200, { affiliate: rows?.[0] || { ...affiliate, team_parent_id: Number(parent.id) }, teamParent: parent });
-    } catch (error) {
-      return json(res, error.statusCode || 500, { error: error.message || 'Não foi possível entrar na equipe.' });
-    }
-  }
-
   if (req.method !== 'GET') return json(res, 405, { error: 'Método não permitido.' });
 
   try {
@@ -139,22 +54,18 @@ module.exports = async function handler(req, res) {
     const [events, orders, withdrawals, settingRows] = await Promise.all([
       supabaseFetch(`/rest/v1/affiliate_events?affiliate_id=eq.${id}&select=type,created_at&order=created_at.desc&limit=10000`),
       supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${id}&select=yampi_order_id,status,total,commission,created_at,updated_at&order=created_at.desc&limit=5000`),
-      supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${id}&status=in.(pending,approved,paid)&select=id,amount,status,pix_key,source,requested_at,processed_at,note&order=requested_at.desc&limit=500`),
-      supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold&limit=1'),
+      supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${id}&status=in.(pending,approved,paid)&select=id,amount,status,pix_key,requested_at,processed_at,note&order=requested_at.desc&limit=500`),
+      supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,commission_none,commission_bronze,commission_silver,commission_gold&limit=1'),
     ]);
 
     const settings = normalizeConfig(settingRows?.[0] ? {
       ticketThreshold: settingRows[0].ticket_threshold,
       ticketBonus: settingRows[0].ticket_bonus,
-      teamCommissionPerSale: settingRows[0].team_commission_per_sale,
       commissions: { none: settingRows[0].commission_none, bronze: settingRows[0].commission_bronze, silver: settingRows[0].commission_silver, gold: settingRows[0].commission_gold },
     } : DEFAULT_COMMISSION_CONFIG);
 
     const accessEvents = (events || []).filter((e) => e.type === 'access');
-    const joinedMonth = affiliate.team_joined_at ? String(affiliate.team_joined_at).slice(0, 7) : null;
-    const currentJoinMonthFloor = joinedMonth ? { [joinedMonth]: 10 } : {};
-    const { orders: annotatedPaidOrders, total: totalEarnedCommission, salesByMonth, monthlyStats } = commissionForOrders(orders || [], settings, { levelFloorByMonth: currentJoinMonthFloor });
-    const lifetimeSales = annotatedPaidOrders.length;
+    const { orders: annotatedPaidOrders, total: totalEarnedCommission, salesByMonth, monthlyStats } = commissionForOrders(orders || [], settings);
 
     const selectedOrders = annotatedPaidOrders.filter((o) => {
       const date = new Date(o.created_at);
@@ -178,20 +89,17 @@ module.exports = async function handler(req, res) {
     // Ela NÃO sofre desconto por saques. O desconto de saques existe apenas
     // em availableCommission, usado exclusivamente no saldo disponível para saque.
     const selectedCommission = selectedOrders.reduce((sum, o) => sum + Number(o.commission || 0), 0);
-    const personalWithdrawals = (withdrawals || []).filter(w => String(w.source || 'personal') === 'personal');
-    const teamWithdrawals = (withdrawals || []).filter(w => String(w.source || 'personal') === 'team');
-    const reserved = personalWithdrawals.reduce((sum, w) => sum + Number(w.amount || 0), 0);
+    const reserved = (withdrawals || []).reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const availableCommission = Math.max(0, totalEarnedCommission - reserved);
-    // O nível é mensal. Em "Todos os meses", usamos o mês atual,
-    // porque o nível reinicia no primeiro dia de cada mês.
+    const level = getLevel(selectedSales, settings);
 
     // Saldo acumulado: o saldo de abertura do mês é o saldo final do mês anterior.
     // Saques pending/approved/paid já reduzem o saldo disponível imediatamente.
-    const selectedWithdrawalsTotal = selectedWithdrawals.filter(w => String(w.source || 'personal') === 'personal').reduce((sum, w) => sum + Number(w.amount || 0), 0);
+    const selectedWithdrawalsTotal = selectedWithdrawals.reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const commissionBeforeSelectedMonth = isAllMonths ? 0 : annotatedPaidOrders
       .filter(o => o.month < selectedMonth)
       .reduce((sum, o) => sum + Number(o.commission || 0), 0);
-    const withdrawalsBeforeSelectedMonth = isAllMonths ? 0 : personalWithdrawals
+    const withdrawalsBeforeSelectedMonth = isAllMonths ? 0 : (withdrawals || [])
       .filter(w => String(w.requested_at || '').slice(0, 7) < selectedMonth)
       .reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const openingBalance = isAllMonths
@@ -200,49 +108,6 @@ module.exports = async function handler(req, res) {
     const closingBalance = isAllMonths
       ? availableCommission
       : Math.max(0, openingBalance + selectedCommission - selectedWithdrawalsTotal);
-
-    const teamMembers = await supabaseFetch(`/rest/v1/affiliates?team_parent_id=eq.${id}&select=id,name,slug,whatsapp,created_at&order=created_at.asc&limit=1000`);
-    const teamParentRows = affiliate.team_parent_id ? await supabaseFetch(`/rest/v1/affiliates?id=eq.${Number(affiliate.team_parent_id)}&select=id,name,slug&limit=1`) : [];
-    const teamParent = teamParentRows?.[0] || null;
-    const teamIds = (teamMembers || []).map(member => Number(member.id)).filter(Boolean);
-    const teamOrders = teamIds.length
-      ? await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=in.(${teamIds.join(',')})&select=affiliate_id,status,created_at&order=created_at.asc&limit=20000`)
-      : [];
-    const teamRate = Number(settings.teamCommissionPerSale || 10);
-    const levelMonth = isAllMonths ? defaultMonth : selectedMonth;
-    const ownSalesForLevel = isAllMonths
-      ? annotatedPaidOrders.filter(order => order.month === levelMonth).length
-      : selectedSales;
-    const teamSalesForLevel = (teamOrders || []).filter(order => isPaidOrder(order) && String(order.created_at || '').slice(0, 7) === levelMonth).length;
-    const levelSales = ownSalesForLevel + teamSalesForLevel;
-    const joinedThisLevelMonth = Boolean(joinedMonth && joinedMonth === levelMonth);
-    const effectiveLevelSales = joinedThisLevelMonth ? Math.max(10, levelSales) : levelSales;
-    const level = getLevel(effectiveLevelSales, settings);
-    const teamSalesByAffiliate = new Map();
-    for (const order of teamOrders || []) {
-      if (!isPaidOrder(order)) continue;
-      const childId = Number(order.affiliate_id);
-      teamSalesByAffiliate.set(childId, (teamSalesByAffiliate.get(childId) || 0) + 1);
-    }
-    const teamEarnedCommission = Array.from(teamSalesByAffiliate.values()).reduce((sum, sales) => sum + sales * teamRate, 0);
-    const teamReserved = teamWithdrawals.reduce((sum, w) => sum + Number(w.amount || 0), 0);
-    const teamAvailableCommission = Math.max(0, teamEarnedCommission - teamReserved);
-    const team = {
-      code: String(affiliate.team_code || ''),
-      parent: teamParent ? { id: Number(teamParent.id), name: teamParent.name, slug: teamParent.slug } : null,
-      joined: Boolean(affiliate.team_parent_id),
-      canJoin: !affiliate.team_parent_id && lifetimeSales === 0,
-      code: String(affiliate.team_code || ''),
-      lifetimeSales,
-      commissionPerSale: teamRate,
-      earnedCommission: money(teamEarnedCommission),
-      reservedWithdrawals: money(teamReserved),
-      availableCommission: money(teamAvailableCommission),
-      members: (teamMembers || []).map(member => {
-        const sales = teamSalesByAffiliate.get(Number(member.id)) || 0;
-        return { id: Number(member.id), name: member.name, slug: member.slug, whatsapp: member.whatsapp || '', sales, commission: money(sales * teamRate) };
-      }),
-    };
 
     const eventMonths = accessEvents.map(e => String(e.created_at).slice(0, 7)).filter(Boolean);
     const withdrawalMonths = (withdrawals || []).map(w => String(w.requested_at).slice(0, 7)).filter(Boolean);
@@ -298,8 +163,6 @@ module.exports = async function handler(req, res) {
       settings,
       selectedMonth,
       isAllMonths,
-      lifetimeSales,
-      team,
       metrics: {
         accesses: selectedAccesses.length,
         sales: selectedSales,
@@ -323,8 +186,6 @@ module.exports = async function handler(req, res) {
         key: level.key,
         label: level.label,
         sales: level.sales,
-        ownSales: selectedSales,
-        teamSales: teamSalesForLevel,
         commissionPerOrder: level.commissionPerOrder,
         progress: level.progress,
         nextLevel: level.nextLevel,

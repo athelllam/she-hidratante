@@ -79,22 +79,12 @@ export default function AdminDashboard() {
   const [error, setError] = useState('')
   const [affiliates, setAffiliates] = useState([])
   const [withdrawals, setWithdrawals] = useState([])
-  const [videoSubmissions, setVideoSubmissions] = useState([])
-  const [videoFilter, setVideoFilter] = useState('pending')
-  const [videoNoteId, setVideoNoteId] = useState(null)
-  const [videoNote, setVideoNote] = useState('')
-  const [videoBusyId, setVideoBusyId] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
   const [payingId, setPayingId] = useState(null)
   const [togglingId, setTogglingId] = useState(null)
   const [message, setMessage] = useState('')
   const [affiliateFilter, setAffiliateFilter] = useState('all')
   const [affiliateSearch, setAffiliateSearch] = useState('')
-  const [affiliateSort, setAffiliateSort] = useState('sales_desc')
-  const [detailAffiliate, setDetailAffiliate] = useState(null)
-  const [detailMonth, setDetailMonth] = useState('all')
-  const [detailData, setDetailData] = useState(null)
-  const [detailLoading, setDetailLoading] = useState(false)
   const [withdrawalFilter, setWithdrawalFilter] = useState('all')
   const [credentialsAffiliate, setCredentialsAffiliate] = useState(null)
   const [newPassword, setNewPassword] = useState('')
@@ -103,30 +93,27 @@ export default function AdminDashboard() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deletePhrase, setDeletePhrase] = useState('')
   const [deletingIds, setDeletingIds] = useState([])
-  const [settings, setSettings] = useState({ ticketThreshold: 170, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 } })
-  const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', teamCommissionPerSale: '10', none: '30', bronze: '40', silver: '50', gold: '60' })
+  const [settings, setSettings] = useState({ ticketThreshold: 170, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 } })
+  const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', none: '30', bronze: '40', silver: '50', gold: '60' })
   const [savingSettings, setSavingSettings] = useState(false)
-  const [globalStatsData, setGlobalStatsData] = useState({ all: { sales: 0, revenue: 0, averageTicket: 0, accesses: 0 }, byMonth: {}, snapshots: {} })
+  const [globalStatsData, setGlobalStatsData] = useState({ all: { sales: 0, revenue: 0, averageTicket: 0 }, byMonth: {}, snapshots: {} })
   const [availableMonths, setAvailableMonths] = useState([])
   const [selectedMonths, setSelectedMonths] = useState([])
   const [monthFilterOpen, setMonthFilterOpen] = useState(false)
 
   const loadPanel = async () => {
-    const [affiliateData, withdrawalData, videoData] = await Promise.all([
+    const [affiliateData, withdrawalData] = await Promise.all([
       api('/api/admin/affiliates'),
       api('/api/admin/withdrawals'),
-      api('/api/admin/affiliates?videos=1'),
     ])
     setAffiliates(affiliateData.affiliates || [])
     setWithdrawals(withdrawalData.withdrawals || [])
-    setVideoSubmissions(videoData.videos || [])
-    setGlobalStatsData(affiliateData.globalStats || { all: { sales: 0, revenue: 0, averageTicket: 0, accesses: 0 }, byMonth: {}, snapshots: {} })
+    setGlobalStatsData(affiliateData.globalStats || { all: { sales: 0, revenue: 0, averageTicket: 0 }, byMonth: {}, snapshots: {} })
     setAvailableMonths(affiliateData.availableMonths || [])
-    const nextSettings = affiliateData.settings || { ticketThreshold: 170, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 } }
+    const nextSettings = affiliateData.settings || { ticketThreshold: 170, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 } }
     setSettings(nextSettings)
     setSettingsForm({
       ticketThreshold: String(nextSettings.ticketThreshold),
-      teamCommissionPerSale: String(nextSettings.teamCommissionPerSale ?? 10),
       none: String(nextSettings.commissions?.none ?? 30),
       bronze: String(nextSettings.commissions?.bronze ?? 40),
       silver: String(nextSettings.commissions?.silver ?? 50),
@@ -143,18 +130,6 @@ export default function AdminDashboard() {
       .catch(() => setAuthenticated(false))
       .finally(() => setLoading(false))
   }, [])
-
-  useEffect(() => {
-    if (!detailAffiliate) return
-    let cancelled = false
-    setDetailLoading(true)
-    setDetailData(null)
-    api(`/api/admin/affiliates?detail=${encodeURIComponent(detailAffiliate.id)}&month=${encodeURIComponent(detailMonth)}`)
-      .then(data => { if (!cancelled) setDetailData(data) })
-      .catch(error => { if (!cancelled) setMessage(error.message || 'Não foi possível carregar o desempenho.') })
-      .finally(() => { if (!cancelled) setDetailLoading(false) })
-    return () => { cancelled = true }
-  }, [detailAffiliate, detailMonth])
 
   const submitLogin = async (event) => {
     event.preventDefault()
@@ -212,30 +187,6 @@ export default function AdminDashboard() {
       setMessage(e.message || 'Não foi possível alterar o status.')
     } finally {
       setTogglingId(null)
-    }
-  }
-
-  const reviewVideo = async (video, status) => {
-    const label = status === 'approved' ? 'aprovar' : 'rejeitar'
-    const note = videoNoteId === video.id ? videoNote.trim() : ''
-    if (status === 'rejected' && !note) {
-      setVideoNoteId(video.id)
-      setMessage('Informe uma observação ao rejeitar o vídeo.')
-      return
-    }
-    if (!window.confirm(`Confirmar ${label} a solicitação de vídeo de ${video.affiliates?.name || 'Afiliada'}?`)) return
-    setVideoBusyId(video.id)
-    setMessage('')
-    try {
-      await api('/api/admin/affiliates', { method: 'PATCH', body: JSON.stringify({ action: 'video_review', id: video.id, status, note }) })
-      await loadPanel()
-      setVideoNoteId(null)
-      setVideoNote('')
-      setMessage(`Vídeo ${status === 'approved' ? 'aprovado' : 'rejeitado'}. O painel da afiliada já foi atualizado.`)
-    } catch (e) {
-      setMessage(e.message || 'Não foi possível atualizar o vídeo.')
-    } finally {
-      setVideoBusyId(null)
     }
   }
 
@@ -310,7 +261,6 @@ export default function AdminDashboard() {
     try {
       const payload = {
         ticketThreshold: Number(String(settingsForm.ticketThreshold).replace(',', '.')),
-        teamCommissionPerSale: Number(String(settingsForm.teamCommissionPerSale).replace(',', '.')),
         commissions: {
           none: Number(String(settingsForm.none).replace(',', '.')),
           bronze: Number(String(settingsForm.bronze).replace(',', '.')),
@@ -318,7 +268,7 @@ export default function AdminDashboard() {
           gold: Number(String(settingsForm.gold).replace(',', '.')),
         },
       }
-      if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || !Number.isFinite(payload.teamCommissionPerSale) || payload.teamCommissionPerSale < 0 || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0)) {
+      if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0)) {
         throw new Error('Informe valores válidos. A meta do ticket deve ser maior que zero e as comissões não podem ser negativas.')
       }
       const result = await api('/api/admin/affiliates', {
@@ -328,13 +278,12 @@ export default function AdminDashboard() {
       setSettings(result.settings)
       setSettingsForm({
         ticketThreshold: String(result.settings.ticketThreshold),
-        teamCommissionPerSale: String(result.settings.teamCommissionPerSale ?? 10),
         none: String(result.settings.commissions.none),
         bronze: String(result.settings.commissions.bronze),
         silver: String(result.settings.commissions.silver),
         gold: String(result.settings.commissions.gold),
       })
-      setMessage('Configurações de comissão pessoal, comissão de equipe e ticket médio atualizadas para todas as afiliadas.')
+      setMessage('Configurações de comissão e ticket médio atualizadas para todas as afiliadas.')
       await loadPanel()
     } catch (e) {
       setMessage(e.message || 'Não foi possível atualizar as configurações.')
@@ -367,7 +316,6 @@ export default function AdminDashboard() {
     if (!selectedMonths.length) {
       const totalSales = Number(globalStatsData.all?.sales || 0)
       const totalRevenue = Number(globalStatsData.all?.revenue || 0)
-      const totalAccesses = Number(globalStatsData.all?.accesses || 0)
       const pending = withdrawals.filter(item => item.status === 'pending' || item.status === 'approved')
       return {
         affiliates: affiliates.length,
@@ -375,7 +323,6 @@ export default function AdminDashboard() {
         inactive: affiliates.filter(item => !item.adminActive).length,
         totalSales,
         totalRevenue,
-        totalAccesses,
         averageTicket: totalSales ? totalRevenue / totalSales : 0,
         totalBalance: affiliates.reduce((sum, affiliate) => sum + Number(affiliate.balance || 0), 0),
         pendingCount: pending.length,
@@ -391,9 +338,8 @@ export default function AdminDashboard() {
       if (!value) return acc
       acc.sales += Number(value.sales || 0)
       acc.revenue += Number(value.revenue || 0)
-      acc.accesses += Number(value.accesses || 0)
       return acc
-    }, { sales: 0, revenue: 0, accesses: 0 })
+    }, { sales: 0, revenue: 0 })
     const snapshotMonth = [...selectedMonths].sort().at(-1)
     const snapshot = globalStatsData.snapshots?.[snapshotMonth] || {}
     const pending = withdrawals.filter(item => item.status === 'pending' || item.status === 'approved')
@@ -403,7 +349,6 @@ export default function AdminDashboard() {
       inactive: Number(snapshot.inactive || 0),
       totalSales: selected.sales,
       totalRevenue: selected.revenue,
-      totalAccesses: selected.accesses,
       averageTicket: selected.sales ? selected.revenue / selected.sales : 0,
       totalBalance: Number(snapshot.totalBalance || 0),
       pendingCount: pending.length,
@@ -435,16 +380,11 @@ export default function AdminDashboard() {
     })
 
     return [...filtered].sort((a, b) => {
-      const nameCompare = String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR', { sensitivity: 'base' })
-      if (affiliateSort === 'days_desc') return Number(b.daysWithoutSales || 0) - Number(a.daysWithoutSales || 0) || nameCompare
-      if (affiliateSort === 'revenue_desc') return Number(b.revenue || 0) - Number(a.revenue || 0) || nameCompare
-      if (affiliateSort === 'accesses_desc') return Number(b.accesses || 0) - Number(a.accesses || 0) || nameCompare
-      if (affiliateSort === 'ticket_desc') return Number(b.averageTicket || 0) - Number(a.averageTicket || 0) || nameCompare
-      if (affiliateSort === 'name_asc') return nameCompare
-      if (affiliateSort === 'created_desc') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime() || nameCompare
-      return Number(b.sales || 0) - Number(a.sales || 0) || nameCompare
+      const salesDifference = Number(b.sales || 0) - Number(a.sales || 0)
+      if (salesDifference !== 0) return salesDifference
+      return String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR', { sensitivity: 'base' })
     })
-  }, [affiliates, affiliateFilter, affiliateSearch, affiliateSort])
+  }, [affiliates, affiliateFilter, affiliateSearch])
 
   const filteredWithdrawals = useMemo(() => {
     if (withdrawalFilter === 'pending') return withdrawals.filter(item => item.status === 'pending' || item.status === 'approved')
@@ -552,9 +492,8 @@ export default function AdminDashboard() {
           <div className="grid gap-3 sm:grid-cols-3">
             {[
               ['Vendas acumuladas', stats.totalSales],
-              ['Faturamento', brl(stats.totalRevenue)],
               ['Ticket médio', brl(stats.averageTicket)],
-              ['Acessos totais', stats.totalAccesses],
+              ['Faturamento', brl(stats.totalRevenue)],
             ].map(([label, value]) => (
               <div key={label} className="rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
                 <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">{label}</p>
@@ -618,18 +557,7 @@ export default function AdminDashboard() {
               )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <label className="flex items-center gap-2 text-xs font-semibold text-zinc-400">
-                <span>Ordenar por</span>
-                <select value={affiliateSort} onChange={event => setAffiliateSort(event.target.value)} className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-black text-zinc-700 outline-none focus:border-pink-400">
-                  <option value="days_desc">Mais dias sem vendas</option>
-                  <option value="sales_desc">Mais vendas</option>
-                  <option value="revenue_desc">Maior faturamento</option>
-                  <option value="accesses_desc">Mais acessos</option>
-                  <option value="ticket_desc">Maior ticket médio</option>
-                  <option value="created_desc">Mais novas</option>
-                  <option value="name_asc">Nome A–Z</option>
-                </select>
-              </label>
+              <p className="text-xs font-semibold text-zinc-400">Ordenado por maior número de vendas</p>
               <button
                 type="button"
                 onClick={openDeleteConfirmation}
@@ -642,19 +570,16 @@ export default function AdminDashboard() {
           </div>
 
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[1200px] text-sm">
+            <table className="w-full min-w-[1120px] text-sm">
               <thead>
                 <tr className="border-b border-zinc-100 text-left text-[10px] font-black uppercase tracking-[.14em] text-zinc-400">
                   <th className="pb-3 pr-4">Afiliada</th>
-                  <th className="pb-3 pr-4">Acessos</th>
+                  <th className="pb-3 pr-4">ID</th>
                   <th className="pb-3 pr-4">Vendas</th>
                   <th className="pb-3 pr-4">Faturamento</th>
                   <th className="pb-3 pr-4">Ticket médio</th>
                   <th className="pb-3 pr-4">Saldo</th>
-                  <th className="pb-3 pr-4">ID</th>
                   <th className="pb-3 pr-4">Ativa/Inativa</th>
-                  <th className="pb-3 pr-4">Sem vendas</th>
-                  <th className="pb-3 pr-4">Desempenho</th>
                   <th className="pb-3 pr-4">Dados de acesso</th>
                   <th className="pb-3">Selecionar</th>
                 </tr>
@@ -671,12 +596,11 @@ export default function AdminDashboard() {
                         <div className="mt-1 text-[10px] text-amber-600">Ainda não possui venda</div>
                       )}
                     </td>
-                    <td className="py-4 pr-4 font-black text-zinc-950">{affiliate.accesses || 0}</td>
+                    <td className="py-4 pr-4 font-bold text-zinc-600">{affiliate.id}</td>
                     <td className="py-4 pr-4 font-black text-zinc-950">{affiliate.sales}</td>
                     <td className="py-4 pr-4 font-black text-zinc-950">{brl(affiliate.revenue)}</td>
                     <td className="py-4 pr-4 font-black text-zinc-950">{brl(affiliate.averageTicket)}</td>
                     <td className="py-4 pr-4 font-black text-emerald-600">{brl(affiliate.balance)}</td>
-                    <td className="py-4 pr-4 font-bold text-zinc-600">{affiliate.id}</td>
                     <td className="py-4 pr-4">
                       <button
                         type="button"
@@ -693,20 +617,6 @@ export default function AdminDashboard() {
                         </span>
                         {affiliate.autoInactive && <span className="text-[9px] font-bold text-amber-600">7 dias sem venda</span>}
                       </div>
-                    </td>
-                    <td className="py-4 pr-4">
-                      <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black ${Number(affiliate.daysWithoutSales || 0) >= 7 ? 'bg-amber-100 text-amber-800' : 'bg-zinc-100 text-zinc-600'}`}>
-                        {Number(affiliate.daysWithoutSales || 0)} {Number(affiliate.daysWithoutSales || 0) === 1 ? 'dia' : 'dias'} sem vendas
-                      </span>
-                    </td>
-                    <td className="py-4 pr-4">
-                      <button
-                        type="button"
-                        onClick={() => { setDetailAffiliate(affiliate); setDetailMonth('all') }}
-                        className="rounded-xl bg-zinc-950 px-3 py-2 text-xs font-black text-white transition hover:bg-pink-500"
-                      >
-                        Ver desempenho
-                      </button>
                     </td>
                     <td className="py-4 pr-4">
                       <button
@@ -737,7 +647,7 @@ export default function AdminDashboard() {
                 ))}
                 {!filteredAffiliates.length && (
                   <tr>
-                    <td colSpan={12} className="py-10 text-center text-sm font-semibold text-zinc-400">
+                    <td colSpan={9} className="py-10 text-center text-sm font-semibold text-zinc-400">
                       Nenhuma afiliada encontrada{affiliateSearch ? ` para "${affiliateSearch}"` : ''}.
                     </td>
                   </tr>
@@ -747,53 +657,13 @@ export default function AdminDashboard() {
           </div>
         </section>
 
-
-        <section className="mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Conteúdo das afiliadas</p>
-              <h2 className="mt-1 text-2xl font-black text-zinc-950">Solicitações de vídeos</h2>
-              <p className="mt-1 text-sm text-zinc-400">Analise os links enviados. Ao aprovar, a SHE poderá usar o vídeo em divulgação com tráfego pago usando o link da afiliada.</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <FilterPill active={videoFilter === 'pending'} onClick={() => setVideoFilter('pending')}>Pendentes · {videoSubmissions.filter(v => v.status === 'pending').length}</FilterPill>
-              <FilterPill active={videoFilter === 'approved'} onClick={() => setVideoFilter('approved')}>Aprovados · {videoSubmissions.filter(v => v.status === 'approved').length}</FilterPill>
-              <FilterPill active={videoFilter === 'rejected'} onClick={() => setVideoFilter('rejected')}>Rejeitados · {videoSubmissions.filter(v => v.status === 'rejected').length}</FilterPill>
-              <FilterPill active={videoFilter === 'all'} onClick={() => setVideoFilter('all')}>Todos · {videoSubmissions.length}</FilterPill>
-            </div>
-          </div>
-
-          <div className="mt-5 space-y-3">
-            {videoSubmissions.filter(video => videoFilter === 'all' || video.status === videoFilter).map(video => (
-              <div key={video.id} className="rounded-2xl border border-zinc-100 bg-zinc-50/70 p-4">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2"><p className="font-black text-zinc-950">{video.affiliates?.name || 'Afiliada'}</p><span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-zinc-500">ID {video.affiliate_id}</span><span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${video.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : video.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>{video.status === 'approved' ? 'Aprovado' : video.status === 'rejected' ? 'Rejeitado' : 'Pendente'}</span></div>
-                    <p className="mt-1 text-xs text-zinc-400">Enviado em {dateTime(video.created_at)} · Solicitação #{video.id}</p>
-                    <div className="mt-3 rounded-xl border border-zinc-200 bg-white px-3 py-2"><p className="break-all text-xs font-semibold text-zinc-600">{video.video_url}</p><p className="mt-1 text-[10px] font-black uppercase tracking-wider text-zinc-400">O link é exibido apenas como texto e não é aberto automaticamente.</p></div>
-                  </div>
-                  <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row">
-                    {video.status === 'pending' && <>
-                      <button type="button" onClick={() => reviewVideo(video, 'approved')} disabled={videoBusyId === video.id} className="rounded-xl bg-emerald-600 px-4 py-3 text-xs font-black text-white disabled:opacity-50">{videoBusyId === video.id ? 'Salvando…' : 'Aprovar'}</button>
-                      <button type="button" onClick={() => { setVideoNoteId(video.id); setVideoNote(video.note || '') }} disabled={videoBusyId === video.id} className="rounded-xl bg-red-500 px-4 py-3 text-xs font-black text-white disabled:opacity-50">Rejeitar</button>
-                    </>}
-                  </div>
-                </div>
-                {video.status === 'pending' && videoNoteId === video.id && <div className="mt-3 flex flex-col gap-2 sm:flex-row"><input autoFocus value={videoNote} onChange={e => setVideoNote(e.target.value)} placeholder="Observação para a afiliada" className="min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none focus:border-pink-400" /><button type="button" onClick={() => reviewVideo(video, 'rejected')} disabled={videoBusyId === video.id} className="rounded-xl bg-red-500 px-4 py-3 text-xs font-black text-white">Confirmar rejeição</button></div>}
-                {video.note && <p className="mt-3 rounded-xl bg-white px-3 py-2 text-xs font-semibold leading-5 text-zinc-600"><strong>Observação:</strong> {video.note}</p>}
-              </div>
-            ))}
-            {!videoSubmissions.filter(video => videoFilter === 'all' || video.status === videoFilter).length && <div className="rounded-2xl border border-dashed border-zinc-200 px-4 py-8 text-center text-sm text-zinc-400">Nenhuma solicitação de vídeo neste filtro.</div>}
-          </div>
-        </section>
-
         <section className="mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
           <div>
             <h2 className="text-xl font-black text-zinc-950">Configurações de comissão</h2>
             <p className="mt-1 text-sm text-zinc-400">Altere a meta de ticket médio e os valores pagos por pedido em cada faixa. A mudança vale para todas as afiliadas.</p>
           </div>
 
-          <form onSubmit={saveSettings} className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+          <form onSubmit={saveSettings} className="mt-5 grid gap-4 md:grid-cols-5">
             <label className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
               <span className="text-[10px] font-black uppercase tracking-[.14em] text-amber-700">Meta ticket médio</span>
               <div className="mt-2 flex items-center gap-2">
@@ -801,15 +671,6 @@ export default function AdminDashboard() {
                 <input value={settingsForm.ticketThreshold} onChange={e => setSettingsForm(v => ({ ...v, ticketThreshold: e.target.value }))} inputMode="decimal" className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-lg font-black outline-none focus:border-amber-400" />
               </div>
               <p className="mt-2 text-[10px] font-semibold text-amber-700">Acima dessa meta, entra o bônus de +R$ 5,00/pedido.</p>
-            </label>
-
-            <label className="rounded-2xl border border-pink-200 bg-pink-50 p-4">
-              <span className="text-[10px] font-black uppercase tracking-[.14em] text-pink-600">Equipe · por venda</span>
-              <div className="mt-2 flex items-center gap-2">
-                <span className="font-black text-zinc-500">R$</span>
-                <input value={settingsForm.teamCommissionPerSale} onChange={e => setSettingsForm(v => ({ ...v, teamCommissionPerSale: e.target.value }))} inputMode="decimal" className="w-full rounded-xl border border-pink-200 bg-white px-3 py-2.5 text-lg font-black outline-none focus:border-pink-400" />
-              </div>
-              <p className="mt-2 text-[10px] font-semibold text-pink-600">Valor pago por cada venda aprovada de uma afiliada direta da equipe.</p>
             </label>
 
             {[['none', 'Início'], ['bronze', 'Bronze'], ['silver', 'Prata'], ['gold', 'Ouro']].map(([key, label]) => (
@@ -822,8 +683,8 @@ export default function AdminDashboard() {
               </label>
             ))}
 
-            <div className="md:col-span-2 xl:col-span-6 flex flex-col gap-3 border-t border-zinc-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-zinc-400">Atual: meta {brl(settings.ticketThreshold)} · Equipe {brl(settings.teamCommissionPerSale ?? 10)} / venda · Início {brl(settings.commissions?.none)} · Bronze {brl(settings.commissions?.bronze)} · Prata {brl(settings.commissions?.silver)} · Ouro {brl(settings.commissions?.gold)}</p>
+            <div className="md:col-span-5 flex flex-col gap-3 border-t border-zinc-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-zinc-400">Atual: meta {brl(settings.ticketThreshold)} · Início {brl(settings.commissions?.none)} · Bronze {brl(settings.commissions?.bronze)} · Prata {brl(settings.commissions?.silver)} · Ouro {brl(settings.commissions?.gold)}</p>
               <button disabled={savingSettings} className="rounded-xl bg-zinc-950 px-5 py-3 text-sm font-black text-white transition hover:bg-pink-500 disabled:opacity-50">{savingSettings ? 'Atualizando…' : 'Atualizar valores'}</button>
             </div>
           </form>
@@ -854,7 +715,6 @@ export default function AdminDashboard() {
                       <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${withdrawal.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : pending ? 'bg-amber-100 text-amber-800' : 'bg-zinc-200 text-zinc-600'}`}>
                         {withdrawalLabel(withdrawal.status)}
                       </span>
-                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${withdrawal.source === 'team' ? 'bg-pink-100 text-pink-700' : 'bg-zinc-100 text-zinc-600'}`}>{withdrawal.source === 'team' ? 'Equipe' : 'Pessoal'}</span>
                     </div>
                     <p className="mt-1 text-xs text-zinc-400">Solicitado em {dateTime(withdrawal.requested_at)} · Saque #{withdrawal.id}</p>
                     <p className="mt-1 text-xs font-semibold text-zinc-600">PIX para recebimento: <span className="break-all font-bold text-zinc-900">{withdrawal.pix_key || 'Não informado (saque antigo)'}</span></p>
@@ -881,96 +741,6 @@ export default function AdminDashboard() {
           </div>
         </section>
       </div>
-
-      {detailAffiliate && (
-        <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/55 px-3 py-5 sm:px-6" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailAffiliate(null) }}>
-          <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-[2rem] bg-zinc-50 p-4 shadow-[0_30px_100px_rgba(0,0,0,.3)] sm:p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Desempenho detalhado</p>
-                <h3 className="mt-1 text-2xl font-black text-zinc-950">{detailAffiliate.name}</h3>
-                <p className="mt-1 text-sm text-zinc-400">Vendas da afiliada em rosa e vendas da equipe em preto, no mesmo período.</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <select value={detailMonth} onChange={event => setDetailMonth(event.target.value)} className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-black text-zinc-700 outline-none focus:border-pink-400">
-                  <option value="all">Todo o período</option>
-                  {availableMonths.map(month => <option key={month} value={month}>{monthLabel(month)}</option>)}
-                </select>
-                <button type="button" onClick={() => setDetailAffiliate(null)} className="h-11 w-11 rounded-full bg-white text-xl text-zinc-500 shadow-sm">×</button>
-              </div>
-            </div>
-
-            {detailLoading ? (
-              <div className="mt-6 rounded-[1.5rem] border border-zinc-200 bg-white py-24 text-center text-sm font-bold text-zinc-400">Carregando desempenho…</div>
-            ) : detailData ? (
-              <>
-                <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {[
-                    ['Acessos', detailData.metrics?.accesses || 0],
-                    ['Vendas', detailData.metrics?.sales || 0],
-                    ['Faturamento', brl(detailData.metrics?.revenue || 0)],
-                    ['Ticket médio', brl(detailData.metrics?.averageTicket || 0)],
-                  ].map(([label, value]) => (
-                    <div key={label} className="rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
-                      <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">{label}</p>
-                      <p className="mt-2 text-2xl font-black text-zinc-950">{value}</p>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-5 rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h4 className="text-xl font-black text-zinc-950">{detailMonth === 'all' ? 'Desempenho mensal' : 'Desempenho diário'}</h4>
-                      <p className="mt-1 text-sm text-zinc-400">{detailMonth === 'all' ? 'Barras por mês em todo o período' : `Barras por dia em ${monthLabel(detailMonth)}`}</p>
-                    </div>
-                    <div className="flex flex-wrap gap-3 text-[10px] font-black uppercase tracking-wider text-zinc-500">
-                      <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-pink-400" /> Afiliada</span>
-                      <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-zinc-900" /> Equipe</span>
-                    </div>
-                  </div>
-
-                  {(() => {
-                    const rows = detailData.chart || []
-                    const maxTotal = Math.max(1, ...rows.map(item => Number(item.ownSales || 0) + Number(item.teamSales || 0)))
-                    return (
-                      <div className="mt-5 overflow-x-auto pb-2">
-                        <div className={`flex h-[310px] min-w-full items-end gap-1 border-b border-zinc-200 px-2 pt-8 ${detailMonth === 'all' ? '' : 'min-w-[720px]'}`}>
-                          {rows.map(item => {
-                            const own = Number(item.ownSales || 0)
-                            const team = Number(item.teamSales || 0)
-                            const total = own + team
-                            const totalHeight = total ? Math.max(10, (total / maxTotal) * 220) : 3
-                            const ownHeight = total ? (own / total) * totalHeight : 0
-                            const teamHeight = total ? (team / total) * totalHeight : 0
-                            return (
-                              <div key={item.date} className="group flex h-full min-w-[42px] flex-1 flex-col justify-end">
-                                <div className="relative flex flex-1 items-end justify-center">
-                                  {total > 0 && <span className="absolute bottom-[calc(100%+6px)] whitespace-nowrap text-[9px] font-black text-zinc-700">{total} {total === 1 ? 'venda' : 'vendas'}</span>}
-                                  <div className="flex w-[24px] flex-col justify-end overflow-hidden rounded-t-md" style={{ height: `${totalHeight}px` }} title={`${item.label}: ${own} da afiliada + ${team} da equipe`}>
-                                    {team > 0 && <div className="w-full bg-zinc-900" style={{ height: `${teamHeight}px`, minHeight: 3 }} />}
-                                    {own > 0 && <div className="w-full bg-pink-400" style={{ height: `${ownHeight}px`, minHeight: 3 }} />}
-                                  </div>
-                                </div>
-                                <span className="mt-2 truncate text-center text-[8px] font-bold text-zinc-400">{item.label}</span>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )
-                  })()}
-
-                  <div className="mt-4 grid gap-2 text-xs font-bold text-zinc-500 sm:grid-cols-2">
-                    <div className="rounded-xl bg-pink-50 px-3 py-2">Afiliada: <strong className="text-pink-600">{detailData.metrics?.ownSales || 0} vendas</strong> · {brl(detailData.metrics?.ownRevenue || 0)}</div>
-                    <div className="rounded-xl bg-zinc-100 px-3 py-2">Equipe: <strong className="text-zinc-900">{detailData.metrics?.teamSales || 0} vendas</strong> · {brl(detailData.metrics?.teamRevenue || 0)}</div>
-                  </div>
-                </div>
-              </>
-            ) : null}
-          </div>
-        </div>
-      )}
 
       {deleteModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 px-5 py-8" onMouseDown={(event) => { if (event.target === event.currentTarget && !deletingIds.length) setDeleteModalOpen(false) }}>
@@ -1016,15 +786,9 @@ export default function AdminDashboard() {
             </div>
 
             <div className="mt-6 space-y-3">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
-                  <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">E-mail</p>
-                  <p className="mt-1 break-all font-bold text-zinc-900">{credentialsAffiliate.email || '—'}</p>
-                </div>
-                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
-                  <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">CPF</p>
-                  <p className="mt-1 font-bold text-zinc-900">{credentialsAffiliate.cpf || '—'}</p>
-                </div>
+              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">E-mail</p>
+                <p className="mt-1 break-all font-bold text-zinc-900">{credentialsAffiliate.email || '—'}</p>
               </div>
               <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
                 <p className="text-[10px] font-black uppercase tracking-[.15em] text-amber-600">Senha atual</p>

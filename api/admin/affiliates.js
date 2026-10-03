@@ -8,25 +8,18 @@ module.exports = async function handler(req, res) {
   try {
     await requireAdmin(req);
 
-    if (req.method === 'GET' && String(req.query?.videos || '') === '1') {
-      const rows = await supabaseFetch('/rest/v1/affiliate_video_submissions?select=id,affiliate_id,video_url,status,note,terms_version,terms_accepted_at,created_at,reviewed_at,affiliates(id,name,slug,email,cpf,whatsapp)&order=created_at.desc&limit=1000');
-      return json(res, 200, { videos: rows || [] });
-    }
-
     if (req.method === 'GET') {
-      const [affiliates, orders, withdrawals, events, statusHistory, settingRows] = await Promise.all([
-        supabaseFetch('/rest/v1/affiliates?select=id,slug,name,email,cpf,whatsapp,pix_key,active,admin_active,commission_rate,created_at,team_parent_id&order=created_at.desc'),
+      const [affiliates, orders, withdrawals, statusHistory, settingRows] = await Promise.all([
+        supabaseFetch('/rest/v1/affiliates?select=id,slug,name,email,whatsapp,pix_key,active,admin_active,commission_rate,created_at&order=created_at.desc'),
         supabaseFetch('/rest/v1/affiliate_orders?select=affiliate_id,status,total,commission,created_at&order=created_at.desc&limit=20000'),
-        supabaseFetch('/rest/v1/affiliate_withdrawals?select=affiliate_id,amount,status,source,requested_at&order=requested_at.desc&limit=10000'),
-        supabaseFetch('/rest/v1/affiliate_events?select=affiliate_id,type,created_at&order=created_at.desc&limit=20000'),
+        supabaseFetch('/rest/v1/affiliate_withdrawals?select=affiliate_id,amount,status,requested_at&order=requested_at.desc&limit=10000'),
         supabaseFetch('/rest/v1/affiliate_admin_status_history?select=affiliate_id,admin_active,effective_at&order=effective_at.asc&limit=20000').catch(() => []),
-        supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold&limit=1'),
+        supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,commission_none,commission_bronze,commission_silver,commission_gold&limit=1'),
       ]);
 
       const settings = normalizeConfig(settingRows?.[0] ? {
         ticketThreshold: settingRows[0].ticket_threshold,
         ticketBonus: settingRows[0].ticket_bonus,
-        teamCommissionPerSale: settingRows[0].team_commission_per_sale,
         commissions: {
           none: settingRows[0].commission_none,
           bronze: settingRows[0].commission_bronze,
@@ -34,9 +27,6 @@ module.exports = async function handler(req, res) {
           gold: settingRows[0].commission_gold,
         },
       } : DEFAULT_COMMISSION_CONFIG);
-
-      const detailAffiliateId = Number(req.query?.detail || 0);
-      const detailMonth = String(req.query?.month || 'all');
 
       const ordersByAffiliate = new Map();
       for (const order of orders || []) {
@@ -79,13 +69,6 @@ module.exports = async function handler(req, res) {
         ));
       }
 
-      const accessesByAffiliate = new Map();
-      for (const event of events || []) {
-        if (event.type !== 'access') continue;
-        const id = Number(event.affiliate_id);
-        accessesByAffiliate.set(id, (accessesByAffiliate.get(id) || 0) + 1);
-      }
-
       const stats = new Map();
       for (const affiliate of affiliates || []) {
         const affiliateOrders = ordersByAffiliate.get(Number(affiliate.id)) || [];
@@ -101,7 +84,6 @@ module.exports = async function handler(req, res) {
           revenue,
           commission: commissionData.total,
           withdrawals: 0,
-          accesses: accessesByAffiliate.get(Number(affiliate.id)) || 0,
           lastSaleAt: lastSaleAt ? new Date(lastSaleAt).toISOString() : null,
           autoInactive: lastSaleAt > 0 && lastSaleAt < cutoff,
         });
@@ -111,7 +93,7 @@ module.exports = async function handler(req, res) {
         const id = Number(withdrawal.affiliate_id);
         const bucket = stats.get(id);
         if (!bucket) continue;
-        if (String(withdrawal.source || 'personal') === 'personal' && ['pending', 'approved', 'paid'].includes(String(withdrawal.status || '').toLowerCase())) {
+        if (['pending', 'approved', 'paid'].includes(String(withdrawal.status || '').toLowerCase())) {
           bucket.withdrawals += Number(withdrawal.amount || 0);
         }
       }
@@ -124,33 +106,20 @@ module.exports = async function handler(req, res) {
           revenue: money(bucket.revenue),
           averageTicket: money(bucket.sales ? bucket.revenue / bucket.sales : 0),
           earnedCommission: money(bucket.commission),
-          accesses: Number(bucket.accesses || 0),
           balance: money(Math.max(0, bucket.commission - bucket.withdrawals)),
           adminActive: Boolean(affiliate.admin_active),
           lastSaleAt: bucket.lastSaleAt,
-          daysWithoutSales: bucket.lastSaleAt
-            ? Math.max(0, Math.floor((Date.now() - new Date(bucket.lastSaleAt).getTime()) / (24 * 60 * 60 * 1000)))
-            : Math.max(0, Math.floor((Date.now() - new Date(affiliate.created_at).getTime()) / (24 * 60 * 60 * 1000))),
           autoInactive: Boolean(bucket.autoInactive),
         };
       });
 
       const monthlyMap = new Map();
-      for (const event of events || []) {
-        if (event.type !== 'access' || !event.created_at) continue;
-        const date = new Date(event.created_at);
-        if (Number.isNaN(date.getTime())) continue;
-        const month = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
-        const bucket = monthlyMap.get(month) || { sales: 0, revenue: 0, accesses: 0 };
-        bucket.accesses += 1;
-        monthlyMap.set(month, bucket);
-      }
       for (const order of orders || []) {
         if (!isPaidOrder(order) || !order.created_at) continue;
         const date = new Date(order.created_at);
         if (Number.isNaN(date.getTime())) continue;
         const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        const bucket = monthlyMap.get(month) || { sales: 0, revenue: 0, accesses: 0 };
+        const bucket = monthlyMap.get(month) || { sales: 0, revenue: 0 };
         bucket.sales += 1;
         bucket.revenue += Number(order.total || 0);
         monthlyMap.set(month, bucket);
@@ -158,14 +127,12 @@ module.exports = async function handler(req, res) {
       const monthlyStats = Object.fromEntries(Array.from(monthlyMap.entries()).map(([month, value]) => [month, {
         sales: value.sales,
         revenue: money(value.revenue),
-        accesses: value.accesses || 0,
         averageTicket: money(value.sales ? value.revenue / value.sales : 0),
       }]));
       const globalAll = Object.values(monthlyStats).reduce((acc, value) => ({
         sales: acc.sales + value.sales,
         revenue: acc.revenue + value.revenue,
-        accesses: acc.accesses + Number(value.accesses || 0),
-      }), { sales: 0, revenue: 0, accesses: 0 });
+      }), { sales: 0, revenue: 0 });
       globalAll.averageTicket = money(globalAll.sales ? globalAll.revenue / globalAll.sales : 0);
 
       // Snapshots históricos: vendas/faturamento/ticket do período e estado das afiliadas
@@ -246,7 +213,7 @@ module.exports = async function handler(req, res) {
 
           const affiliateOrdersUntilEnd = monthOrders.filter(order => Number(order.affiliate_id) === Number(affiliate.id));
           const commissionUntilEnd = commissionForOrders(affiliateOrdersUntilEnd, settings).total;
-          const withdrawalsUntilEnd = (withdrawals || []).filter(w => String(w.source || 'personal') === 'personal' && Number(w.affiliate_id) === Number(affiliate.id) && new Date(w.requested_at).getTime() < endExclusive.getTime() && ['pending','approved','paid'].includes(String(w.status || '').toLowerCase()))
+          const withdrawalsUntilEnd = (withdrawals || []).filter(w => Number(w.affiliate_id) === Number(affiliate.id) && new Date(w.requested_at).getTime() < endExclusive.getTime() && ['pending','approved','paid'].includes(String(w.status || '').toLowerCase()))
             .reduce((sum, w) => sum + Number(w.amount || 0), 0);
           balance += Math.max(0, commissionUntilEnd - withdrawalsUntilEnd);
         }
@@ -260,85 +227,6 @@ module.exports = async function handler(req, res) {
           averageTicket: money(monthSales.length ? monthRevenue / monthSales.length : 0),
           totalBalance: money(balance),
         };
-      }
-
-      if (detailAffiliateId > 0) {
-        const selectedAffiliate = (affiliates || []).find(item => Number(item.id) === detailAffiliateId);
-        if (!selectedAffiliate) return json(res, 404, { error: 'Afiliada não encontrada.' });
-
-        const teamIds = (affiliates || [])
-          .filter(item => Number(item.team_parent_id) === detailAffiliateId)
-          .map(item => Number(item.id));
-        const teamIdSet = new Set(teamIds);
-        const inMonth = (value) => detailMonth === 'all' || String(value || '').slice(0, 7) === detailMonth;
-        const validPaid = (order) => isPaidOrder(order) && order.created_at && inMonth(order.created_at);
-        const selectedOrders = (orders || []).filter(order => validPaid(order) && (Number(order.affiliate_id) === detailAffiliateId || teamIdSet.has(Number(order.affiliate_id))));
-        const selectedEvents = (events || []).filter(event => event.type === 'access' && event.created_at && inMonth(event.created_at) && (Number(event.affiliate_id) === detailAffiliateId || teamIdSet.has(Number(event.affiliate_id))));
-        const ownOrders = selectedOrders.filter(order => Number(order.affiliate_id) === detailAffiliateId);
-        const teamOrders = selectedOrders.filter(order => teamIdSet.has(Number(order.affiliate_id)));
-        const revenue = selectedOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
-        const metrics = {
-          accesses: selectedEvents.length,
-          sales: selectedOrders.length,
-          revenue: money(revenue),
-          averageTicket: money(selectedOrders.length ? revenue / selectedOrders.length : 0),
-          ownSales: ownOrders.length,
-          teamSales: teamOrders.length,
-          ownRevenue: money(ownOrders.reduce((sum, order) => sum + Number(order.total || 0), 0)),
-          teamRevenue: money(teamOrders.reduce((sum, order) => sum + Number(order.total || 0), 0)),
-        };
-
-        const bucketMap = new Map();
-        const addBucket = (key, label) => {
-          if (!bucketMap.has(key)) bucketMap.set(key, { date: key, label, ownSales: 0, teamSales: 0, ownRevenue: 0, teamRevenue: 0, accesses: 0 });
-          return bucketMap.get(key);
-        };
-        if (detailMonth === 'all') {
-          for (const order of selectedOrders) {
-            const key = String(order.created_at).slice(0, 7);
-            const d = new Date(`${key}-01T00:00:00Z`);
-            const bucket = addBucket(key, d.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric', timeZone: 'UTC' }));
-            const own = Number(order.affiliate_id) === detailAffiliateId;
-            if (own) { bucket.ownSales += 1; bucket.ownRevenue += Number(order.total || 0); }
-            else { bucket.teamSales += 1; bucket.teamRevenue += Number(order.total || 0); }
-          }
-          for (const event of selectedEvents) {
-            const key = String(event.created_at).slice(0, 7);
-            const d = new Date(`${key}-01T00:00:00Z`);
-            addBucket(key, d.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric', timeZone: 'UTC' })).accesses += 1;
-          }
-        } else {
-          const [year, monthNumber] = detailMonth.split('-').map(Number);
-          const days = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
-          for (let day = 1; day <= days; day += 1) {
-            const key = `${detailMonth}-${String(day).padStart(2, '0')}`;
-            addBucket(key, String(day).padStart(2, '0'));
-          }
-          for (const order of selectedOrders) {
-            const key = String(order.created_at).slice(0, 10);
-            const bucket = addBucket(key, key.slice(-2));
-            const own = Number(order.affiliate_id) === detailAffiliateId;
-            if (own) { bucket.ownSales += 1; bucket.ownRevenue += Number(order.total || 0); }
-            else { bucket.teamSales += 1; bucket.teamRevenue += Number(order.total || 0); }
-          }
-          for (const event of selectedEvents) {
-            const key = String(event.created_at).slice(0, 10);
-            addBucket(key, key.slice(-2)).accesses += 1;
-          }
-        }
-
-        const chart = Array.from(bucketMap.values()).sort((a, b) => a.date.localeCompare(b.date)).map(item => ({
-          ...item,
-          ownRevenue: money(item.ownRevenue),
-          teamRevenue: money(item.teamRevenue),
-        }));
-        return json(res, 200, {
-          affiliate: { id: Number(selectedAffiliate.id), name: selectedAffiliate.name, slug: selectedAffiliate.slug },
-          period: detailMonth,
-          teamSize: teamIds.length,
-          metrics,
-          chart,
-        });
       }
 
       return json(res, 200, {
@@ -411,37 +299,19 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    if (req.method === 'PATCH' && String(req.body?.action || '') === 'video_review') {
-      const id = Number(req.body?.id);
-      const status = String(req.body?.status || '').toLowerCase();
-      const note = String(req.body?.note || '').trim();
-      if (!Number.isInteger(id) || id <= 0) return json(res, 400, { error: 'ID da solicitação obrigatório.' });
-      if (!['approved', 'rejected'].includes(status)) return json(res, 400, { error: 'Status de análise inválido.' });
-      const current = await supabaseFetch(`/rest/v1/affiliate_video_submissions?id=eq.${id}&select=id,status&limit=1`);
-      if (!current?.[0]) return json(res, 404, { error: 'Solicitação de vídeo não encontrada.' });
-      const rows = await supabaseFetch(`/rest/v1/affiliate_video_submissions?id=eq.${id}`, {
-        method: 'PATCH',
-        headers: { Prefer: 'return=representation' },
-        body: JSON.stringify({ status, note: note || null, reviewed_at: new Date().toISOString() }),
-      });
-      return json(res, 200, { video: rows?.[0] || null });
-    }
-
     if (req.method === 'PATCH') {
       const { id, active, adminActive, commissionRate, password, settings: requestedSettings } = req.body || {};
 
       if (requestedSettings) {
-        const currentRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold&limit=1');
+        const currentRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,commission_none,commission_bronze,commission_silver,commission_gold&limit=1');
         const currentSettings = normalizeConfig(currentRows?.[0] ? {
           ticketThreshold: currentRows[0].ticket_threshold,
           ticketBonus: currentRows[0].ticket_bonus,
-          teamCommissionPerSale: currentRows[0].team_commission_per_sale,
           commissions: { none: currentRows[0].commission_none, bronze: currentRows[0].commission_bronze, silver: currentRows[0].commission_silver, gold: currentRows[0].commission_gold },
         } : DEFAULT_COMMISSION_CONFIG);
         const nextSettings = normalizeConfig({
           ticketThreshold: requestedSettings.ticketThreshold,
           ticketBonus: currentSettings.ticketBonus,
-          teamCommissionPerSale: requestedSettings.teamCommissionPerSale,
           commissions: requestedSettings.commissions,
         });
         if (nextSettings.ticketThreshold <= 0 || Object.values(nextSettings.commissions).some(value => value < 0)) {
@@ -452,7 +322,6 @@ module.exports = async function handler(req, res) {
           headers: { Prefer: 'return=representation' },
           body: JSON.stringify({
             ticket_threshold: nextSettings.ticketThreshold,
-            team_commission_per_sale: nextSettings.teamCommissionPerSale,
             commission_none: nextSettings.commissions.none,
             commission_bronze: nextSettings.commissions.bronze,
             commission_silver: nextSettings.commissions.silver,

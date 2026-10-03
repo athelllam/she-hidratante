@@ -1,7 +1,6 @@
 const DEFAULT_COMMISSION_CONFIG = {
   ticketThreshold: 170,
   ticketBonus: 5,
-  teamCommissionPerSale: 10,
   commissions: {
     none: 30,
     bronze: 40,
@@ -30,7 +29,6 @@ function normalizeConfig(config = {}) {
   return {
     ticketThreshold: Number.isFinite(Number(config.ticketThreshold)) ? Number(config.ticketThreshold) : DEFAULT_COMMISSION_CONFIG.ticketThreshold,
     ticketBonus: Number.isFinite(Number(config.ticketBonus)) ? Number(config.ticketBonus) : DEFAULT_COMMISSION_CONFIG.ticketBonus,
-    teamCommissionPerSale: Number.isFinite(Number(config.teamCommissionPerSale)) ? Number(config.teamCommissionPerSale) : DEFAULT_COMMISSION_CONFIG.teamCommissionPerSale,
     commissions: {
       none: Number.isFinite(Number(commissions.none)) ? Number(commissions.none) : DEFAULT_COMMISSION_CONFIG.commissions.none,
       bronze: Number.isFinite(Number(commissions.bronze)) ? Number(commissions.bronze) : DEFAULT_COMMISSION_CONFIG.commissions.bronze,
@@ -87,7 +85,7 @@ function calculateMonthlyStats(orders, config = DEFAULT_COMMISSION_CONFIG) {
   return byMonth;
 }
 
-function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG, options = {}) {
+function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG) {
   const normalized = normalizeConfig(config);
   const paid = (orders || []).filter(order => isPaidOrder(order));
   const monthlyStats = calculateMonthlyStats(paid, normalized);
@@ -99,8 +97,7 @@ function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG, options
   const annotated = paid.map(order => {
     const key = monthKey(order.created_at);
     const stats = monthlyStats[key] || { sales: 0, averageTicket: 0, multiplierActive: false };
-    const floor = Number(options?.levelFloorByMonth?.[key] || 0);
-    const level = getLevel(Math.max(stats.sales, floor), normalized);
+    const level = getLevel(stats.sales, normalized);
     const multiplier = stats.multiplierActive ? normalized.ticketBonus : 0;
     const commission = Number((level.commissionPerOrder + multiplier).toFixed(2));
     total += commission;
