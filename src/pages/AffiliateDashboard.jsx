@@ -340,7 +340,6 @@ export default function AffiliateDashboard() {
     return [
       ['Acessos', m.accesses || 0],
       ['Vendas', m.sales || 0],
-      ['Faturamento', brl(m.revenue)],
       ['Ticket médio', brl(m.averageTicket)],
       ['Comissão', brl(m.commission)],
     ]
@@ -428,9 +427,9 @@ export default function AffiliateDashboard() {
   }
 
   const chart = dashboard?.chart || []
-  const maxRevenue = Math.max(1, ...chart.map(x => Number(x.revenue || 0)))
+  const maxSales = Math.max(1, ...chart.map(x => Number(x.sales || 0)))
   // Reserva espaço vertical para o rótulo acima da maior barra, mantendo a escala proporcional.
-  const chartScaleMax = maxRevenue * 1.25
+  const chartScaleMax = maxSales * 1.25
   const chartBarAreaHeight = 88
 
   const hasAffiliateLink = Boolean(affiliate.slug)
@@ -567,7 +566,7 @@ export default function AffiliateDashboard() {
           <button type="button" aria-label="Como funcionam os níveis" onClick={() => setLevelHelpOpen(true)} className="absolute bottom-4 right-5 flex h-6 w-6 items-center justify-center rounded-full border border-zinc-200 bg-white/90 text-xs font-black text-zinc-500 shadow-sm transition hover:border-pink-300 hover:text-pink-500">?</button>
         </section>
 
-        <section className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <section className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {cards.map(([label, value]) => {
             const multiplierActive = label === 'Ticket médio' && dashboard?.metrics?.ticketMultiplierActive
             return (
@@ -599,7 +598,7 @@ export default function AffiliateDashboard() {
             <div className="flex items-end justify-between gap-4">
               <div>
                 <h2 className="font-black text-xl">{selectedMonth === 'all' ? 'Desempenho mensal' : 'Desempenho diário'}</h2>
-                <p className="mt-1 text-sm text-zinc-400">{selectedMonth === 'all' ? 'Resultados por mês em todo o período' : `Faturamento por dia em ${monthLabel(selectedMonth)}`}</p>
+                <p className="mt-1 text-sm text-zinc-400">{selectedMonth === 'all' ? 'Resultados por mês em todo o período' : `Vendas por dia em ${monthLabel(selectedMonth)}`}</p>
               </div>
               <div className="hidden sm:block text-right text-xs text-zinc-400">{selectedMonth === 'all' ? 'Evolução mês a mês' : 'Arraste para ver os dias anteriores'}</div>
             </div>
@@ -608,23 +607,23 @@ export default function AffiliateDashboard() {
               <div className={`h-[135px] ${selectedMonth === 'all' ? 'w-full min-w-[520px]' : 'w-max'} px-1`}>
                 <div className="flex h-[118px] items-end gap-1 border-b border-zinc-100 pt-[22px]">
                   {chart.map((item) => {
-                    const revenue = Number(item.revenue || 0)
-                    const height = revenue ? Math.max(8, (revenue / chartScaleMax) * chartBarAreaHeight) : 3
+                    const sales = Number(item.sales || 0)
+                    const height = sales ? Math.max(8, (sales / chartScaleMax) * chartBarAreaHeight) : 3
                     return (
                       <div key={item.date} data-chart-index={chart.indexOf(item)} className={`group flex h-full ${selectedMonth === 'all' ? 'min-w-[72px] flex-1' : 'w-[48px] shrink-0'} flex-col justify-end`}>
                         <div className="relative flex flex-1 items-end justify-center">
-                          {revenue > 0 && (
+                          {sales > 0 && (
                             <span
                               className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap text-[8px] font-black text-zinc-700"
                               style={{ bottom: `${height + 5}px` }}
                             >
-                              {brl(revenue).replace('R$ ', 'R$')}
+                              {sales}
                             </span>
                           )}
                           <div
-                            title={`${selectedMonth === 'all' ? (item.label || monthLabel(item.date)) : shortDate(item.date)} — ${brl(revenue)} — ${item.sales} venda(s)`}
+                            title={`${selectedMonth === 'all' ? (item.label || monthLabel(item.date)) : shortDate(item.date)} — ${sales} venda(s)`}
                             className="w-[18px] rounded-t-md bg-pink-400 transition-all duration-300 group-hover:bg-pink-500"
-                            style={{ height: `${height}px`, minHeight: revenue ? undefined : '3px' }}
+                            style={{ height: `${height}px`, minHeight: sales ? undefined : '3px' }}
                           />
                         </div>
                         <span className="mt-2 text-center text-[8px] font-bold text-zinc-400">{selectedMonth === 'all' ? (item.label || monthLabel(item.date)) : shortDate(item.date)}</span>
@@ -841,6 +840,37 @@ export default function AffiliateDashboard() {
             )}
           </div>
         </section>
+
+        <footer className="relative mt-10 overflow-hidden rounded-[2rem] bg-[#0b0b0d] px-6 pt-12 pb-7 text-white shadow-sm md:px-10">
+          <div className="absolute -top-32 left-1/2 h-[260px] w-[620px] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_at_top,#3A1835_0%,#170D16_42%,rgba(9,8,10,0)_78%)] blur-[80px] pointer-events-none" />
+          <div className="relative grid gap-10 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
+            <div>
+              <p className="text-lg font-black">She</p>
+              <p className="mt-3 max-w-sm text-sm leading-6 text-white/55">Programa de afiliadas SHE. Uma parceria comercial independente para divulgação dos nossos produtos.</p>
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[.22em] text-pink-300">Navegue</p>
+              <nav className="mt-4 flex flex-col gap-3 text-sm text-white/70">
+                <Link to="/trabalhe-conosco" className="hover:text-white transition-colors">Trabalhe Conosco</Link>
+                <Link to="/afiliado" className="hover:text-white transition-colors">Área da Afiliada</Link>
+                <Link to="/representantes" className="hover:text-white transition-colors">Representantes</Link>
+              </nav>
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[.22em] text-pink-300">Legal</p>
+              <nav className="mt-4 flex flex-col gap-3 text-sm text-white/70">
+                <Link to="/termos-afiliadas" className="hover:text-white transition-colors">Termos de Afiliadas</Link>
+                <Link to="/politica-de-privacidade" className="hover:text-white transition-colors">Política de Privacidade</Link>
+                <Link to="/termos-de-uso" className="hover:text-white transition-colors">Termos de Uso</Link>
+              </nav>
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[.22em] text-pink-300">Contato</p>
+              <a href="https://wa.me/553132784332" target="_blank" rel="noreferrer" className="mt-4 inline-flex text-sm text-white/70 hover:text-white transition-colors">Fale com a gente</a>
+            </div>
+          </div>
+          <div className="relative mt-10 border-t border-white/10 pt-5 text-xs text-white/35">© {new Date().getFullYear()} She. Todos os direitos reservados.</div>
+        </footer>
       </div>
 
 

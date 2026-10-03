@@ -1384,7 +1384,7 @@ export default function Stick({ affiliateId = null, affiliate = null }) {
                 <Link to="/" className="hover:text-white transition-colors">Home</Link>
                 <a href="https://wa.me/553132784332" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">Contato</a>
                 <a href="#sobre" className="hover:text-white transition-colors">Sobre</a>
-                <a href="#trabalhe-conosco" className="hover:text-white transition-colors">Trabalhe Conosco</a>
+                <Link to="/trabalhe-conosco" className="hover:text-white transition-colors">Trabalhe Conosco</Link>
               </nav>
             </div>
             <div className="col-span-1 md:col-span-1">
