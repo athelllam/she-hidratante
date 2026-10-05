@@ -363,8 +363,10 @@ module.exports = async function handler(req, res) {
     // O Bônus Mensal pode, por si só, definir um nível base quando o desempenho
     // do mês já alcançou o respectivo nível. O bônus de equipe de 30 dias adiciona
     // o piso Bronze aos pontos mensais para essa avaliação.
-    const teamBonusPoints = teamBonusActive ? Number(settings.monthlyLevels.bronze || 0) : 0;
-    const monthlyPerformancePoints = levelSales + teamBonusPoints;
+    // O desempenho mensal é calculado apenas pelas vendas reais do mês
+    // (afiliada + equipe). O bônus de equipe de 30 dias funciona como um
+    // piso Bronze independente, e não soma pontos duas vezes.
+    const monthlyPerformancePoints = levelSales;
     const monthlyPerformanceLevel = getLevel(monthlyPerformancePoints, settings, 'monthly');
     const teamBonusLevel = teamBonusActive ? getLevel(settings.monthlyLevels.bronze, settings, 'monthly') : null;
 
@@ -374,12 +376,16 @@ module.exports = async function handler(req, res) {
     const baseCandidates = [fixedLevel.key, monthlyPerformanceLevel.key, teamBonusLevel?.key || 'none'];
     const baseLevelKey = baseCandidates.reduce((best, candidate) =>
       LEVEL_ORDER[candidate] > LEVEL_ORDER[best] ? candidate : best, 'none');
+    // Cada nível tem uma base de pontos própria para o card mensal.
+    // Essas bases representam o piso do nível: Bronze=10, Prata=50, Ouro=100.
+    // As metas de vendas do Bônus Fixo continuam sendo usadas separadamente
+    // para decidir o nível fixo (100/300/500 por padrão).
     const baseLevelPoints = baseLevelKey === 'gold'
-      ? Number(settings.monthlyLevels.gold || 0)
+      ? 100
       : baseLevelKey === 'silver'
-        ? Number(settings.monthlyLevels.silver || 0)
+        ? 50
         : baseLevelKey === 'bronze'
-          ? Number(settings.monthlyLevels.bronze || 0)
+          ? 10
           : 0;
 
     // O card de níveis mostra o nível base + as vendas reais do mês
