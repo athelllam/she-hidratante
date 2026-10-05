@@ -349,13 +349,6 @@ export default function AdminDashboard() {
       if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || !Number.isFinite(payload.teamCommissionPerSale) || payload.teamCommissionPerSale < 0 || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0) || Object.values(payload.monthlyLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.fixedLevels).some(value => !Number.isInteger(value) || value <= 0) || payload.boostPlans.small.price <= 0 || !Number.isInteger(payload.boostPlans.small.connections) || payload.boostPlans.small.connections <= 0 || payload.boostPlans.large.price <= 0 || !Number.isInteger(payload.boostPlans.large.connections) || payload.boostPlans.large.connections <= 0 || !Number.isInteger(payload.boostPlans.maxActive) || payload.boostPlans.maxActive <= 0 || !(payload.monthlyLevels.bronze < payload.monthlyLevels.silver && payload.monthlyLevels.silver < payload.monthlyLevels.gold) || !(payload.fixedLevels.bronze < payload.fixedLevels.silver && payload.fixedLevels.silver < payload.fixedLevels.gold)) {
         throw new Error('Informe valores válidos. As metas devem ser números inteiros e crescentes: Bronze < Prata < Ouro.')
       }
-      // Salva primeiro as metas Mensal/Fixo em uma operação isolada.
-      // Assim elas continuam funcionando mesmo que outra configuração do painel tenha algum problema.
-      const bonusResult = await api('/api/admin/affiliates', {
-        method: 'PATCH',
-        body: JSON.stringify({ action: 'update_bonus_levels', monthlyLevels: payload.monthlyLevels, fixedLevels: payload.fixedLevels }),
-      })
-
       const result = await api('/api/admin/affiliates', {
         method: 'PATCH',
         body: JSON.stringify({ settings: payload }),
