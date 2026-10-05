@@ -268,12 +268,13 @@ module.exports = async function handler(req, res) {
     const defaultMonth = monthKeyInSaoPaulo(now);
     const { start: startOfCurrentMonth, end: endOfCurrentMonth } = monthRange(defaultMonth);
 
-    const [events, orders, withdrawals, settingRows, boostRows] = await Promise.all([
+    const [events, orders, withdrawals, settingRows, boostRows, balanceMovements] = await Promise.all([
       supabaseFetch(`/rest/v1/affiliate_events?affiliate_id=eq.${id}&select=type,created_at&order=created_at.desc&limit=10000`),
       supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${id}&select=yampi_order_id,status,total,commission,created_at,updated_at&order=created_at.desc&limit=5000`),
       supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${id}&status=in.(pending,approved,paid)&select=id,amount,status,pix_key,source,requested_at,processed_at,note&order=requested_at.desc&limit=500`),
       supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales&limit=1'),
       supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${id}&status=neq.cancelled&select=id,price,connections_total,connections_remaining,status,queue_created_at,activated_at&order=id.desc&limit=20`).catch(() => []),
+      supabaseFetch(`/rest/v1/affiliate_balance_movements?affiliate_id=eq.${id}&select=id,type,amount,boost_id,status,description,created_at&order=created_at.desc&limit=200`).catch(() => []),
     ]);
 
     const settings = normalizeConfig(settingRows?.[0] ? {
@@ -320,12 +321,12 @@ module.exports = async function handler(req, res) {
     const openingBalance = 0;
     const closingBalance = availableCommission;
 
-    const teamMembers = await supabaseFetch(`/rest/v1/affiliates?team_parent_id=eq.${id}&select=id,name,slug,whatsapp,created_at&order=created_at.asc&limit=1000`);
+    const teamMembers = await supabaseFetch(`/rest/v1/affiliates?team_parent_id=eq.${id}&select=id,name,slug,whatsapp,team_join_source,created_at&order=created_at.asc&limit=1000`);
     const teamParentRows = affiliate.team_parent_id ? await supabaseFetch(`/rest/v1/affiliates?id=eq.${Number(affiliate.team_parent_id)}&select=id,name,slug,whatsapp&limit=1`) : [];
     const teamParent = teamParentRows?.[0] || null;
     const teamIds = (teamMembers || []).map(member => Number(member.id)).filter(Boolean);
     const teamOrders = teamIds.length
-      ? await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=in.(${teamIds.join(',')})&select=affiliate_id,status,created_at&order=created_at.asc&limit=20000`)
+      ? await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=in.(${teamIds.join(',')})&select=affiliate_id,status,created_at,team_commission_amount,team_commission_locked&order=created_at.asc&limit=20000`)
       : [];
     const teamRate = Number(settings.teamCommissionPerSale || 10);
     const levelMonth = defaultMonth;
@@ -357,7 +358,7 @@ module.exports = async function handler(req, res) {
       const childId = Number(order.affiliate_id);
       teamSalesByAffiliate.set(childId, (teamSalesByAffiliate.get(childId) || 0) + 1);
     }
-    const teamEarnedCommission = Array.from(teamSalesByAffiliate.values()).reduce((sum, sales) => sum + sales * teamRate, 0);
+    const teamEarnedCommission = (teamOrders || []).filter(isPaidOrder).reduce((sum, order) => sum + (order.team_commission_locked ? Number(order.team_commission_amount || 0) : teamRate), 0);
     const teamReserved = teamWithdrawals.reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const teamAvailableCommission = Math.max(0, teamEarnedCommission - teamReserved);
     const team = {
@@ -374,7 +375,7 @@ module.exports = async function handler(req, res) {
       availableCommission: money(teamAvailableCommission),
       members: (teamMembers || []).map(member => {
         const sales = teamSalesByAffiliate.get(Number(member.id)) || 0;
-        return { id: Number(member.id), name: member.name, slug: member.slug, whatsapp: member.whatsapp || '', sales, commission: money(sales * teamRate) };
+        const memberCommission = (teamOrders || []).filter(order => Number(order.affiliate_id) === Number(member.id) && isPaidOrder(order)).reduce((sum, order) => sum + (order.team_commission_locked ? Number(order.team_commission_amount || 0) : teamRate), 0); return { id: Number(member.id), name: member.name, slug: member.slug, whatsapp: member.whatsapp || '', source: member.team_join_source === 'boost' ? 'boost' : 'organic', sales, commission: money(memberCommission) };
       }),
     };
 
@@ -454,7 +455,19 @@ module.exports = async function handler(req, res) {
       },
       months: historicalMonths,
       orders: selectedOrders.slice(0, 100),
-      withdrawals: selectedWithdrawals,
+      withdrawals: [
+        ...selectedWithdrawals.map(item => ({ ...item, movementType: 'withdrawal' })),
+        ...(balanceMovements || []).map(item => ({
+          id: `boost-${item.id}`,
+          amount: Number(item.amount || 0),
+          status: item.status || (item.type === 'boost_refund' ? 'refunded' : item.type === 'boost_payment' ? 'active' : 'reserved'),
+          source: 'boost',
+          requested_at: item.created_at,
+          movementType: 'boost',
+          description: item.description || '',
+          boost_id: item.boost_id,
+        })),
+      ].sort((a,b) => new Date(b.requested_at).getTime() - new Date(a.requested_at).getTime()),
       monthlyStats,
       chart,
     });
