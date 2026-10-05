@@ -573,7 +573,7 @@ export default function AffiliateDashboard() {
               </div>
               <p className="mt-2 text-sm text-zinc-500">
                 {monthlyLevel.nextLevel
-                  ? `Faltam ${monthlyLevel.salesToNext} ponto(s) para ${monthlyLevel.nextLevel}.`
+                  ? `Faltam ${monthlyLevel.salesToNext} venda(s) para ${monthlyLevel.nextLevel}.`
                   : 'Você atingiu o nível máximo deste mês.'}
               </p>
             </div>

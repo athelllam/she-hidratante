@@ -370,31 +370,45 @@ module.exports = async function handler(req, res) {
     const monthlyPerformanceLevel = getLevel(monthlyPerformancePoints, settings, 'monthly');
     const teamBonusLevel = teamBonusActive ? getLevel(settings.monthlyLevels.bronze, settings, 'monthly') : null;
 
-    // O Bônus Fixo é o mestre do piso: ele nunca é rebaixado pelo mês.
-    // Porém, se o desempenho mensal ou o bônus de equipe alcançar um nível maior,
-    // esse nível maior passa a ser o novo nível base daquele mês.
-    const baseCandidates = [fixedLevel.key, monthlyPerformanceLevel.key, teamBonusLevel?.key || 'none'];
-    const baseLevelKey = baseCandidates.reduce((best, candidate) =>
-      LEVEL_ORDER[candidate] > LEVEL_ORDER[best] ? candidate : best, 'none');
-    // A base de pontos do card mensal é SEMPRE a meta configurada
-    // para aquele nível no painel de Bônus Mensal.
-    // Ex.: se Prata = 2 e Ouro = 5, uma afiliada cujo nível base é Ouro
-    // começa o cálculo do card em 5 pontos, nunca em um valor fixo 10/50/100.
-    // As metas do Bônus Fixo continuam servindo apenas para determinar
-    // qual nível fixo a afiliada conquistou.
-    const baseLevelPoints = baseLevelKey === 'gold'
-      ? Number(settings.monthlyLevels.gold || 0)
-      : baseLevelKey === 'silver'
-        ? Number(settings.monthlyLevels.silver || 0)
-        : baseLevelKey === 'bronze'
-          ? Number(settings.monthlyLevels.bronze || 0)
-          : 0;
+    // Os pontos exibidos no card são SOMENTE as vendas reais do mês:
+    // vendas pessoais + vendas da equipe. O nível base (Fixo/Equipe) serve
+    // apenas para definir o piso do nível, nunca para somar pontos exibidos.
+    const monthlyPoints = levelSales;
 
-    // O card de níveis mostra o nível base + as vendas reais do mês
-    // (afiliada + equipe). O bônus de equipe já foi usado apenas para definir
-    // o nível base e não é contado duas vezes aqui.
-    const effectiveMonthlyPoints = baseLevelPoints + levelSales;
-    const monthlyLevel = getLevel(effectiveMonthlyPoints, settings, 'monthly');
+    // O nível exibido é o maior entre Bônus Fixo, desempenho mensal e
+    // Bônus de Equipe. O contador de pontos continua sendo mensal puro.
+    const baseCandidatesFinal = [fixedLevel.key, monthlyPerformanceLevel.key, teamBonusLevel?.key || 'none'];
+    const currentLevelKey = baseCandidatesFinal.reduce((best, candidate) =>
+      LEVEL_ORDER[candidate] > LEVEL_ORDER[best] ? candidate : best, 'none');
+
+    const currentLevelThreshold = currentLevelKey === 'gold'
+      ? Number(settings.monthlyLevels?.gold || 101)
+      : currentLevelKey === 'silver'
+        ? Number(settings.monthlyLevels?.silver || 50)
+        : currentLevelKey === 'bronze'
+          ? Number(settings.monthlyLevels?.bronze || 10)
+          : 0;
+    const currentLevel = getLevel(currentLevelThreshold, settings, 'monthly');
+
+    // A mensagem inferior usa os pontos mensais reais para mostrar quanto falta
+    // para o próximo nível. O nível pode estar garantido pelo Bônus Fixo, mas
+    // os pontos exibidos continuam sendo apenas vendas pessoais + equipe.
+    const nextLevelMap = { bronze: 'Prata', silver: 'Ouro', gold: null, none: 'Bronze' };
+    const nextKeyMap = { bronze: 'silver', silver: 'gold', gold: null, none: 'bronze' };
+    const nextKey = nextKeyMap[currentLevelKey];
+    const nextMin = nextKey
+      ? Number(settings.monthlyLevels?.[nextKey] || (nextKey === 'gold' ? 101 : nextKey === 'silver' ? 50 : 10))
+      : null;
+    const monthlyLevel = {
+      ...currentLevel,
+      key: currentLevelKey,
+      label: currentLevelKey === 'gold' ? 'Ouro' : currentLevelKey === 'silver' ? 'Prata' : currentLevelKey === 'bronze' ? 'Bronze' : 'Início',
+      sales: monthlyPoints,
+      nextLevel: nextLevelMap[currentLevelKey],
+      nextMinSales: nextMin,
+      salesToNext: nextMin === null ? 0 : Math.max(0, nextMin - monthlyPoints),
+      progress: nextMin === null ? 100 : Math.min(100, (monthlyPoints / Math.max(1, nextMin)) * 100),
+    };
     const level = monthlyLevel;
     const teamSalesByAffiliate = new Map();
     for (const order of teamOrders || []) {
