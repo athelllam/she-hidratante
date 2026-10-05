@@ -376,16 +376,18 @@ module.exports = async function handler(req, res) {
     const baseCandidates = [fixedLevel.key, monthlyPerformanceLevel.key, teamBonusLevel?.key || 'none'];
     const baseLevelKey = baseCandidates.reduce((best, candidate) =>
       LEVEL_ORDER[candidate] > LEVEL_ORDER[best] ? candidate : best, 'none');
-    // Cada nível tem uma base de pontos própria para o card mensal.
-    // Essas bases representam o piso do nível: Bronze=10, Prata=50, Ouro=100.
-    // As metas de vendas do Bônus Fixo continuam sendo usadas separadamente
-    // para decidir o nível fixo (100/300/500 por padrão).
+    // A base de pontos do card mensal é SEMPRE a meta configurada
+    // para aquele nível no painel de Bônus Mensal.
+    // Ex.: se Prata = 2 e Ouro = 5, uma afiliada cujo nível base é Ouro
+    // começa o cálculo do card em 5 pontos, nunca em um valor fixo 10/50/100.
+    // As metas do Bônus Fixo continuam servindo apenas para determinar
+    // qual nível fixo a afiliada conquistou.
     const baseLevelPoints = baseLevelKey === 'gold'
-      ? 100
+      ? Number(settings.monthlyLevels.gold || 0)
       : baseLevelKey === 'silver'
-        ? 50
+        ? Number(settings.monthlyLevels.silver || 0)
         : baseLevelKey === 'bronze'
-          ? 10
+          ? Number(settings.monthlyLevels.bronze || 0)
           : 0;
 
     // O card de níveis mostra o nível base + as vendas reais do mês
