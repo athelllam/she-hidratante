@@ -922,14 +922,9 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <div className="md:col-span-2 xl:col-span-6 flex flex-col gap-3 rounded-2xl border border-zinc-100 bg-zinc-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-zinc-500">As metas dos Bônus Mensal e Bônus Fixo são salvas separadamente das demais configurações.</p>
-              <button type="button" onClick={saveBonusLevels} disabled={savingBonusLevels} className="rounded-xl bg-zinc-950 px-5 py-3 text-sm font-black text-white transition hover:bg-pink-500 disabled:opacity-50">{savingBonusLevels ? 'Atualizando…' : 'Atualizar bônus'} </button>
-            </div>
-
             <div className="md:col-span-2 xl:col-span-6 flex flex-col gap-3 border-t border-zinc-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-zinc-400">Atual: Mensal {settings.monthlyLevels?.bronze}/{settings.monthlyLevels?.silver}/{settings.monthlyLevels?.gold} vendas · Fixo {settings.fixedLevels?.bronze}/{settings.fixedLevels?.silver}/{settings.fixedLevels?.gold} vendas · Bronze {brl(settings.commissions?.bronze)} · Prata {brl(settings.commissions?.silver)} · Ouro {brl(settings.commissions?.gold)}</p>
-              <button disabled={savingSettings} className="rounded-xl bg-zinc-950 px-5 py-3 text-sm font-black text-white transition hover:bg-pink-500 disabled:opacity-50">{savingSettings ? 'Atualizando…' : 'Atualizar valores'}</button>
+              <button disabled={savingSettings} className="rounded-xl bg-zinc-950 px-5 py-3 text-sm font-black text-white transition hover:bg-pink-500 disabled:opacity-50">{savingSettings ? 'Atualizando…' : 'Atualizar configurações'}</button>
             </div>
           </form>
 

@@ -399,6 +399,23 @@ module.exports = async function handler(req, res) {
     const nextMin = nextKey
       ? Number(settings.monthlyLevels?.[nextKey] || (nextKey === 'gold' ? 101 : nextKey === 'silver' ? 50 : 10))
       : null;
+    // A barra representa o nível atual como um piso visual. Quando o nível
+    // é garantido pelo Bônus Fixo ou pelo Bônus de Equipe, a barra nunca pode
+    // ficar visualmente abaixo desse marcador. Depois do marcador atual, o
+    // preenchimento avança proporcionalmente até o próximo nível usando
+    // somente as vendas reais do mês (pessoais + equipe).
+    const levelMarker = { none: 0, bronze: 10, silver: 50, gold: 100 };
+    const currentMarker = levelMarker[currentLevelKey] ?? 0;
+    const nextMarker = currentLevelKey === 'none' ? levelMarker.bronze : currentLevelKey === 'bronze' ? levelMarker.silver : currentLevelKey === 'silver' ? 90 : 100;
+    const currentThresholdForBar = currentLevelKey === 'gold' ? Number(settings.monthlyLevels.gold) : currentLevelKey === 'silver' ? Number(settings.monthlyLevels.silver) : currentLevelKey === 'bronze' ? Number(settings.monthlyLevels.bronze) : 0;
+    const nextThresholdForBar = nextMin === null ? currentThresholdForBar : nextMin;
+    const barFraction = currentLevelKey === 'gold' || nextMin === null
+      ? 1
+      : monthlyPoints <= currentThresholdForBar
+        ? 0
+        : Math.min(1, (monthlyPoints - currentThresholdForBar) / Math.max(1, nextThresholdForBar - currentThresholdForBar));
+    const levelProgress = currentMarker + ((nextMarker - currentMarker) * barFraction);
+
     const monthlyLevel = {
       ...currentLevel,
       key: currentLevelKey,
@@ -407,7 +424,7 @@ module.exports = async function handler(req, res) {
       nextLevel: nextLevelMap[currentLevelKey],
       nextMinSales: nextMin,
       salesToNext: nextMin === null ? 0 : Math.max(0, nextMin - monthlyPoints),
-      progress: nextMin === null ? 100 : Math.min(100, (monthlyPoints / Math.max(1, nextMin)) * 100),
+      progress: Math.min(100, levelProgress),
     };
     const level = monthlyLevel;
     const teamSalesByAffiliate = new Map();
