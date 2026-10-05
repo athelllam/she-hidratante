@@ -1,4 +1,5 @@
 const { supabaseFetch } = require('./supabase');
+const { DEFAULT_COMMISSION_CONFIG, normalizeConfig, getLevel, levelIndex, monthKey, isPaidOrder } = require('./affiliateCommission');
 
 const YAMPI_BASE_URL = 'https://api.dooki.com.br/v2';
 
@@ -140,39 +141,7 @@ function getStatus(order) {
 }
 
 function isPaymentApprovedStatus(status) {
-  return new Set([
-    'payment_approved',
-    'pagamento_aprovado',
-    'paid',
-    'approved',
-    'aprovado',
-  ]).has(String(status || '').toLowerCase());
-}
-
-function getTransaction(order) {
-  const value = order?.transactions?.data ?? order?.transactions ?? null;
-  if (Array.isArray(value)) return value[0] || null;
-  return value && typeof value === 'object' ? value : null;
-}
-
-function isPaymentApprovedOrder(order) {
-  // O status do pedido muda depois do pagamento (separação, faturado,
-  // transporte etc.). A transação é a fonte correta para saber se houve
-  // pagamento aprovado.
-  const transaction = getTransaction(order);
-  const transactionStatus = String(
-    transaction?.status?.alias ||
-    transaction?.status?.slug ||
-    transaction?.status?.name ||
-    transaction?.status ||
-    ''
-  ).toLowerCase().trim().replace(/\s+/g, '_');
-
-  if (isPaymentApprovedStatus(transactionStatus)) return true;
-  if (transaction && transaction.captured === true && transaction.cancelled !== true) return true;
-
-  // Compatibilidade com payloads em que a transação não veio no include.
-  return isPaymentApprovedStatus(getStatus(order));
+  return new Set(['payment_approved', 'pagamento_aprovado', 'paid']).has(String(status || '').toLowerCase());
 }
 
 function getTotal(order) {
@@ -207,7 +176,10 @@ function isCancelledStatus(status) {
 
 async function upsertAffiliateOrder(order, affiliateId, commissionRate) {
   const yampiOrderId = String(getOrderId(order) || '');
-  if (!yampiOrderId) return false;
+  if (!yampiOrderId) return { ok: false, existed: false };
+
+  const existing = await supabaseFetch(`/rest/v1/affiliate_orders?yampi_order_id=eq.${encodeURIComponent(yampiOrderId)}&select=id,commission_rate_locked,commission_level_key,team_commission_locked&limit=1`);
+  const existed = Boolean(existing?.[0]);
 
   const status = getStatus(order) || 'created';
   const total = getTotal(order);
@@ -235,6 +207,63 @@ async function upsertAffiliateOrder(order, affiliateId, commissionRate) {
   return true;
 }
 
+
+async function getAffiliateCommissionSettings() {
+  const rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold&limit=1');
+  const row = rows?.[0];
+  return normalizeConfig(row ? {
+    ticketThreshold: row.ticket_threshold,
+    ticketBonus: row.ticket_bonus,
+    teamCommissionPerSale: row.team_commission_per_sale,
+    commissions: { none: row.commission_none, bronze: row.commission_bronze, silver: row.commission_silver, gold: row.commission_gold },
+  } : DEFAULT_COMMISSION_CONFIG);
+}
+
+async function lockCommissionForPaidOrder(affiliateId, yampiOrderId, settingsInput = null, isNewOrder = false) {
+  const settings = settingsInput || await getAffiliateCommissionSettings();
+  const orders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${Number(affiliateId)}&status=in.(payment_approved,paid,pagamento_aprovado)&select=id,yampi_order_id,status,total,created_at,commission_rate_locked,commission_level_key,team_commission_locked&order=created_at.asc&limit=5000`);
+  const current = (orders || []).find(order => String(order.yampi_order_id) === String(yampiOrderId));
+  if (!current || !isPaidOrder(current)) return;
+
+  const currentMonth = monthKey(current.created_at);
+  if (!currentMonth) return;
+  const monthOrders = (orders || []).filter(order => isPaidOrder(order) && monthKey(order.created_at) === currentMonth);
+  const sales = monthOrders.length;
+  const currentLevel = getLevel(sales, settings);
+  const previousLevel = getLevel(Math.max(0, sales - 1), settings);
+  const upgraded = levelIndex(currentLevel.key) > levelIndex(previousLevel.key);
+  const newRate = Number(currentLevel.commissionPerOrder || 0);
+
+  if (upgraded) {
+    // The moment the affiliate reaches a new level, every paid order in that
+    // month is retroactively recalculated using the NEW level's rate.
+    await Promise.all(monthOrders.map(order =>
+      supabaseFetch(`/rest/v1/affiliate_orders?id=eq.${Number(order.id)}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ commission_rate_locked: newRate, commission_level_key: currentLevel.key }),
+      })
+    ));
+  } else if (isNewOrder && !Number.isFinite(Number(current.commission_rate_locked))) {
+    // Admin setting changes affect only future sales while the affiliate stays
+    // at the same level. Historical orders retain their locked rate.
+    await supabaseFetch(`/rest/v1/affiliate_orders?id=eq.${Number(current.id)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ commission_rate_locked: newRate, commission_level_key: currentLevel.key }),
+    });
+  }
+
+  // Team commission is also frozen at the moment the child's sale is paid.
+  if (isNewOrder && !Number.isFinite(Number(current.team_commission_locked))) {
+    await supabaseFetch(`/rest/v1/affiliate_orders?id=eq.${Number(current.id)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ team_commission_locked: Number(settings.teamCommissionPerSale || 0) }),
+    });
+  }
+}
+
 async function syncAffiliateOrders(affiliateId, commissionRate) {
   const config = getConfig();
   if (!config.configured) {
@@ -248,7 +277,7 @@ async function syncAffiliateOrders(affiliateId, commissionRate) {
   let pages = 0;
 
   while (scanned < config.maxOrders) {
-    const params = new URLSearchParams({ scroll: 'true', limit: '100', include: 'metadata,transactions' });
+    const params = new URLSearchParams({ scroll: 'true', limit: '100', include: 'metadata' });
     if (scrollId) params.set('scroll_id', scrollId);
 
     const response = await yampiFetch(`/orders?${params.toString()}`);
@@ -270,12 +299,16 @@ async function syncAffiliateOrders(affiliateId, commissionRate) {
       }
 
       const status = getStatus(order);
-      if (!isPaymentApprovedOrder(order)) continue;
+      if (!isPaymentApprovedStatus(status)) continue;
 
       const metadataId = Number(getMetadata(order, 'affiliate_id'));
       if (!metadataId || metadataId !== Number(affiliateId)) continue;
 
-      if (await upsertAffiliateOrder(order, affiliateId, commissionRate)) synced += 1;
+      const upserted = await upsertAffiliateOrder(order, affiliateId, commissionRate);
+      if (upserted.ok) {
+        synced += 1;
+        await lockCommissionForPaidOrder(affiliateId, getOrderId(order), undefined, !upserted.existed);
+      }
     }
 
     if (!scrollId) break;
@@ -298,8 +331,8 @@ module.exports = {
   getOrderId,
   getStatus,
   isPaymentApprovedStatus,
-  isPaymentApprovedOrder,
   getTotal,
   getCreatedAt,
   syncAffiliateOrders,
+  lockCommissionForPaidOrder,
 };
