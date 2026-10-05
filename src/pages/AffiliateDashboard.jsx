@@ -78,6 +78,10 @@ export default function AffiliateDashboard() {
   const [teamCode, setTeamCode] = useState('')
   const [teamJoinBusy, setTeamJoinBusy] = useState(false)
   const [teamJoinMessage, setTeamJoinMessage] = useState('')
+  const [teamBoost, setTeamBoost] = useState(null)
+  const [teamBoostBusy, setTeamBoostBusy] = useState(false)
+  const [teamBoostMessage, setTeamBoostMessage] = useState('')
+  const [teamReservation, setTeamReservation] = useState(null)
   const [videoSubmissions, setVideoSubmissions] = useState([])
   const [videoUrl, setVideoUrl] = useState('')
   const [videoTermsOpen, setVideoTermsOpen] = useState(false)
@@ -111,6 +115,13 @@ export default function AffiliateDashboard() {
       setAffiliate(data.affiliate)
       setPixKey(data.affiliate?.pix_key || '')
       setDashboard(data)
+      try {
+        const boostData = await api('/api/affiliate/dashboard?boost=1')
+        setTeamBoost(boostData)
+        if (boostData.boost?.status === 'queued' || boostData.boost?.status === 'active') setTeamReservation(null)
+      } catch {
+        setTeamBoost(null)
+      }
       try {
         const videoData = await api('/api/affiliate/dashboard?videos=1')
         setVideoSubmissions(videoData.videos || [])
@@ -226,19 +237,78 @@ export default function AffiliateDashboard() {
     setTeamJoinBusy(true)
     setTeamJoinMessage('')
     try {
-      const result = await api('/api/affiliate/dashboard', {
-        method: 'POST',
-        body: JSON.stringify({ teamParentCode: teamCode.trim().toUpperCase() }),
-      })
-      setAffiliate(current => current ? { ...current, team_parent_id: result.affiliate?.team_parent_id || true } : current)
+      const numericId = Number(String(teamCode).trim())
+      let result
+      if (teamReservation?.reservationId) {
+        result = await api('/api/affiliate/dashboard', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'boost_confirm', reservationId: teamReservation.reservationId }),
+        })
+      } else {
+        if (!Number.isInteger(numericId) || numericId <= 0) throw new Error('Informe o ID numérico da afiliada mãe.')
+        result = await api('/api/affiliate/dashboard', {
+          method: 'POST',
+          body: JSON.stringify({ teamParentId: numericId }),
+        })
+      }
+      setAffiliate(current => current ? { ...current, team_parent_id: result.affiliate?.team_parent_id || result.result?.parentId || true } : current)
       setTeamJoinMessage('Você entrou na equipe com sucesso.')
       setTeamCode('')
+      setTeamReservation(null)
       const refreshed = await api('/api/affiliate/dashboard')
       setDashboard(refreshed)
+      try { setTeamBoost(await api('/api/affiliate/dashboard?boost=1')) } catch {}
     } catch (e) {
       setTeamJoinMessage(e.message || 'Não foi possível entrar na equipe.')
     } finally {
       setTeamJoinBusy(false)
+    }
+  }
+
+  const findTeam = async () => {
+    setTeamBoostBusy(true)
+    setTeamBoostMessage('')
+    try {
+      const result = await api('/api/affiliate/dashboard', { method: 'POST', body: JSON.stringify({ action: 'boost_find' }) })
+      setTeamReservation(result.reservation)
+      setTeamCode(String(result.reservation?.parentId || ''))
+      setTeamBoostMessage('Encontramos uma afiliada mãe para você.')
+    } catch (e) {
+      setTeamBoostMessage(e.message || 'Não foi possível encontrar uma equipe agora.')
+    } finally {
+      setTeamBoostBusy(false)
+    }
+  }
+
+  const purchaseBoost = async (plan) => {
+    setTeamBoostBusy(true)
+    setTeamBoostMessage('')
+    try {
+      await api('/api/affiliate/dashboard', { method: 'POST', body: JSON.stringify({ action: 'boost_purchase', plan }) })
+      setTeamBoostMessage('Impulso contratado. Seu saldo foi reservado e sua posição na fila foi registrada.')
+      const [refreshed, boostData] = await Promise.all([api('/api/affiliate/dashboard'), api('/api/affiliate/dashboard?boost=1')])
+      setDashboard(refreshed)
+      setTeamBoost(boostData)
+    } catch (e) {
+      setTeamBoostMessage(e.message || 'Não foi possível contratar o impulso.')
+    } finally {
+      setTeamBoostBusy(false)
+    }
+  }
+
+  const leaveBoostQueue = async () => {
+    setTeamBoostBusy(true)
+    setTeamBoostMessage('')
+    try {
+      await api('/api/affiliate/dashboard', { method: 'POST', body: JSON.stringify({ action: 'boost_leave_queue' }) })
+      setTeamBoostMessage('Você saiu da fila e o valor foi devolvido ao seu saldo.')
+      const [refreshed, boostData] = await Promise.all([api('/api/affiliate/dashboard'), api('/api/affiliate/dashboard?boost=1')])
+      setDashboard(refreshed)
+      setTeamBoost(boostData)
+    } catch (e) {
+      setTeamBoostMessage(e.message || 'Não foi possível sair da fila.')
+    } finally {
+      setTeamBoostBusy(false)
     }
   }
 
@@ -411,7 +481,7 @@ export default function AffiliateDashboard() {
   const fixedLevel = dashboard?.fixedLevel || { key: 'none', label: 'Início', sales: Number(dashboard?.lifetimeSales || 0), progress: 0 }
   const months = dashboard?.months?.length ? dashboard.months : []
   const availableCommission = Number(dashboard?.metrics?.availableCommission || 0)
-  const team = dashboard?.team || { code: affiliate.team_code || '', joined: false, canJoin: false, commissionPerSale: 10, earnedCommission: 0, availableCommission: 0, members: [] }
+  const team = dashboard?.team || { code: affiliate.team_code || '', joined: false, canJoin: false, commissionPerSale: 10, earnedCommission: 0, availableCommission: 0, members: [], parent: null }
 
   return (
     <main className="min-h-screen bg-[#fffafc] px-5 py-8 md:px-10">
@@ -452,25 +522,64 @@ export default function AffiliateDashboard() {
         )}
 
         <div className={!hasAffiliateLink ? 'pointer-events-none select-none grayscale opacity-40' : ''}>
-        {Number(dashboard?.lifetimeSales || 0) === 0 && (
-          <section className="mt-7 rounded-[1.5rem] border border-pink-100 bg-white p-4 shadow-sm md:p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        {!team.joined && Number(dashboard?.lifetimeSales || 0) === 0 && (
+          <section className="mt-7 rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm md:p-6">
+            {team.joined ? (
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[.2em] text-zinc-400">Código de Equipe</p>
-                {team.joined ? (
-                  <p className="mt-1 text-sm font-bold text-zinc-800">Você está na equipe de <span className="font-black">{team.parent?.name || 'outra afiliada'}</span>.</p>
-                ) : (
-                  <p className="mt-1 text-xs text-zinc-400">Entre em uma equipe e receba o bônus de Bronze por 30 dias corridos. Informe o código de equipe antes da primeira venda.</p>
-                )}
+                <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Sua afiliada mãe</p>
+                <div className="mt-2 flex items-center gap-3">
+                  <div>
+                    <p className="text-lg font-black text-zinc-950">{team.parent?.name || 'Afiliada mãe'}</p>
+                    <p className="mt-1 text-xs text-zinc-400">Sua equipe é definida e não pode ser alterada.</p>
+                  </div>
+                  {team.parent?.whatsapp && <a href={whatsappUrl(team.parent.whatsapp)} target="_blank" rel="noreferrer" aria-label={`Falar com ${team.parent.name || 'sua afiliada mãe'} pelo WhatsApp`} className="ml-auto inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#25D366] text-white shadow-sm hover:opacity-90"><svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden="true"><path d="M20.52 3.48A11.82 11.82 0 0 0 12.08 0C5.55 0 .24 5.31.24 11.84c0 2.09.55 4.13 1.59 5.93L.13 24l6.38-1.67a11.8 11.8 0 0 0 5.57 1.42h.01c6.53 0 11.84-5.31 11.84-11.84 0-3.16-1.23-6.13-3.41-8.43ZM12.09 21.8h-.01a9.91 9.91 0 0 1-5.05-1.39l-.36-.21-3.79.99 1.01-3.69-.23-.38a9.9 9.9 0 0 1-1.52-5.28C2.14 6.37 6.6 1.91 12.08 1.91c2.65 0 5.14 1.03 7.01 2.9a9.86 9.86 0 0 1 2.91 7.02c0 5.48-4.46 9.94-9.91 9.97Zm5.44-7.45c-.3-.15-1.78-.88-2.05-.98-.27-.1-.47-.15-.67.15-.2.3-.77.98-.94 1.18-.17.2-.35.22-.65.07-.3-.15-1.27-.47-2.42-1.49-.9-.8-1.51-1.78-1.69-2.08-.18-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.61-.92-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.49s1.07 2.89 1.22 3.09c.15.2 2.11 3.22 5.12 4.52.72.31 1.28.5 1.72.64.72.23 1.37.2 1.89.12.58-.09 1.78-.73 2.03-1.44.25-.71.25-1.32.18-1.44-.07-.12-.27-.2-.57-.35Z" /></svg></a>}
+                </div>
               </div>
-              {!team.joined && team.canJoin && (
-                <form onSubmit={joinTeam} className="flex w-full gap-2 sm:w-auto">
-                  <input value={teamCode} onChange={e => setTeamCode(e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase())} maxLength={6} disabled={teamJoinBusy} placeholder="Código de 6 caracteres" className="min-w-0 flex-1 rounded-xl border border-zinc-200 px-3 py-2.5 text-sm font-bold uppercase outline-none focus:border-pink-400 sm:w-48" />
-                  <button disabled={teamJoinBusy || teamCode.length !== 6} className="rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{teamJoinBusy ? 'Entrando…' : 'Entrar na equipe'}</button>
-                </form>
-              )}
+            ) : team.canJoin && (
+              <>
+                <p className="text-[10px] font-black uppercase tracking-[.2em] text-zinc-400">Equipe</p>
+                <h2 className="mt-1 text-xl font-black text-zinc-950">Entre em uma equipe</h2>
+                <p className="mt-1 text-xs leading-5 text-zinc-400">Você pode informar o ID de uma afiliada que indicou você ou encontrar automaticamente uma afiliada mãe impulsionada.</p>
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                  <form onSubmit={joinTeam} className="flex min-w-0 flex-1 gap-2">
+                    <input value={teamCode} onChange={e => setTeamCode(e.target.value.replace(/\D/g, '').slice(0, 12))} disabled={teamJoinBusy || Boolean(teamReservation)} inputMode="numeric" placeholder="ID da afiliada mãe" className="min-w-0 flex-1 rounded-xl border border-zinc-200 px-3 py-2.5 text-sm font-bold outline-none focus:border-pink-400" />
+                    <button disabled={teamJoinBusy || !teamCode || teamCode.length < 1} className="rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{teamJoinBusy ? 'Entrando…' : 'Entrar na equipe'}</button>
+                  </form>
+                  <button type="button" onClick={findTeam} disabled={teamBoostBusy || Boolean(teamReservation)} className="rounded-xl border border-pink-200 bg-pink-50 px-4 py-2.5 text-sm font-black text-pink-600 disabled:cursor-not-allowed disabled:opacity-40">{teamBoostBusy ? 'Buscando…' : 'Encontrar equipe'}</button>
+                </div>
+                {teamReservation && <p className="mt-3 rounded-xl bg-pink-50 px-3 py-2 text-xs font-semibold text-zinc-700">Sua afiliada mãe será: <strong>{teamReservation.parentName}</strong></p>}
+                {teamJoinMessage && <p className="mt-2 text-xs font-semibold text-zinc-500">{teamJoinMessage}</p>}
+                {teamBoostMessage && <p className="mt-2 text-xs font-semibold text-zinc-500">{teamBoostMessage}</p>}
+              </>
+            )}
+          </section>
+        )}
+
+        {hasAffiliateLink && (
+          <section className="mt-5 rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm md:p-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">🚀 Impulsionar Equipe</p>
+                <h2 className="mt-1 text-xl font-black text-zinc-950">Receba novas afiliadas na sua equipe</h2>
+                <p className="mt-1 text-xs leading-5 text-zinc-400">O sistema direciona novas afiliadas para você. Depois que o impulso for ativado, não há cancelamento nem reembolso. Enquanto estiver na fila, você pode sair e receber o saldo de volta.</p>
+              </div>
+              <div className="text-left lg:text-right"><p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Saldo disponível</p><p className="mt-1 text-xl font-black text-zinc-950">{brl(availableCommission)}</p></div>
             </div>
-            {teamJoinMessage && <p className="mt-2 text-xs font-semibold text-zinc-500">{teamJoinMessage}</p>}
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {(teamBoost?.plans || [{ key:'small', price:30, connections:5 }, { key:'large', price:50, connections:10 }]).map(plan => {
+                const insufficient = availableCommission + 0.001 < Number(plan.price)
+                const blockedByActive = teamBoost?.boost?.status === 'queued' || teamBoost?.boost?.status === 'active'
+                const capacityFull = Number(teamBoost?.activeCount || 0) >= Number(teamBoost?.maxActive || 3)
+                const visuallyQueued = capacityFull || insufficient || blockedByActive
+                return <div key={plan.key} className={`rounded-2xl border p-4 ${visuallyQueued ? 'border-zinc-200 bg-zinc-100/80 text-zinc-400' : 'border-pink-100 bg-pink-50/50'}`}>
+                  <div className="flex items-start justify-between gap-3"><div><p className={`text-sm font-black ${visuallyQueued ? 'text-zinc-500' : 'text-zinc-950'}`}>{plan.connections} conexões</p><p className="mt-1 text-xs text-zinc-400">Impulsionamento automático</p></div><p className={`text-xl font-black ${visuallyQueued ? 'text-zinc-500' : 'text-pink-600'}`}>{brl(plan.price)}</p></div>
+                  <button type="button" onClick={() => purchaseBoost(plan.key)} disabled={teamBoostBusy || insufficient || blockedByActive} className="mt-4 w-full rounded-xl bg-zinc-950 py-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-zinc-300">{blockedByActive ? (teamBoost?.boost?.status === 'queued' ? 'Já está na fila' : 'Impulso ativo') : insufficient ? 'Saldo insuficiente' : capacityFull ? 'Entrar na fila' : 'Impulsionar equipe'}</button>
+                </div>
+              })}
+            </div>
+            {teamBoost?.boost?.status === 'queued' && <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4"><p className="text-sm font-black text-amber-900">Você está na fila de impulsos.</p><p className="mt-1 text-xs leading-5 text-amber-800">Seu saldo está reservado. Quando chegar sua vez, o impulso será ativado automaticamente.</p><button type="button" onClick={leaveBoostQueue} disabled={teamBoostBusy} className="mt-3 rounded-xl bg-white px-4 py-2.5 text-xs font-black text-amber-800 shadow-sm">Sair da fila e devolver saldo</button></div>}
+            {teamBoost?.boost?.status === 'active' && <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><p className="text-sm font-black text-emerald-900">Impulso ativo</p><p className="mt-1 text-xs font-semibold text-emerald-800">{teamBoost.boost.connections_remaining} de {teamBoost.boost.connections_total} conexões restantes.</p></div>}
+            {teamBoostMessage && <p className="mt-3 text-xs font-semibold text-zinc-500">{teamBoostMessage}</p>}
           </section>
         )}
 
@@ -651,12 +760,18 @@ export default function AffiliateDashboard() {
         </section>
 
         <section className="mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
+          {team.joined && team.parent && (
+            <div className="mb-5 rounded-2xl border border-pink-100 bg-pink-50/60 p-4">
+              <p className="text-[10px] font-black uppercase tracking-[.18em] text-pink-500">Sua afiliada mãe</p>
+              <div className="mt-2 flex items-center gap-3"><p className="text-lg font-black text-zinc-950">{team.parent.name}</p>{team.parent.whatsapp && <a href={whatsappUrl(team.parent.whatsapp)} target="_blank" rel="noreferrer" aria-label={`Falar com ${team.parent.name} pelo WhatsApp`} className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#25D366] text-white"><svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true"><path d="M20.52 3.48A11.82 11.82 0 0 0 12.08 0C5.55 0 .24 5.31.24 11.84c0 2.09.55 4.13 1.59 5.93L.13 24l6.38-1.67a11.8 11.8 0 0 0 5.57 1.42h.01c6.53 0 11.84-5.31 11.84-11.84 0-3.16-1.23-6.13-3.41-8.43ZM12.09 21.8h-.01a9.91 9.91 0 0 1-5.05-1.39l-.36-.21-3.79.99 1.01-3.69-.23-.38a9.9 9.9 0 0 1-1.52-5.28C2.14 6.37 6.6 1.91 12.08 1.91c2.65 0 5.14 1.03 7.01 2.9a9.86 9.86 0 0 1 2.91 7.02c0 5.48-4.46 9.94-9.91 9.97Zm5.44-7.45c-.3-.15-1.78-.88-2.05-.98-.27-.1-.47-.15-.67.15-.2.3-.77.98-.94 1.18-.17.2-.35.22-.65.07-.3-.15-1.27-.47-2.42-1.49-.9-.8-1.51-1.78-1.69-2.08-.18-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.61-.92-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.49s1.07 2.89 1.22 3.09c.15.2 2.11 3.22 5.12 4.52.72.31 1.28.5 1.72.64.72.23 1.37.2 1.89.12.58-.09 1.78-.73 2.03-1.44.25-.71.25-1.32.18-1.44-.07-.12-.27-.2-.57-.35Z" /></svg></a>}</div>
+            </div>
+          )}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Equipe</p>
               <h2 className="mt-1 text-2xl font-black text-zinc-950">Sua rede</h2>
-              <p className="mt-1 text-sm text-zinc-500">Passe seu código para novas afiliadas entrarem diretamente na sua equipe.</p>
-              <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-pink-50 px-4 py-2"><span className="text-xs font-bold text-zinc-500">Seu código</span><span className="text-lg font-black tracking-[.18em] text-pink-600">{team.code}</span></div>
+              <p className="mt-1 text-sm text-zinc-500">Passe seu ID para novas afiliadas entrarem diretamente na sua equipe.</p>
+              <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-pink-50 px-4 py-2"><span className="text-xs font-bold text-zinc-500">Seu ID</span><span className="text-lg font-black tracking-[.08em] text-pink-600">{affiliate.id}</span></div>
             </div>
             <div className="grid gap-2 sm:min-w-[320px] sm:grid-cols-2">
               <div className="rounded-2xl bg-zinc-50 px-4 py-3">
