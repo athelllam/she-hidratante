@@ -44,19 +44,6 @@ create index if not exists affiliate_events_affiliate_idx on public.affiliate_ev
 create index if not exists affiliate_orders_affiliate_idx on public.affiliate_orders(affiliate_id, created_at desc);
 create index if not exists affiliate_orders_status_idx on public.affiliate_orders(status);
 
--- Snapshot da comissão aplicada à venda.
--- A configuração do painel pode mudar sem alterar retroativamente uma venda
--- que permaneceu no mesmo nível. Quando a venda muda de nível por progressão
--- ou por nova meta configurada, o valor é recalculado com a comissão vigente
--- daquele novo nível.
-alter table public.affiliate_orders
-  add column if not exists commission_level_snapshot text,
-  add column if not exists commission_base_snapshot numeric(12,2),
-  add column if not exists team_commission_snapshot numeric(12,2);
-
-create index if not exists affiliate_orders_commission_level_idx
-  on public.affiliate_orders(affiliate_id, commission_level_snapshot);
-
 alter table public.affiliates enable row level security;
 alter table public.affiliate_events enable row level security;
 alter table public.affiliate_orders enable row level security;

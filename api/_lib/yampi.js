@@ -1,5 +1,4 @@
 const { supabaseFetch } = require('./supabase');
-const { reconcileAffiliateOrderCommissions, normalizeConfig, DEFAULT_COMMISSION_CONFIG } = require('./affiliateCommission');
 
 const YAMPI_BASE_URL = 'https://api.dooki.com.br/v2';
 
@@ -206,34 +205,6 @@ function isCancelledStatus(status) {
   ]).has(String(status || '').toLowerCase());
 }
 
-
-async function loadCurrentCommissionConfig() {
-  const rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=*&limit=1');
-  const row = rows?.[0];
-  if (!row) return DEFAULT_COMMISSION_CONFIG;
-  return normalizeConfig({
-    ticketThreshold: row.ticket_threshold,
-    ticketBonus: row.ticket_bonus,
-    teamCommissionPerSale: row.team_commission_per_sale,
-    commissions: {
-      none: row.commission_none,
-      bronze: row.commission_bronze,
-      silver: row.commission_silver,
-      gold: row.commission_gold,
-    },
-    monthlyLevels: {
-      bronze: row.monthly_bronze_sales,
-      silver: row.monthly_silver_sales,
-      gold: row.monthly_gold_sales,
-    },
-    fixedLevels: {
-      bronze: row.fixed_bronze_sales,
-      silver: row.fixed_silver_sales,
-      gold: row.fixed_gold_sales,
-    },
-  });
-}
-
 async function upsertAffiliateOrder(order, affiliateId, commissionRate) {
   const yampiOrderId = String(getOrderId(order) || '');
   if (!yampiOrderId) return false;
@@ -295,8 +266,7 @@ async function syncAffiliateOrders(affiliateId, commissionRate) {
       if (createdAt && new Date(createdAt) < cutoff) {
         // A listagem da Yampi é usada em ordem estável com scroll; quando
         // chegamos ao corte, não precisamos percorrer o histórico inteiro.
-        scrollId = '';
-        break;
+        return { configured: true, synced, scanned, pages, cutoff: cutoff.toISOString() };
       }
 
       const status = getStatus(order);
@@ -311,22 +281,6 @@ async function syncAffiliateOrders(affiliateId, commissionRate) {
     if (!scrollId) break;
   }
 
-  let reconciliation = { updated: 0 };
-  try {
-    const [affiliateRows, commissionConfig] = await Promise.all([
-      supabaseFetch(`/rest/v1/affiliates?id=eq.${Number(affiliateId)}&select=team_joined_at&limit=1`),
-      loadCurrentCommissionConfig(),
-    ]);
-    reconciliation = await reconcileAffiliateOrderCommissions(
-      supabaseFetch,
-      affiliateId,
-      commissionConfig,
-      { teamJoinedAt: affiliateRows?.[0]?.team_joined_at }
-    );
-  } catch (error) {
-    console.error('[She Commission] Falha ao reconciliar após sincronização Yampi:', error);
-  }
-
   return {
     configured: true,
     synced,
@@ -334,7 +288,6 @@ async function syncAffiliateOrders(affiliateId, commissionRate) {
     pages,
     cutoff: cutoff.toISOString(),
     partial: scanned >= config.maxOrders,
-    commissionReconciled: reconciliation.updated || 0,
   };
 }
 

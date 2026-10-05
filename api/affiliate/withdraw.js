@@ -1,5 +1,5 @@
 const { requireAffiliate, supabaseFetch, json } = require('../_lib/supabase');
-const { commissionForOrders, reconcileAffiliateOrderCommissions, DEFAULT_COMMISSION_CONFIG, normalizeConfig, isPaidOrder } = require('../_lib/affiliateCommission');
+const { commissionForOrders, DEFAULT_COMMISSION_CONFIG, normalizeConfig, isPaidOrder } = require('../_lib/affiliateCommission');
 
 module.exports = async function handler(req, res) {
   try {
@@ -48,19 +48,14 @@ module.exports = async function handler(req, res) {
     let earned = 0;
 
     if (source === 'personal') {
-      const orders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=status,total,commission,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot,created_at`);
-      await reconcileAffiliateOrderCommissions(supabaseFetch, affiliate.id, settings, { teamJoinedAt: affiliate.team_joined_at }).catch(() => null);
-      const refreshedOrders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=status,total,commission,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot,created_at`);
-      earned = commissionForOrders(refreshedOrders || orders || [], settings, { teamJoinedAt: affiliate.team_joined_at }).total;
+      const orders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=status,total,commission,created_at`);
+      earned = commissionForOrders(orders || [], settings).total;
     } else {
       const children = await supabaseFetch(`/rest/v1/affiliates?team_parent_id=eq.${affiliate.id}&select=id&limit=1000`);
       const ids = (children || []).map(row => Number(row.id)).filter(Boolean);
       if (!ids.length) return json(res, 400, { error: 'Sua equipe ainda não possui vendas para saque.' });
-      const childOrders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=in.(${ids.join(',')})&select=affiliate_id,status,team_commission_snapshot,created_at&limit=20000`);
-      earned = (childOrders || []).filter(isPaidOrder).reduce((sum, order) => {
-        const snapshot = Number(order.team_commission_snapshot);
-        return sum + (Number.isFinite(snapshot) ? snapshot : Number(settings.teamCommissionPerSale || 10));
-      }, 0);
+      const childOrders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=in.(${ids.join(',')})&select=affiliate_id,status,created_at&limit=20000`);
+      earned = (childOrders || []).filter(isPaidOrder).length * Number(settings.teamCommissionPerSale || 10);
     }
 
     const reserved = (withdrawals || []).reduce((sum, w) => sum + Number(w.amount || 0), 0);

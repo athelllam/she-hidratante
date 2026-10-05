@@ -153,17 +153,11 @@ function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG, options
       ? monthlyLevel
       : getLevel(normalized.monthlyLevels[floorLevel.key] || 0, normalized, 'monthly');
     const multiplier = stats.multiplierActive ? normalized.ticketBonus : 0;
-    const snapshotLevel = String(order?.commission_level_snapshot || '').toLowerCase();
-    const snapshotBase = Number(order?.commission_base_snapshot);
-    const baseCommission = snapshotLevel && snapshotLevel === effectiveLevel.key && Number.isFinite(snapshotBase)
-      ? snapshotBase
-      : normalized.commissions[effectiveLevel.key];
-    const commission = Number((baseCommission + multiplier).toFixed(2));
+    const commission = Number((effectiveLevel.commissionPerOrder + multiplier).toFixed(2));
     total += commission;
     return {
       ...order,
       commission,
-      commissionBase: Number(baseCommission.toFixed(2)),
       level: effectiveLevel.label,
       monthlyLevel: monthlyLevel.label,
       fixedLevel: fixedLevel.label,
@@ -175,78 +169,6 @@ function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG, options
   });
 
   return { orders: annotated, salesByMonth, monthlyStats, total };
-}
-
-
-async function reconcileAffiliateOrderCommissions(supabaseFetch, affiliateId, config = DEFAULT_COMMISSION_CONFIG, options = {}) {
-  const normalized = normalizeConfig(config);
-  const id = Number(affiliateId);
-  if (!Number.isInteger(id) || id <= 0) return { updated: 0, orders: [] };
-
-  const orders = await supabaseFetch(
-    `/rest/v1/affiliate_orders?affiliate_id=eq.${id}&select=id,status,total,created_at,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot&order=created_at.asc&limit=10000`
-  );
-  const paid = (orders || []).filter(order => isPaidOrder(order));
-  if (!paid.length) return { updated: 0, orders: [] };
-
-  const monthlyStats = calculateMonthlyStats(paid, normalized);
-  const cumulativeByMonth = {};
-  let cumulativeSales = 0;
-  Object.keys(monthlyStats).sort().forEach(key => {
-    cumulativeSales += Number(monthlyStats[key].sales || 0);
-    cumulativeByMonth[key] = cumulativeSales;
-  });
-
-  const teamJoinedAt = options?.teamJoinedAt ? new Date(options.teamJoinedAt) : null;
-  const updates = [];
-
-  for (const order of paid) {
-    const key = monthKey(order.created_at);
-    const stats = monthlyStats[key] || { sales: 0, averageTicket: 0, multiplierActive: false };
-    const monthlyLevel = getLevel(stats.sales, normalized, 'monthly');
-    const fixedLevel = getLevel(cumulativeByMonth[key] || 0, normalized, 'fixed');
-    const orderDate = new Date(order.created_at);
-    const teamBonusActiveForOrder = Boolean(
-      teamJoinedAt &&
-      !Number.isNaN(teamJoinedAt.getTime()) &&
-      !Number.isNaN(orderDate.getTime()) &&
-      orderDate >= teamJoinedAt &&
-      orderDate < new Date(teamJoinedAt.getTime() + 30 * 24 * 60 * 60 * 1000)
-    );
-    const teamBonusFloor = teamBonusActiveForOrder ? normalized.monthlyLevels.bronze : 0;
-    const floor = Math.max(teamBonusFloor, fixedLevel.minSales || 0);
-    const floorLevel = getLevel(floor, normalized, 'fixed');
-    const effectiveLevel = LEVEL_ORDER[monthlyLevel.key] >= LEVEL_ORDER[floorLevel.key]
-      ? monthlyLevel
-      : getLevel(normalized.monthlyLevels[floorLevel.key] || 0, normalized, 'monthly');
-
-    const existingLevel = String(order.commission_level_snapshot || '').toLowerCase();
-    const existingBase = Number(order.commission_base_snapshot);
-    const levelChanged = existingLevel !== effectiveLevel.key;
-    const baseMissing = !Number.isFinite(existingBase);
-    const teamMissing = !Number.isFinite(Number(order.team_commission_snapshot));
-
-    if (levelChanged || baseMissing || teamMissing) {
-      updates.push({
-        id: Number(order.id),
-        patch: {
-          commission_level_snapshot: effectiveLevel.key,
-          commission_base_snapshot: Number(normalized.commissions[effectiveLevel.key] || 0),
-          team_commission_snapshot: teamMissing ? Number(normalized.teamCommissionPerSale || 0) : Number(order.team_commission_snapshot),
-        },
-      });
-    }
-  }
-
-  for (const item of updates) {
-    await supabaseFetch(`/rest/v1/affiliate_orders?id=eq.${item.id}`, {
-      method: 'PATCH',
-      headers: { Prefer: 'return=minimal' },
-      body: JSON.stringify(item.patch),
-    });
-  }
-
-  return { updated: updates.length, orders: paid };
 }
 
 function isPaidOrder(order) {
@@ -267,6 +189,5 @@ module.exports = {
   monthKey,
   calculateMonthlyStats,
   commissionForOrders,
-  reconcileAffiliateOrderCommissions,
   isPaidOrder,
 };
