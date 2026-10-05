@@ -1,5 +1,4 @@
 const { supabaseFetch } = require('./supabase');
-const { commissionForSingleOrder, DEFAULT_COMMISSION_CONFIG, normalizeConfig, isPaidOrder } = require('./affiliateCommission');
 
 const YAMPI_BASE_URL = 'https://api.dooki.com.br/v2';
 
@@ -206,30 +205,14 @@ function isCancelledStatus(status) {
   ]).has(String(status || '').toLowerCase());
 }
 
-async function upsertAffiliateOrder(order, affiliateId, commissionRate, commissionConfig, teamJoinedAt) {
+async function upsertAffiliateOrder(order, affiliateId, commissionRate) {
   const yampiOrderId = String(getOrderId(order) || '');
   if (!yampiOrderId) return false;
 
   const status = getStatus(order) || 'created';
   const total = getTotal(order);
+  const commission = isCancelledStatus(status) ? 0 : total * Number(commissionRate || 0);
   const createdAt = getCreatedAt(order);
-  const existingRows = await supabaseFetch(`/rest/v1/affiliate_orders?yampi_order_id=eq.${encodeURIComponent(yampiOrderId)}&select=id,commission,commission_locked,team_commission&limit=1`).catch(() => []);
-  const existing = existingRows?.[0] || null;
-
-  let commission = Number(existing?.commission || 0);
-  let teamCommission = Number(existing?.team_commission || 0);
-  const locked = Boolean(existing?.commission_locked);
-
-  if (isCancelledStatus(status)) {
-    commission = 0;
-    teamCommission = 0;
-  } else if (!existing || !locked) {
-    const currentOrders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${Number(affiliateId)}&select=yampi_order_id,status,total,commission,created_at&order=created_at.asc&limit=5000`).catch(() => []);
-    const target = { yampi_order_id: yampiOrderId, affiliate_id: affiliateId, status, total, created_at: createdAt || new Date().toISOString() };
-    const settings = normalizeConfig(commissionConfig || DEFAULT_COMMISSION_CONFIG);
-    commission = commissionForSingleOrder(target, currentOrders, settings, { teamJoinedAt });
-    teamCommission = teamJoinedAt && new Date(createdAt || Date.now()) >= new Date(teamJoinedAt) ? Number(settings.teamCommissionPerSale || 10) : 0;
-  }
 
   await supabaseFetch('/rest/v1/affiliate_orders?on_conflict=yampi_order_id', {
     method: 'POST',
@@ -243,8 +226,6 @@ async function upsertAffiliateOrder(order, affiliateId, commissionRate, commissi
       status,
       total,
       commission,
-      commission_locked: true,
-      team_commission: teamCommission,
       raw_payload: order,
       ...(createdAt ? { created_at: createdAt } : {}),
       updated_at: new Date().toISOString(),
@@ -254,7 +235,7 @@ async function upsertAffiliateOrder(order, affiliateId, commissionRate, commissi
   return true;
 }
 
-async function syncAffiliateOrders(affiliateId, commissionRate, commissionConfig, teamJoinedAt) {
+async function syncAffiliateOrders(affiliateId, commissionRate) {
   const config = getConfig();
   if (!config.configured) {
     return { configured: false, synced: 0, scanned: 0, message: 'Integração Yampi não configurada.' };
@@ -294,7 +275,7 @@ async function syncAffiliateOrders(affiliateId, commissionRate, commissionConfig
       const metadataId = Number(getMetadata(order, 'affiliate_id'));
       if (!metadataId || metadataId !== Number(affiliateId)) continue;
 
-      if (await upsertAffiliateOrder(order, affiliateId, commissionRate, commissionConfig, teamJoinedAt)) synced += 1;
+      if (await upsertAffiliateOrder(order, affiliateId, commissionRate)) synced += 1;
     }
 
     if (!scrollId) break;

@@ -121,17 +121,6 @@ function calculateMonthlyStats(orders, config = DEFAULT_COMMISSION_CONFIG) {
   return byMonth;
 }
 
-function commissionForSingleOrder(targetOrder, orders, config = DEFAULT_COMMISSION_CONFIG, options = {}) {
-  const targetId = String(targetOrder?.yampi_order_id || targetOrder?.id || '');
-  const paidOrders = (orders || []).filter(order => isPaidOrder(order));
-  const workingOrders = paidOrders.some(order => String(order?.yampi_order_id || order?.id || '') === targetId)
-    ? paidOrders
-    : [...paidOrders, targetOrder];
-  const result = commissionForOrders(workingOrders, config, options);
-  const annotated = result.orders.find(order => String(order?.yampi_order_id || order?.id || '') === targetId);
-  return annotated ? Number(annotated.commission || 0) : 0;
-}
-
 function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG, options = {}) {
   const normalized = normalizeConfig(config);
   const paid = (orders || []).filter(order => isPaidOrder(order));
@@ -164,13 +153,11 @@ function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG, options
       ? monthlyLevel
       : getLevel(normalized.monthlyLevels[floorLevel.key] || 0, normalized, 'monthly');
     const multiplier = stats.multiplierActive ? normalized.ticketBonus : 0;
-    const calculatedCommission = Number((effectiveLevel.commissionPerOrder + multiplier).toFixed(2));
-    const commission = order?.commission_locked ? Number(order.commission || 0) : calculatedCommission;
+    const commission = Number((effectiveLevel.commissionPerOrder + multiplier).toFixed(2));
     total += commission;
     return {
       ...order,
       commission,
-      calculatedCommission,
       level: effectiveLevel.label,
       monthlyLevel: monthlyLevel.label,
       fixedLevel: fixedLevel.label,
@@ -202,6 +189,5 @@ module.exports = {
   monthKey,
   calculateMonthlyStats,
   commissionForOrders,
-  commissionForSingleOrder,
   isPaidOrder,
 };

@@ -485,39 +485,6 @@ module.exports = async function handler(req, res) {
         if (nextSettings.ticketThreshold <= 0 || Object.values(nextSettings.commissions).some(value => value < 0) || !thresholdsValid || !boostValid) {
           return json(res, 400, { error: 'Os valores precisam ser válidos. As metas devem ser crescentes (Bronze < Prata < Ouro) e a meta de ticket deve ser maior que zero.' });
         }
-        // Congela o que já foi ganho antes de alterar qualquer configuração.
-        // Assim, mudar comissão/metas/ticket afeta apenas pedidos creditados depois da alteração.
-        const [freezeAffiliates, freezeOrders] = await Promise.all([
-          supabaseFetch('/rest/v1/affiliates?select=id,team_parent_id,team_joined_at&limit=20000'),
-          supabaseFetch('/rest/v1/affiliate_orders?select=id,yampi_order_id,affiliate_id,status,total,commission,commission_locked,created_at&order=created_at.asc&limit=20000'),
-        ]);
-        const freezeAffiliateMap = new Map((freezeAffiliates || []).map(a => [Number(a.id), a]));
-        const freezeByAffiliate = new Map();
-        for (const order of freezeOrders || []) {
-          const aid = Number(order.affiliate_id);
-          if (!freezeByAffiliate.has(aid)) freezeByAffiliate.set(aid, []);
-          freezeByAffiliate.get(aid).push(order);
-        }
-        for (const [aid, affiliateOrders] of freezeByAffiliate.entries()) {
-          const unlocked = affiliateOrders.filter(order => !order.commission_locked && isPaidOrder(order));
-          if (!unlocked.length) continue;
-          const owner = freezeAffiliateMap.get(aid);
-          const frozen = commissionForOrders(affiliateOrders, currentSettings, { teamJoinedAt: owner?.team_joined_at }).orders;
-          const frozenMap = new Map(frozen.map(order => [String(order.yampi_order_id || order.id), order]));
-          await Promise.all(unlocked.map(order => {
-            const calculated = frozenMap.get(String(order.yampi_order_id || order.id));
-            if (!calculated) return null;
-            const created = order.created_at ? new Date(order.created_at) : null;
-            const joined = owner?.team_joined_at ? new Date(owner.team_joined_at) : null;
-            const teamCommission = owner?.team_parent_id && joined && created && created >= joined ? Number(currentSettings.teamCommissionPerSale || 0) : 0;
-            return supabaseFetch(`/rest/v1/affiliate_orders?id=eq.${Number(order.id)}`, {
-              method: 'PATCH',
-              headers: { Prefer: 'return=minimal' },
-              body: JSON.stringify({ commission: Number(calculated.commission || 0), team_commission: teamCommission, commission_locked: true }),
-            });
-          }));
-        }
-
         const rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1', {
           method: 'PATCH',
           headers: { Prefer: 'return=representation' },

@@ -33,6 +33,13 @@ function withdrawalStatusLabel(status) {
   return 'Pendente'
 }
 
+function boostStatusLabel(status) {
+  if (status === 'active') return 'Ativo'
+  if (status === 'completed') return 'Concluído'
+  if (status === 'cancelled') return 'Saldo devolvido'
+  return 'Reservado na fila'
+}
+
 async function api(path, options = {}) {
   const response = await fetch(path, {
     credentials: 'include',
@@ -555,34 +562,6 @@ export default function AffiliateDashboard() {
           </section>
         )}
 
-        {hasAffiliateLink && (
-          <section className="mt-5 rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm md:p-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">🚀 Impulsionar Equipe</p>
-                <h2 className="mt-1 text-xl font-black text-zinc-950">Receba novas afiliadas na sua equipe</h2>
-                <p className="mt-1 text-xs leading-5 text-zinc-400">O sistema direciona novas afiliadas para você. Depois que o impulso for ativado, não há cancelamento nem reembolso. Enquanto estiver na fila, você pode sair e receber o saldo de volta.</p>
-              </div>
-              <div className="text-left lg:text-right"><p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Saldo disponível</p><p className="mt-1 text-xl font-black text-zinc-950">{brl(availableCommission)}</p></div>
-            </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {(teamBoost?.plans || [{ key:'small', price:30, connections:5 }, { key:'large', price:50, connections:10 }]).map(plan => {
-                const insufficient = availableCommission + 0.001 < Number(plan.price)
-                const blockedByActive = teamBoost?.boost?.status === 'queued' || teamBoost?.boost?.status === 'active'
-                const capacityFull = Number(teamBoost?.activeCount || 0) >= Number(teamBoost?.maxActive || 3)
-                const visuallyQueued = capacityFull || insufficient || blockedByActive
-                return <div key={plan.key} className={`rounded-2xl border p-4 ${visuallyQueued ? 'border-zinc-200 bg-zinc-100/80 text-zinc-400' : 'border-pink-100 bg-pink-50/50'}`}>
-                  <div className="flex items-start justify-between gap-3"><div><p className={`text-sm font-black ${visuallyQueued ? 'text-zinc-500' : 'text-zinc-950'}`}>{plan.connections} conexões</p><p className="mt-1 text-xs text-zinc-400">Impulsionamento automático</p></div><p className={`text-xl font-black ${visuallyQueued ? 'text-zinc-500' : 'text-pink-600'}`}>{brl(plan.price)}</p></div>
-                  <button type="button" onClick={() => purchaseBoost(plan.key)} disabled={teamBoostBusy || insufficient || blockedByActive} className="mt-4 w-full rounded-xl bg-zinc-950 py-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-zinc-300">{blockedByActive ? (teamBoost?.boost?.status === 'queued' ? 'Já está na fila' : 'Impulso ativo') : insufficient ? 'Saldo insuficiente' : capacityFull ? 'Entrar na fila' : 'Impulsionar equipe'}</button>
-                </div>
-              })}
-            </div>
-            {teamBoost?.boost?.status === 'queued' && <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4"><p className="text-sm font-black text-amber-900">Você está na fila de impulsos.</p><p className="mt-1 text-xs leading-5 text-amber-800">Seu saldo está reservado. Quando chegar sua vez, o impulso será ativado automaticamente.</p><button type="button" onClick={leaveBoostQueue} disabled={teamBoostBusy} className="mt-3 rounded-xl bg-white px-4 py-2.5 text-xs font-black text-amber-800 shadow-sm">Sair da fila e devolver saldo</button></div>}
-            {teamBoost?.boost?.status === 'active' && <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><p className="text-sm font-black text-emerald-900">Impulso ativo</p><p className="mt-1 text-xs font-semibold text-emerald-800">{teamBoost.boost.connections_remaining} de {teamBoost.boost.connections_total} conexões restantes.</p></div>}
-            {teamBoostMessage && <p className="mt-3 text-xs font-semibold text-zinc-500">{teamBoostMessage}</p>}
-          </section>
-        )}
-
         <section className={`relative mt-7 overflow-hidden rounded-[2rem] border border-white bg-gradient-to-r ${levelTone(level.key)} p-5 shadow-sm md:p-7`}>
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div>
@@ -795,10 +774,42 @@ export default function AffiliateDashboard() {
           <div className="mt-5 overflow-x-auto">
             <table className="w-full min-w-[520px] text-sm">
               <thead><tr className="border-b border-zinc-100 text-left text-[10px] font-black uppercase tracking-[.14em] text-zinc-400"><th className="pb-3">Afiliada</th><th className="pb-3">ID</th><th className="pb-3">Vendas</th><th className="pb-3">Comissão gerada</th></tr></thead>
-              <tbody>{(team.members || []).map(member => <tr key={member.id} className="border-b border-zinc-100 last:border-0"><td className="py-3 font-black"><div className="flex items-center gap-2"><a href={whatsappUrl(member.whatsapp) || '#'} target={member.whatsapp ? '_blank' : undefined} rel={member.whatsapp ? 'noreferrer' : undefined} aria-label={member.whatsapp ? `Falar com ${member.name} pelo WhatsApp` : undefined} className={member.whatsapp ? 'text-[#25D366] transition-opacity hover:opacity-70' : 'pointer-events-none text-zinc-200'}><svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M20.52 3.48A11.82 11.82 0 0 0 12.08 0C5.55 0 .24 5.31.24 11.84c0 2.09.55 4.13 1.59 5.93L.13 24l6.38-1.67a11.8 11.8 0 0 0 5.57 1.42h.01c6.53 0 11.84-5.31 11.84-11.84 0-3.16-1.23-6.13-3.41-8.43ZM12.09 21.8h-.01a9.91 9.91 0 0 1-5.05-1.39l-.36-.21-3.79.99 1.01-3.69-.23-.38a9.9 9.9 0 0 1-1.52-5.28C2.14 6.37 6.6 1.91 12.08 1.91c2.65 0 5.14 1.03 7.01 2.9a9.86 9.86 0 0 1 2.91 7.02c0 5.48-4.46 9.94-9.91 9.97Zm5.44-7.45c-.3-.15-1.78-.88-2.05-.98-.27-.1-.47-.15-.67.15-.2.3-.77.98-.94 1.18-.17.2-.35.22-.65.07-.3-.15-1.27-.47-2.42-1.49-.9-.8-1.51-1.78-1.69-2.08-.18-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.61-.92-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.49s1.07 2.89 1.22 3.09c.15.2 2.11 3.22 5.12 4.52.72.31 1.28.5 1.72.64.72.23 1.37.2 1.89.12.58-.09 1.78-.73 2.03-1.44.25-.71.25-1.32.18-1.44-.07-.12-.27-.2-.57-.35Z"/></svg></a><div><span>{member.name}</span><p className="mt-0.5 text-[10px] font-bold uppercase tracking-[.08em] text-zinc-400">{member.teamJoinSource === 'boost' ? 'Impulsionado' : 'Orgânico'}</p></div></div></td><td className="py-3 text-zinc-500">{member.id}</td><td className="py-3 font-bold">{member.sales}</td><td className="py-3 font-black text-pink-600">{brl(member.commission)}</td></tr>)}</tbody>
+              <tbody>{(team.members || []).map(member => <tr key={member.id} className="border-b border-zinc-100 last:border-0"><td className="py-3 font-black"><div className="flex items-center gap-2"><a href={whatsappUrl(member.whatsapp) || '#'} target={member.whatsapp ? '_blank' : undefined} rel={member.whatsapp ? 'noreferrer' : undefined} aria-label={member.whatsapp ? `Falar com ${member.name} pelo WhatsApp` : undefined} className={member.whatsapp ? 'text-[#25D366] transition-opacity hover:opacity-70' : 'pointer-events-none text-zinc-200'}><svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M20.52 3.48A11.82 11.82 0 0 0 12.08 0C5.55 0 .24 5.31.24 11.84c0 2.09.55 4.13 1.59 5.93L.13 24l6.38-1.67a11.8 11.8 0 0 0 5.57 1.42h.01c6.53 0 11.84-5.31 11.84-11.84 0-3.16-1.23-6.13-3.41-8.43ZM12.09 21.8h-.01a9.91 9.91 0 0 1-5.05-1.39l-.36-.21-3.79.99 1.01-3.69-.23-.38a9.9 9.9 0 0 1-1.52-5.28C2.14 6.37 6.6 1.91 12.08 1.91c2.65 0 5.14 1.03 7.01 2.9a9.86 9.86 0 0 1 2.91 7.02c0 5.48-4.46 9.94-9.91 9.97Zm5.44-7.45c-.3-.15-1.78-.88-2.05-.98-.27-.1-.47-.15-.67.15-.2.3-.77.98-.94 1.18-.17.2-.35.22-.65.07-.3-.15-1.27-.47-2.42-1.49-.9-.8-1.51-1.78-1.69-2.08-.18-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.61-.92-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.49s1.07 2.89 1.22 3.09c.15.2 2.11 3.22 5.12 4.52.72.31 1.28.5 1.72.64.72.23 1.37.2 1.89.12.58-.09 1.78-.73 2.03-1.44.25-.71.25-1.32.18-1.44-.07-.12-.27-.2-.57-.35Z"/></svg></a><span>{member.name}</span></div></td><td className="py-3 text-zinc-500">{member.id}</td><td className="py-3 font-bold">{member.sales}</td><td className="py-3 font-black text-pink-600">{brl(member.commission)}</td></tr>)}</tbody>
             </table>
             {!team.members?.length && <div className="py-6 text-center text-sm text-zinc-400">Nenhuma afiliada entrou na sua equipe ainda.</div>}
           </div>
+
+        {hasAffiliateLink && (
+          <section className="relative mt-5 overflow-hidden rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm md:p-6" style={{ backgroundImage: "url(/impulsionar-equipe.webp)", backgroundRepeat: "no-repeat", backgroundPosition: "right top", backgroundSize: "360px auto" }}>
+            <div className="pointer-events-none absolute inset-0 bg-white/55" aria-hidden="true" />
+            <div className="relative">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">🚀 Impulsionar Equipe</p>
+                <h2 className="mt-1 text-xl font-black text-zinc-950">Receba novas afiliadas na sua equipe</h2>
+                <p className="mt-1 text-xs leading-5 text-zinc-400">O sistema direciona novas afiliadas para você. Depois que o impulso for ativado, não há cancelamento nem reembolso. Enquanto estiver na fila, você pode sair e receber o saldo de volta.</p>
+              </div>
+              <div className="text-left lg:text-right"><p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Saldo disponível</p><p className="mt-1 text-xl font-black text-zinc-950">{brl(availableCommission)}</p></div>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {(teamBoost?.plans || [{ key:'small', price:30, connections:5 }, { key:'large', price:50, connections:10 }]).map(plan => {
+                const insufficient = availableCommission + 0.001 < Number(plan.price)
+                const blockedByActive = teamBoost?.boost?.status === 'queued' || teamBoost?.boost?.status === 'active'
+                const capacityFull = Number(teamBoost?.activeCount || 0) >= Number(teamBoost?.maxActive || 3)
+                const visuallyQueued = capacityFull || insufficient || blockedByActive
+                return <div key={plan.key} className={`rounded-2xl border p-4 ${visuallyQueued ? 'border-zinc-200 bg-zinc-100/80 text-zinc-400' : 'border-pink-100 bg-pink-50/50'}`}>
+                  <div className="flex items-start justify-between gap-3"><div><p className={`text-sm font-black ${visuallyQueued ? 'text-zinc-500' : 'text-zinc-950'}`}>{plan.connections} conexões</p><p className="mt-1 text-xs text-zinc-400">Impulsionamento automático</p></div><p className={`text-xl font-black ${visuallyQueued ? 'text-zinc-500' : 'text-pink-600'}`}>{brl(plan.price)}</p></div>
+                  <button type="button" onClick={() => purchaseBoost(plan.key)} disabled={teamBoostBusy || insufficient || blockedByActive} className="mt-4 w-full rounded-xl bg-zinc-950 py-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-zinc-300">{blockedByActive ? (teamBoost?.boost?.status === 'queued' ? 'Já está na fila' : 'Impulso ativo') : insufficient ? 'Saldo insuficiente' : capacityFull ? 'Entrar na fila' : 'Impulsionar equipe'}</button>
+                </div>
+              })}
+            </div>
+            {teamBoost?.boost?.status === 'queued' && <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4"><p className="text-sm font-black text-amber-900">Você está na fila de impulsos.</p><p className="mt-1 text-xs leading-5 text-amber-800">Seu saldo está reservado. Quando chegar sua vez, o impulso será ativado automaticamente.</p><button type="button" onClick={leaveBoostQueue} disabled={teamBoostBusy} className="mt-3 rounded-xl bg-white px-4 py-2.5 text-xs font-black text-amber-800 shadow-sm">Sair da fila e devolver saldo</button></div>}
+            {teamBoost?.boost?.status === 'active' && <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><p className="text-sm font-black text-emerald-900">Impulso ativo</p><p className="mt-1 text-xs font-semibold text-emerald-800">{teamBoost.boost.connections_remaining} de {teamBoost.boost.connections_total} conexões restantes.</p></div>}
+            {teamBoostMessage && <p className="mt-3 text-xs font-semibold text-zinc-500">{teamBoostMessage}</p>}
+            </div>
+          </section>
+        )}
+
 
           <div className="mt-5 rounded-2xl border border-pink-100 bg-white p-4">
             <p className="text-sm font-black text-zinc-900">Sacar comissão de equipe</p>
@@ -873,29 +884,29 @@ export default function AffiliateDashboard() {
               <h2 className="font-black text-xl">Movimentações de saldo</h2>
               <p className="mt-1 text-sm text-zinc-400">Solicitações de saque de todo o período.</p>
             </div>
-            <span className="rounded-full bg-zinc-50 px-3 py-1 text-xs font-black text-zinc-500">{(dashboard?.withdrawals || []).length} solicitação(ões)</span>
+            <span className="rounded-full bg-zinc-50 px-3 py-1 text-xs font-black text-zinc-500">{(dashboard?.movements || []).length} movimentação(ões)</span>
           </div>
 
           <div className="mt-5 space-y-3">
-            {(dashboard?.withdrawals || []).map(withdrawal => (
-              <div key={withdrawal.id} className="flex flex-col gap-3 rounded-2xl border border-zinc-100 bg-zinc-50/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+            {(dashboard?.movements || []).map(movement => (
+              <div key={movement.id} className="flex flex-col gap-3 rounded-2xl border border-zinc-100 bg-zinc-50/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-pink-100 text-pink-600">↗</div>
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-full ${movement.kind === 'boost' ? 'bg-emerald-100 text-emerald-600' : 'bg-pink-100 text-pink-600'}`}>{movement.kind === 'boost' ? '↗' : '↗'}</div>
                   <div>
-                    <p className="font-black text-zinc-900">Solicitação de Saque {withdrawal.source === 'team' ? '· Equipe' : '· Pessoal'}</p>
-                    <p className="mt-0.5 text-xs text-zinc-400">{new Date(withdrawal.requested_at).toLocaleDateString('pt-BR')}</p>
+                    <p className="font-black text-zinc-900">{movement.kind === 'boost' ? 'Impulso de Equipe' : `Solicitação de Saque ${movement.source === 'team' ? '· Equipe' : '· Pessoal'}`}</p>
+                    <p className="mt-0.5 text-xs text-zinc-400">{new Date(movement.date).toLocaleDateString('pt-BR')}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 sm:justify-end">
-                  <span className="text-lg font-black text-zinc-950">{brl(withdrawal.amount)}</span>
-                  <span className={`rounded-full px-3 py-1 text-[11px] font-black ${withdrawal.status === 'pending' ? 'bg-amber-100 text-amber-800' : withdrawal.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-zinc-200 text-zinc-700'}`}>
-                    {withdrawalStatusLabel(withdrawal.status)}
+                  <span className="text-lg font-black text-zinc-950">{brl(movement.amount)}</span>
+                  <span className={`rounded-full px-3 py-1 text-[11px] font-black ${movement.kind === 'boost' ? (movement.status === 'active' ? 'bg-emerald-100 text-emerald-800' : movement.status === 'cancelled' ? 'bg-zinc-200 text-zinc-700' : movement.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800') : (movement.status === 'pending' ? 'bg-amber-100 text-amber-800' : movement.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-zinc-200 text-zinc-700')}`}>
+                    {movement.kind === 'boost' ? boostStatusLabel(movement.status) : withdrawalStatusLabel(movement.status)}
                   </span>
                 </div>
               </div>
             ))}
-            {!dashboard?.withdrawals?.length && (
-              <div className="rounded-2xl border border-dashed border-zinc-200 px-4 py-8 text-center text-sm text-zinc-400">Nenhuma solicitação de saque ainda.</div>
+            {!dashboard?.movements?.length && (
+              <div className="rounded-2xl border border-dashed border-zinc-200 px-4 py-8 text-center text-sm text-zinc-400">Nenhuma movimentação ainda.</div>
             )}
           </div>
         </section>
