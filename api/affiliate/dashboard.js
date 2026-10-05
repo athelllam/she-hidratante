@@ -359,10 +359,21 @@ module.exports = async function handler(req, res) {
     // O Bônus Fixo é o mestre do nível base. O bônus de equipe pode garantir
     // no mínimo Bronze durante os 30 dias, mas nunca supera um nível fixo maior.
     const fixedLevel = getLevel(lifetimeSales, settings, 'fixed');
+
+    // O Bônus Mensal pode, por si só, definir um nível base quando o desempenho
+    // do mês já alcançou o respectivo nível. O bônus de equipe de 30 dias adiciona
+    // o piso Bronze aos pontos mensais para essa avaliação.
+    const teamBonusPoints = teamBonusActive ? Number(settings.monthlyLevels.bronze || 0) : 0;
+    const monthlyPerformancePoints = levelSales + teamBonusPoints;
+    const monthlyPerformanceLevel = getLevel(monthlyPerformancePoints, settings, 'monthly');
     const teamBonusLevel = teamBonusActive ? getLevel(settings.monthlyLevels.bronze, settings, 'monthly') : null;
-    const baseLevelKey = teamBonusLevel && LEVEL_ORDER[teamBonusLevel.key] > LEVEL_ORDER[fixedLevel.key]
-      ? teamBonusLevel.key
-      : fixedLevel.key;
+
+    // O Bônus Fixo é o mestre do piso: ele nunca é rebaixado pelo mês.
+    // Porém, se o desempenho mensal ou o bônus de equipe alcançar um nível maior,
+    // esse nível maior passa a ser o novo nível base daquele mês.
+    const baseCandidates = [fixedLevel.key, monthlyPerformanceLevel.key, teamBonusLevel?.key || 'none'];
+    const baseLevelKey = baseCandidates.reduce((best, candidate) =>
+      LEVEL_ORDER[candidate] > LEVEL_ORDER[best] ? candidate : best, 'none');
     const baseLevelPoints = baseLevelKey === 'gold'
       ? Number(settings.monthlyLevels.gold || 0)
       : baseLevelKey === 'silver'
@@ -371,8 +382,9 @@ module.exports = async function handler(req, res) {
           ? Number(settings.monthlyLevels.bronze || 0)
           : 0;
 
-    // O card de níveis usa o piso do nível base + vendas reais do mês (afiliada + equipe).
-    // As vendas do card "Vendas" continuam sendo somente as vendas próprias.
+    // O card de níveis mostra o nível base + as vendas reais do mês
+    // (afiliada + equipe). O bônus de equipe já foi usado apenas para definir
+    // o nível base e não é contado duas vezes aqui.
     const effectiveMonthlyPoints = baseLevelPoints + levelSales;
     const monthlyLevel = getLevel(effectiveMonthlyPoints, settings, 'monthly');
     const level = monthlyLevel;
