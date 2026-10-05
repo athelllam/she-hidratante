@@ -153,10 +153,7 @@ function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG, options
       ? monthlyLevel
       : getLevel(normalized.monthlyLevels[floorLevel.key] || 0, normalized, 'monthly');
     const multiplier = stats.multiplierActive ? normalized.ticketBonus : 0;
-    const calculatedCommission = Number((effectiveLevel.commissionPerOrder + multiplier).toFixed(2));
-    // Depois que uma venda é importada, sua comissão fica congelada.
-    // Isso impede que alterações futuras no painel alterem o saldo histórico.
-    const commission = order?.commission_locked ? Number(order.commission || 0) : calculatedCommission;
+    const commission = Number((effectiveLevel.commissionPerOrder + multiplier).toFixed(2));
     total += commission;
     return {
       ...order,

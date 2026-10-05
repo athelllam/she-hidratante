@@ -54,8 +54,8 @@ module.exports = async function handler(req, res) {
       const children = await supabaseFetch(`/rest/v1/affiliates?team_parent_id=eq.${affiliate.id}&select=id&limit=1000`);
       const ids = (children || []).map(row => Number(row.id)).filter(Boolean);
       if (!ids.length) return json(res, 400, { error: 'Sua equipe ainda não possui vendas para saque.' });
-      const childOrders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=in.(${ids.join(',')})&select=affiliate_id,status,created_at,team_commission_amount,team_commission_locked&limit=20000`);
-      earned = (childOrders || []).filter(isPaidOrder).reduce((sum, order) => sum + (order.team_commission_locked ? Number(order.team_commission_amount || 0) : Number(settings.teamCommissionPerSale || 10)), 0);
+      const childOrders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=in.(${ids.join(',')})&select=affiliate_id,status,created_at&limit=20000`);
+      earned = (childOrders || []).filter(isPaidOrder).length * Number(settings.teamCommissionPerSale || 10);
     }
 
     const reserved = (withdrawals || []).reduce((sum, w) => sum + Number(w.amount || 0), 0);

@@ -485,26 +485,6 @@ module.exports = async function handler(req, res) {
         if (nextSettings.ticketThreshold <= 0 || Object.values(nextSettings.commissions).some(value => value < 0) || !thresholdsValid || !boostValid) {
           return json(res, 400, { error: 'Os valores precisam ser válidos. As metas devem ser crescentes (Bronze < Prata < Ouro) e a meta de ticket deve ser maior que zero.' });
         }
-        // Congela as comissões já existentes antes de aplicar qualquer nova configuração.
-        // Assim, mudar Bronze/Prata/Ouro, ticket ou comissão de equipe nunca altera o saldo histórico.
-        const allOrderRows = await supabaseFetch('/rest/v1/affiliate_orders?select=id,yampi_order_id,affiliate_id,status,total,commission,commission_locked,created_at&order=created_at.asc&limit=50000');
-        const affiliateRows = await supabaseFetch('/rest/v1/affiliates?select=id,team_parent_id,team_joined_at&limit=20000');
-        const affiliateMap = new Map((affiliateRows || []).map(a => [Number(a.id), a]));
-        const grouped = new Map();
-        for (const order of allOrderRows || []) {
-          const key = Number(order.affiliate_id);
-          if (!grouped.has(key)) grouped.set(key, []);
-          grouped.get(key).push(order);
-        }
-        for (const [affiliateId, affiliateOrders] of grouped) {
-          const af = affiliateMap.get(affiliateId);
-          const calculated = commissionForOrders(affiliateOrders, currentSettings, { teamJoinedAt: af?.team_joined_at }).orders;
-          await Promise.all(calculated.filter(order => !order.commission_locked).map(order => supabaseFetch(`/rest/v1/affiliate_orders?id=eq.${Number((affiliateOrders.find(x => String(x.yampi_order_id) === String(order.yampi_order_id)) || {}).id || 0)}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ commission: Number(order.commission || 0), commission_locked: true, team_commission_amount: af?.team_parent_id ? Number(currentSettings.teamCommissionPerSale || 0) : 0, team_commission_locked: true }),
-          }).catch(() => null)));
-        }
-
         const rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1', {
           method: 'PATCH',
           headers: { Prefer: 'return=representation' },

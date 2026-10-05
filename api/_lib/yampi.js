@@ -1,5 +1,4 @@
 const { supabaseFetch } = require('./supabase');
-const { commissionForOrders, normalizeConfig, DEFAULT_COMMISSION_CONFIG } = require('./affiliateCommission');
 
 const YAMPI_BASE_URL = 'https://api.dooki.com.br/v2';
 
@@ -206,21 +205,14 @@ function isCancelledStatus(status) {
   ]).has(String(status || '').toLowerCase());
 }
 
-async function upsertAffiliateOrder(order, affiliateId, commissionRate, commissionSettings = DEFAULT_COMMISSION_CONFIG, teamJoinedAt = null, existingOrders = []) {
+async function upsertAffiliateOrder(order, affiliateId, commissionRate) {
   const yampiOrderId = String(getOrderId(order) || '');
   if (!yampiOrderId) return false;
 
   const status = getStatus(order) || 'created';
   const total = getTotal(order);
+  const commission = isCancelledStatus(status) ? 0 : total * Number(commissionRate || 0);
   const createdAt = getCreatedAt(order);
-  const existing = existingOrders.find(item => String(item.yampi_order_id) === yampiOrderId);
-  if (existing?.commission_locked) return true;
-
-  const candidate = { yampi_order_id: yampiOrderId, affiliate_id: affiliateId, status, total, created_at: createdAt || new Date().toISOString(), commission_locked: true };
-  const calculation = commissionForOrders([...existingOrders.filter(item => String(item.yampi_order_id) !== yampiOrderId), candidate], commissionSettings, { teamJoinedAt });
-  const calculated = calculation.orders.find(item => String(item.yampi_order_id) === yampiOrderId);
-  const commission = isCancelledStatus(status) ? 0 : Number(calculated?.commission || 0);
-  const teamCommissionAmount = isCancelledStatus(status) ? 0 : (teamJoinedAt && new Date(createdAt || Date.now()) >= new Date(teamJoinedAt) ? Number(commissionSettings.teamCommissionPerSale || 0) : 0);
 
   await supabaseFetch('/rest/v1/affiliate_orders?on_conflict=yampi_order_id', {
     method: 'POST',
@@ -234,9 +226,6 @@ async function upsertAffiliateOrder(order, affiliateId, commissionRate, commissi
       status,
       total,
       commission,
-      commission_locked: true,
-      team_commission_amount: teamCommissionAmount,
-      team_commission_locked: true,
       raw_payload: order,
       ...(createdAt ? { created_at: createdAt } : {}),
       updated_at: new Date().toISOString(),
@@ -253,18 +242,6 @@ async function syncAffiliateOrders(affiliateId, commissionRate) {
   }
 
   const cutoff = new Date(Date.now() - config.syncDays * 24 * 60 * 60 * 1000);
-  const settingRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales&limit=1');
-  const row = settingRows?.[0];
-  const commissionSettings = normalizeConfig(row ? {
-    ticketThreshold: row.ticket_threshold, ticketBonus: row.ticket_bonus, teamCommissionPerSale: row.team_commission_per_sale,
-    commissions: { none: row.commission_none, bronze: row.commission_bronze, silver: row.commission_silver, gold: row.commission_gold },
-    monthlyLevels: { bronze: row.monthly_bronze_sales, silver: row.monthly_silver_sales, gold: row.monthly_gold_sales },
-    fixedLevels: { bronze: row.fixed_bronze_sales, silver: row.fixed_silver_sales, gold: row.fixed_gold_sales },
-  } : DEFAULT_COMMISSION_CONFIG);
-  const affiliateRows = await supabaseFetch(`/rest/v1/affiliates?id=eq.${Number(affiliateId)}&select=team_parent_id,team_joined_at&limit=1`);
-  const teamJoinedAt = affiliateRows?.[0]?.team_parent_id ? affiliateRows[0].team_joined_at : null;
-  const existingRows = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${Number(affiliateId)}&select=yampi_order_id,affiliate_id,status,total,commission,commission_locked,created_at&order=created_at.asc&limit=10000`);
-  let existingOrders = existingRows || [];
   let scrollId = '';
   let scanned = 0;
   let synced = 0;
@@ -298,7 +275,7 @@ async function syncAffiliateOrders(affiliateId, commissionRate) {
       const metadataId = Number(getMetadata(order, 'affiliate_id'));
       if (!metadataId || metadataId !== Number(affiliateId)) continue;
 
-      if (await upsertAffiliateOrder(order, affiliateId, commissionRate, commissionSettings, teamJoinedAt, existingOrders)) { synced += 1; if (!existingOrders.some(item => String(item.yampi_order_id) === String(getOrderId(order)))) { existingOrders.push({ yampi_order_id: String(getOrderId(order)), affiliate_id: affiliateId, status: getStatus(order) || 'created', total: getTotal(order), created_at: createdAt || new Date().toISOString(), commission: 0, commission_locked: true }); } }
+      if (await upsertAffiliateOrder(order, affiliateId, commissionRate)) synced += 1;
     }
 
     if (!scrollId) break;
