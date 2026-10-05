@@ -2,6 +2,7 @@ import { AnimatePresence, motion, useMotionValue, useScroll, useTransform, useSp
 import { Link } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import { buildYampiCheckoutUrl } from '../utils/affiliateTracking'
+import { getCartProductPrice, getCachedCartPrices, syncCartPrices } from '../utils/cartPrices'
 import hero from '../assets/stick/hero.webp'
 import stickCaixa from '../assets/stick/stick-caixa.webp'
 
@@ -233,7 +234,8 @@ function IngredientCards() {
 
 
 function formatBRL(value) {
-  return `R$ ${value.toFixed(2).replace('.', ',')}`
+  if (value == null || !Number.isFinite(Number(value))) return '—'
+  return `R$ ${Number(value).toFixed(2).replace('.', ',')}`
 }
 
 function QuantityControl({ quantity, onMinus, onPlus }) {
@@ -318,6 +320,31 @@ function SheCart({ open, onClose, affiliateId = null }) {
     pocket: false,
   })
   const [showFreeShippingToast, setShowFreeShippingToast] = useState(false)
+  const [cartPrices, setCartPrices] = useState(() => getCachedCartPrices())
+  const [pricesLoading, setPricesLoading] = useState(() => !getCachedCartPrices())
+  const [pricesError, setPricesError] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+
+    let active = true
+    setPricesLoading(true)
+    syncCartPrices({ force: true })
+      .then((prices) => {
+        if (!active) return
+        setCartPrices(prices)
+        setPricesError(false)
+      })
+      .catch((error) => {
+        console.error('[She Cart] Falha ao atualizar preços Yampi:', error)
+        if (active) setPricesError(true)
+      })
+      .finally(() => {
+        if (active) setPricesLoading(false)
+      })
+
+    return () => { active = false }
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -337,39 +364,31 @@ function SheCart({ open, onClose, affiliateId = null }) {
     }
   }, [open, onClose])
 
+  const priceFor = (token) => getCartProductPrice(cartPrices, token)
+
   const bumpItems = [
-    {
-      key: 'stick',
-      token: 'IWK5ZWCEUO',
-      name: 'Stick Clareador de Pele +1',
-      description: 'Uniformiza o tom, reduz manchas, hidrata e protege',
-      oldPrice: 129.90,
-      price: 97.90,
-      image: cartStick,
-    },
     {
       key: 'hydrant',
       token: '6G99ZYJTDE',
       name: 'Hidratante 100ml +1',
       description: 'Hidrata profundamente a região íntima',
-      oldPrice: 129.90,
-      price: 97.90,
+      ...(() => { const p = priceFor('6G99ZYJTDE'); return { price: p?.effectivePrice ?? null, oldPrice: p?.promotionalPrice ? p.salePrice : null } })(),
       image: cartHidratante,
     },
     {
-      key: 'blister',
-      token: '7B6B7IL4ZM',
-      name: 'Blister She',
-      description: 'Faça seus próprios ovinhos em casa',
-      price: 18.90,
-      image: cartBlister,
+      key: 'stick',
+      token: 'IWK5ZWCEUO',
+      name: 'Stick Clareador de Pele',
+      description: 'Para escurecimento, manchas, melasma, cicatrizes',
+      ...(() => { const p = priceFor('IWK5ZWCEUO'); return { price: p?.effectivePrice ?? null, oldPrice: p?.promotionalPrice ? p.salePrice : null } })(),
+      image: cartStick,
     },
     {
       key: 'pocket',
       token: 'ORM1LRMTT5',
       name: 'Pocket Size 15ml',
       description: 'Leve para qualquer lugar e fique hidratada sempre',
-      price: 16.90,
+      ...(() => { const p = priceFor('ORM1LRMTT5'); return { price: p?.effectivePrice ?? null, oldPrice: p?.promotionalPrice ? p.salePrice : null } })(),
       image: cartPocket,
     },
   ]
@@ -395,23 +414,36 @@ function SheCart({ open, onClose, affiliateId = null }) {
     return buildYampiCheckoutUrl({ tokens: products, affiliateId })
   }
 
+  const stickPrice = priceFor('GVVB8UXHJ8')?.effectivePrice
+  const blisterPrice = priceFor('7B6B7IL4ZM')?.effectivePrice
   const total =
-    stickQty * 149.90 +
-    (bumps.stick ? 97.90 : 0) +
-    (bumps.hydrant ? 97.90 : 0) +
-    (bumps.blister ? 18.90 : 0) +
-    (bumps.pocket ? 16.90 : 0)
+    stickQty * (stickPrice ?? 0) +
+    blisterQty * (blisterPrice ?? 0) +
+    (bumps.hydrant ? (priceFor('6G99ZYJTDE')?.effectivePrice ?? 0) : 0) +
+    (bumps.stick ? (priceFor('IWK5ZWCEUO')?.effectivePrice ?? 0) : 0) +
+    (bumps.pocket ? (priceFor('ORM1LRMTT5')?.effectivePrice ?? 0) : 0)
+
+  const pricesReady = [
+    'GVVB8UXHJ8', '7B6B7IL4ZM', '6G99ZYJTDE', 'IWK5ZWCEUO', 'ORM1LRMTT5', 'EFH0YOIDTO'
+  ].every((token) => Boolean(priceFor(token)))
+
 
   const hasProducts =
     stickQty > 0 || Object.values(bumps).some(Boolean)
 
   const hasFreeShipping = total > 200
 
+  const previousBumpsRef = useRef(bumps)
+
   useEffect(() => {
-    if (!hasFreeShipping) {
-      setShowFreeShippingToast(false)
-      return
-    }
+    const previousBumps = previousBumpsRef.current
+    const bumpWasAdded = Object.keys(bumps).some(
+      (key) => Boolean(bumps[key]) && !Boolean(previousBumps?.[key])
+    )
+
+    previousBumpsRef.current = bumps
+
+    if (!hasFreeShipping || !bumpWasAdded) return
 
     setShowFreeShippingToast(true)
     const timeout = window.setTimeout(() => {
@@ -419,7 +451,7 @@ function SheCart({ open, onClose, affiliateId = null }) {
     }, 2600)
 
     return () => window.clearTimeout(timeout)
-  }, [hasFreeShipping])
+  }, [hasFreeShipping, bumps])
 
   return (
     <AnimatePresence>
@@ -480,7 +512,8 @@ function SheCart({ open, onClose, affiliateId = null }) {
                     image={cartStick}
                     name="Stick Clareador de Pele She"
                     description="Uniformiza o tom, reduz manchas, hidrata e protege"
-                    price={129.90}
+                    oldPrice={priceFor('GVVB8UXHJ8')?.promotionalPrice ? priceFor('GVVB8UXHJ8').salePrice : null}
+                    price={priceFor('GVVB8UXHJ8')?.effectivePrice}
                     quantity={stickQty}
                     onMinus={() => setStickQty((q) => Math.max(1, q - 1))}
                     onPlus={() => setStickQty((q) => q + 1)}
@@ -619,6 +652,18 @@ function SheCart({ open, onClose, affiliateId = null }) {
                     {formatBRL(total)}
                   </span>
                 </div>
+
+                {pricesError && !pricesReady && (
+                  <p className="mb-3 text-center text-[10px] leading-4 text-zinc-400">
+                    Não foi possível atualizar os preços na Yampi. Tente novamente em alguns instantes.
+                  </p>
+                )}
+
+                {pricesLoading && !pricesReady && (
+                  <p className="mb-3 text-center text-[10px] leading-4 text-zinc-400">
+                    Atualizando preços…
+                  </p>
+                )}
 
                 <motion.button
                   type="button"
@@ -1384,7 +1429,7 @@ export default function Stick({ affiliateId = null, affiliate = null }) {
                 <Link to="/" className="hover:text-white transition-colors">Home</Link>
                 <a href="https://wa.me/553132784332" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">Contato</a>
                 <a href="#sobre" className="hover:text-white transition-colors">Sobre</a>
-                <a href="#trabalhe-conosco" className="hover:text-white transition-colors">Trabalhe Conosco</a>
+                <Link to="/trabalhe-conosco" className="hover:text-white transition-colors">Trabalhe Conosco</Link>
               </nav>
             </div>
             <div className="col-span-1 md:col-span-1">

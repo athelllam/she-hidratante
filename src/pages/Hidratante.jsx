@@ -2,6 +2,7 @@ import { AnimatePresence, motion, useMotionValue, useScroll, useTransform, useSp
 import { Link } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import { buildYampiCheckoutUrl } from '../utils/affiliateTracking'
+import { getCartProductPrice, getCachedCartPrices, syncCartPrices } from '../utils/cartPrices'
 import hero from '../assets/hidratante/hero.webp'
 import smoke from '../assets/hidratante/smoke.webp'
 import oleoCoco from '../assets/ingredientes/oleo-coco.webp'
@@ -540,7 +541,8 @@ function VideoCover({ children, onPlay, ariaLabel, source }) {
 
 
 function formatBRL(value) {
-  return `R$ ${value.toFixed(2).replace('.', ',')}`
+  if (value == null || !Number.isFinite(Number(value))) return '—'
+  return `R$ ${Number(value).toFixed(2).replace('.', ',')}`
 }
 
 function QuantityControl({ quantity, onMinus, onPlus }) {
@@ -623,6 +625,31 @@ function SheCart({ open, onClose, affiliateId = null }) {
     pocket: false,
   })
   const [showFreeShippingToast, setShowFreeShippingToast] = useState(false)
+  const [cartPrices, setCartPrices] = useState(() => getCachedCartPrices())
+  const [pricesLoading, setPricesLoading] = useState(() => !getCachedCartPrices())
+  const [pricesError, setPricesError] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+
+    let active = true
+    setPricesLoading(true)
+    syncCartPrices({ force: true })
+      .then((prices) => {
+        if (!active) return
+        setCartPrices(prices)
+        setPricesError(false)
+      })
+      .catch((error) => {
+        console.error('[She Cart] Falha ao atualizar preços Yampi:', error)
+        if (active) setPricesError(true)
+      })
+      .finally(() => {
+        if (active) setPricesLoading(false)
+      })
+
+    return () => { active = false }
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -642,14 +669,15 @@ function SheCart({ open, onClose, affiliateId = null }) {
     }
   }, [open, onClose])
 
+  const priceFor = (token) => getCartProductPrice(cartPrices, token)
+
   const bumpItems = [
     {
       key: 'hydrant',
       token: '6G99ZYJTDE',
       name: 'Hidratante 100ml +1',
       description: 'Hidrata profundamente a região íntima',
-      oldPrice: 139.90,
-      price: 97.90,
+      ...(() => { const p = priceFor('6G99ZYJTDE'); return { price: p?.effectivePrice ?? null, oldPrice: p?.promotionalPrice ? p.salePrice : null } })(),
       image: cartHidratante,
     },
     {
@@ -657,8 +685,7 @@ function SheCart({ open, onClose, affiliateId = null }) {
       token: 'IWK5ZWCEUO',
       name: 'Stick Clareador de Pele',
       description: 'Para escurecimento, manchas, melasma, cicatrizes',
-      oldPrice: 149.90,
-      price: 97.90,
+      ...(() => { const p = priceFor('IWK5ZWCEUO'); return { price: p?.effectivePrice ?? null, oldPrice: p?.promotionalPrice ? p.salePrice : null } })(),
       image: cartStick,
     },
     {
@@ -666,7 +693,7 @@ function SheCart({ open, onClose, affiliateId = null }) {
       token: 'ORM1LRMTT5',
       name: 'Pocket Size 15ml',
       description: 'Leve para qualquer lugar e fique hidratada sempre',
-      price: 16.90,
+      ...(() => { const p = priceFor('ORM1LRMTT5'); return { price: p?.effectivePrice ?? null, oldPrice: p?.promotionalPrice ? p.salePrice : null } })(),
       image: cartPocket,
     },
   ]
@@ -692,25 +719,36 @@ function SheCart({ open, onClose, affiliateId = null }) {
     return buildYampiCheckoutUrl({ tokens: products, affiliateId })
   }
 
+  const hydrantPrice = priceFor('EFH0YOIDTO')?.effectivePrice
+  const blisterPrice = priceFor('7B6B7IL4ZM')?.effectivePrice
   const total =
-    hydrantQty * 119.90 +
-    blisterQty * 18.90 +
-    (bumps.hydrant ? 97.90 : 0) +
-    (bumps.stick ? 97.90 : 0) +
-    (bumps.pocket ? 16.90 : 0)
+    hydrantQty * (hydrantPrice ?? 0) +
+    blisterQty * (blisterPrice ?? 0) +
+    (bumps.hydrant ? (priceFor('6G99ZYJTDE')?.effectivePrice ?? 0) : 0) +
+    (bumps.stick ? (priceFor('IWK5ZWCEUO')?.effectivePrice ?? 0) : 0) +
+    (bumps.pocket ? (priceFor('ORM1LRMTT5')?.effectivePrice ?? 0) : 0)
+
+  const pricesReady = [
+    'EFH0YOIDTO', '7B6B7IL4ZM', '6G99ZYJTDE', 'IWK5ZWCEUO', 'ORM1LRMTT5', 'GVVB8UXHJ8'
+  ].every((token) => Boolean(priceFor(token)))
+
 
   const hasProducts =
-    hydrantQty > 0 ||
-    blisterQty > 0 ||
-    Object.values(bumps).some(Boolean)
+    pricesReady && (hydrantQty > 0 || blisterQty > 0 || Object.values(bumps).some(Boolean))
 
   const hasFreeShipping = total > 200
 
+  const previousBumpsRef = useRef(bumps)
+
   useEffect(() => {
-    if (!hasFreeShipping) {
-      setShowFreeShippingToast(false)
-      return
-    }
+    const previousBumps = previousBumpsRef.current
+    const bumpWasAdded = Object.keys(bumps).some(
+      (key) => Boolean(bumps[key]) && !Boolean(previousBumps?.[key])
+    )
+
+    previousBumpsRef.current = bumps
+
+    if (!hasFreeShipping || !bumpWasAdded) return
 
     setShowFreeShippingToast(true)
     const timeout = window.setTimeout(() => {
@@ -718,7 +756,7 @@ function SheCart({ open, onClose, affiliateId = null }) {
     }, 2600)
 
     return () => window.clearTimeout(timeout)
-  }, [hasFreeShipping])
+  }, [hasFreeShipping, bumps])
 
   return (
     <AnimatePresence>
@@ -779,8 +817,8 @@ function SheCart({ open, onClose, affiliateId = null }) {
                     image={cartHidratante}
                     name="Hidratante Íntimo She"
                     description="Hidrata profundamente a região íntima"
-                    oldPrice={139.90}
-                    price={119.90}
+                    oldPrice={priceFor('EFH0YOIDTO')?.promotionalPrice ? priceFor('EFH0YOIDTO').salePrice : null}
+                    price={priceFor('EFH0YOIDTO')?.effectivePrice}
                     quantity={hydrantQty}
                     onMinus={() => setHydrantQty((q) => Math.max(1, q - 1))}
                     onPlus={() => setHydrantQty((q) => q + 1)}
@@ -790,7 +828,8 @@ function SheCart({ open, onClose, affiliateId = null }) {
                     image={cartBlister}
                     name="Blister She"
                     description="Faça seus próprios ovinhos em casa"
-                    price={18.90}
+                    oldPrice={priceFor('7B6B7IL4ZM')?.promotionalPrice ? priceFor('7B6B7IL4ZM').salePrice : null}
+                    price={priceFor('7B6B7IL4ZM')?.effectivePrice}
                     quantity={blisterQty}
                     onMinus={() => setBlisterQty((q) => Math.max(0, q - 1))}
                     onPlus={() => setBlisterQty((q) => q + 1)}
@@ -929,6 +968,18 @@ function SheCart({ open, onClose, affiliateId = null }) {
                     {formatBRL(total)}
                   </span>
                 </div>
+
+                {pricesError && !pricesReady && (
+                  <p className="mb-3 text-center text-[10px] leading-4 text-zinc-400">
+                    Não foi possível atualizar os preços na Yampi. Tente novamente em alguns instantes.
+                  </p>
+                )}
+
+                {pricesLoading && !pricesReady && (
+                  <p className="mb-3 text-center text-[10px] leading-4 text-zinc-400">
+                    Atualizando preços…
+                  </p>
+                )}
 
                 <motion.button
                   type="button"
@@ -1865,7 +1916,7 @@ export default function Hidratante({ affiliateId = null, affiliate = null }) {
                 <Link to="/" className="hover:text-white transition-colors">Home</Link>
                 <a href="https://wa.me/553132784332" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">Contato</a>
                 <a href="#sobre" className="hover:text-white transition-colors">Sobre</a>
-                <a href="#trabalhe-conosco" className="hover:text-white transition-colors">Trabalhe Conosco</a>
+                <Link to="/trabalhe-conosco" className="hover:text-white transition-colors">Trabalhe Conosco</Link>
               </nav>
             </div>
             <div className="col-span-1 md:col-span-1">

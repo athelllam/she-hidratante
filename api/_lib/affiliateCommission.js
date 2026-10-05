@@ -8,6 +8,8 @@ const DEFAULT_COMMISSION_CONFIG = {
     silver: 50,
     gold: 60,
   },
+  monthlyLevels: { bronze: 10, silver: 50, gold: 101 },
+  fixedLevels: { bronze: 100, silver: 300, gold: 500 },
 };
 
 const LEVEL_DEFINITIONS = [
@@ -16,6 +18,8 @@ const LEVEL_DEFINITIONS = [
   { key: 'silver', label: 'Prata', minSales: 50 },
   { key: 'gold', label: 'Ouro', minSales: 101 },
 ];
+
+const LEVEL_ORDER = { none: 0, bronze: 1, silver: 2, gold: 3 };
 
 const LEVELS = LEVEL_DEFINITIONS.map(level => ({
   ...level,
@@ -27,6 +31,9 @@ const TICKET_MULTIPLIER_VALUE = DEFAULT_COMMISSION_CONFIG.ticketBonus;
 
 function normalizeConfig(config = {}) {
   const commissions = config.commissions || {};
+  const monthlyLevels = config.monthlyLevels || {};
+  const fixedLevels = config.fixedLevels || {};
+  const safeThreshold = (value, fallback) => Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : fallback;
   return {
     ticketThreshold: Number.isFinite(Number(config.ticketThreshold)) ? Number(config.ticketThreshold) : DEFAULT_COMMISSION_CONFIG.ticketThreshold,
     ticketBonus: Number.isFinite(Number(config.ticketBonus)) ? Number(config.ticketBonus) : DEFAULT_COMMISSION_CONFIG.ticketBonus,
@@ -37,20 +44,44 @@ function normalizeConfig(config = {}) {
       silver: Number.isFinite(Number(commissions.silver)) ? Number(commissions.silver) : DEFAULT_COMMISSION_CONFIG.commissions.silver,
       gold: Number.isFinite(Number(commissions.gold)) ? Number(commissions.gold) : DEFAULT_COMMISSION_CONFIG.commissions.gold,
     },
+    monthlyLevels: {
+      bronze: safeThreshold(monthlyLevels.bronze, DEFAULT_COMMISSION_CONFIG.monthlyLevels.bronze),
+      silver: safeThreshold(monthlyLevels.silver, DEFAULT_COMMISSION_CONFIG.monthlyLevels.silver),
+      gold: safeThreshold(monthlyLevels.gold, DEFAULT_COMMISSION_CONFIG.monthlyLevels.gold),
+    },
+    fixedLevels: {
+      bronze: safeThreshold(fixedLevels.bronze, DEFAULT_COMMISSION_CONFIG.fixedLevels.bronze),
+      silver: safeThreshold(fixedLevels.silver, DEFAULT_COMMISSION_CONFIG.fixedLevels.silver),
+      gold: safeThreshold(fixedLevels.gold, DEFAULT_COMMISSION_CONFIG.fixedLevels.gold),
+    },
   };
 }
 
-function getLevel(sales, config = DEFAULT_COMMISSION_CONFIG) {
+function buildLevelDefinitions(config, type = 'monthly') {
+  const normalized = normalizeConfig(config);
+  const thresholds = type === 'fixed' ? normalized.fixedLevels : normalized.monthlyLevels;
+  return [
+    { key: 'none', label: 'Início', minSales: 0 },
+    { key: 'bronze', label: 'Bronze', minSales: thresholds.bronze },
+    { key: 'silver', label: 'Prata', minSales: thresholds.silver },
+    { key: 'gold', label: 'Ouro', minSales: thresholds.gold },
+  ];
+}
+
+function getLevel(sales, config = DEFAULT_COMMISSION_CONFIG, type = 'monthly') {
   const count = Number(sales) || 0;
   const normalized = normalizeConfig(config);
-  let current = LEVEL_DEFINITIONS[0];
-  for (const level of LEVEL_DEFINITIONS) {
+  const definitions = buildLevelDefinitions(normalized, type);
+  let current = definitions[0];
+  for (const level of definitions) {
     if (count >= level.minSales) current = level;
   }
-  const next = LEVEL_DEFINITIONS.find(level => level.minSales > count) || null;
-  const progress = Math.min(100, (count / 101) * 100);
+  const next = definitions.find(level => level.minSales > count) || null;
+  const maxThreshold = definitions[3].minSales || 1;
+  const progress = Math.min(100, (count / maxThreshold) * 100);
   return {
     ...current,
+    type,
     commissionPerOrder: normalized.commissions[current.key],
     sales: count,
     progress,
@@ -60,15 +91,13 @@ function getLevel(sales, config = DEFAULT_COMMISSION_CONFIG) {
   };
 }
 
-function levelIndex(key) {
-  const index = LEVEL_DEFINITIONS.findIndex(level => level.key === key);
-  return index < 0 ? 0 : index;
-}
-
 function monthKey(value) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).formatToParts(date);
+  const year = parts.find(part => part.type === 'year')?.value;
+  const month = parts.find(part => part.type === 'month')?.value;
+  return year && month ? `${year}-${month}` : null;
 }
 
 function calculateMonthlyStats(orders, config = DEFAULT_COMMISSION_CONFIG) {
@@ -100,29 +129,38 @@ function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG, options
     Object.entries(monthlyStats).map(([key, stats]) => [key, stats.sales])
   );
 
+  const cumulativeByMonth = {};
+  let cumulativeSales = 0;
+  Object.keys(monthlyStats).sort().forEach(key => {
+    cumulativeSales += Number(monthlyStats[key].sales || 0);
+    cumulativeByMonth[key] = cumulativeSales;
+  });
+
   let total = 0;
   const annotated = paid.map(order => {
     const key = monthKey(order.created_at);
     const stats = monthlyStats[key] || { sales: 0, averageTicket: 0, multiplierActive: false };
-    const floor = Number(options?.levelFloorByMonth?.[key] || 0);
-    const level = getLevel(Math.max(stats.sales, floor), normalized);
-
-    // A locked rate belongs to the order and is changed only when the
-    // affiliate actually advances to a higher level. Changing admin settings
-    // alone must never rewrite historical commissions.
-    const lockedRate = Number.isFinite(Number(order.commission_rate_locked))
-      ? Number(order.commission_rate_locked)
-      : level.commissionPerOrder;
+    const monthlyLevel = getLevel(stats.sales, normalized, 'monthly');
+    const fixedLevel = getLevel(cumulativeByMonth[key] || 0, normalized, 'fixed');
+    const explicitFloor = Number(options?.levelFloorByMonth?.[key] || 0);
+    const teamJoinedAt = options?.teamJoinedAt ? new Date(options.teamJoinedAt) : null;
+    const orderDate = new Date(order.created_at);
+    const teamBonusActiveForOrder = Boolean(teamJoinedAt && !Number.isNaN(teamJoinedAt.getTime()) && !Number.isNaN(orderDate.getTime()) && orderDate >= teamJoinedAt && orderDate < new Date(teamJoinedAt.getTime() + 30 * 24 * 60 * 60 * 1000));
+    const teamBonusFloor = teamBonusActiveForOrder ? normalized.monthlyLevels.bronze : 0;
+    const floor = Math.max(explicitFloor, teamBonusFloor, fixedLevel.minSales || 0);
+    const floorLevel = getLevel(floor, normalized, 'fixed');
+    const effectiveLevel = LEVEL_ORDER[monthlyLevel.key] >= LEVEL_ORDER[floorLevel.key]
+      ? monthlyLevel
+      : getLevel(normalized.monthlyLevels[floorLevel.key] || 0, normalized, 'monthly');
     const multiplier = stats.multiplierActive ? normalized.ticketBonus : 0;
-    const commission = Number((lockedRate + multiplier).toFixed(2));
+    const commission = Number((effectiveLevel.commissionPerOrder + multiplier).toFixed(2));
     total += commission;
     return {
       ...order,
       commission,
-      baseCommission: lockedRate,
-      level: order.commission_level_key
-        ? (LEVEL_DEFINITIONS.find(item => item.key === order.commission_level_key)?.label || level.label)
-        : level.label,
+      level: effectiveLevel.label,
+      monthlyLevel: monthlyLevel.label,
+      fixedLevel: fixedLevel.label,
       month: key,
       ticketAverage: Number(stats.averageTicket.toFixed(2)),
       ticketMultiplier: multiplier,
@@ -142,12 +180,12 @@ function isPaidOrder(order) {
 module.exports = {
   DEFAULT_COMMISSION_CONFIG,
   LEVEL_DEFINITIONS,
+  LEVEL_ORDER,
   LEVELS,
   TICKET_MULTIPLIER_THRESHOLD,
   TICKET_MULTIPLIER_VALUE,
   normalizeConfig,
   getLevel,
-  levelIndex,
   monthKey,
   calculateMonthlyStats,
   commissionForOrders,

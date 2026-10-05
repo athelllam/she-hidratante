@@ -1,6 +1,5 @@
 const { supabaseFetch, json } = require('../_lib/supabase');
 const crypto = require('crypto');
-const { lockCommissionForPaidOrder } = require('../_lib/yampi');
 
 function header(req, name) {
   return req.headers[name.toLowerCase()] || req.headers[name] || '';
@@ -70,7 +69,16 @@ function getStatus(payload) {
 
 function isPaymentApproved(payload) {
   const event = normalizeStatus(payload?.event);
+  const order = getOrder(payload);
   const status = getStatus(payload);
+  const transaction = order?.transactions?.data ?? order?.transactions ?? null;
+  const transactionStatus = normalizeStatus(
+    transaction?.status?.alias ||
+    transaction?.status?.slug ||
+    transaction?.status?.name ||
+    transaction?.status ||
+    ''
+  );
 
   return (
     event === 'order.paid' ||
@@ -78,7 +86,15 @@ function isPaymentApproved(payload) {
     event === 'payment_approved' ||
     status === 'payment_approved' ||
     status === 'pagamento_aprovado' ||
-    status === 'paid'
+    status === 'paid' ||
+    status === 'approved' ||
+    status === 'aprovado' ||
+    transactionStatus === 'payment_approved' ||
+    transactionStatus === 'pagamento_aprovado' ||
+    transactionStatus === 'paid' ||
+    transactionStatus === 'approved' ||
+    transactionStatus === 'aprovado' ||
+    Boolean(transaction && transaction.captured === true && transaction.cancelled !== true)
   );
 }
 
@@ -136,8 +152,6 @@ module.exports = async function handler(req, res) {
     const status = getStoredStatus(payload);
     const total = getTotal(payload);
     const commission = total * Number(affiliates[0].commission_rate || 0);
-    const existingOrderRows = await supabaseFetch(`/rest/v1/affiliate_orders?yampi_order_id=eq.${encodeURIComponent(yampiOrderId)}&select=id&limit=1`);
-    const isNewOrder = !existingOrderRows?.[0];
 
     await supabaseFetch(`/rest/v1/affiliate_orders?on_conflict=yampi_order_id`, {
       method: 'POST',
@@ -155,8 +169,6 @@ module.exports = async function handler(req, res) {
         updated_at: new Date().toISOString(),
       }),
     });
-
-    await lockCommissionForPaidOrder(affiliateId, yampiOrderId, null, isNewOrder);
 
     return json(res, 200, { ok: true, orderId: yampiOrderId, affiliateId, status });
   } catch (error) {

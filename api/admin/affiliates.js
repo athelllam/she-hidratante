@@ -14,13 +14,15 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'GET') {
-      const [affiliates, orders, withdrawals, events, statusHistory, settingRows] = await Promise.all([
+      const [affiliates, orders, withdrawals, events, statusHistory, settingRows, boostState, boostRows] = await Promise.all([
         supabaseFetch('/rest/v1/affiliates?select=id,slug,name,email,cpf,whatsapp,pix_key,active,admin_active,commission_rate,created_at,team_parent_id&order=created_at.desc'),
-        supabaseFetch('/rest/v1/affiliate_orders?select=affiliate_id,status,total,commission,commission_rate_locked,commission_level_key,team_commission_locked,created_at&order=created_at.desc&limit=20000'),
+        supabaseFetch('/rest/v1/affiliate_orders?select=affiliate_id,status,total,commission,created_at&order=created_at.desc&limit=20000'),
         supabaseFetch('/rest/v1/affiliate_withdrawals?select=affiliate_id,amount,status,source,requested_at&order=requested_at.desc&limit=10000'),
         supabaseFetch('/rest/v1/affiliate_events?select=affiliate_id,type,created_at&order=created_at.desc&limit=20000'),
         supabaseFetch('/rest/v1/affiliate_admin_status_history?select=affiliate_id,admin_active,effective_at&order=effective_at.asc&limit=20000').catch(() => []),
-        supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold&limit=1'),
+        supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active&limit=1'),
+        supabaseFetch('/rest/v1/rpc/she_team_boost_admin_state', { method: 'POST', body: '{}' }).catch(() => ({ activeCount: 0, queueCount: 0, completedCount: 0, active: [] })),
+        supabaseFetch('/rest/v1/affiliate_team_boosts?status=neq.cancelled&select=affiliate_id,price&limit=20000').catch(() => []),
       ]);
 
       const settings = normalizeConfig(settingRows?.[0] ? {
@@ -33,7 +35,19 @@ module.exports = async function handler(req, res) {
           silver: settingRows[0].commission_silver,
           gold: settingRows[0].commission_gold,
         },
+        monthlyLevels: { bronze: settingRows[0].monthly_bronze_sales, silver: settingRows[0].monthly_silver_sales, gold: settingRows[0].monthly_gold_sales },
+        fixedLevels: { bronze: settingRows[0].fixed_bronze_sales, silver: settingRows[0].fixed_silver_sales, gold: settingRows[0].fixed_gold_sales },
+        boostPlans: {
+          small: { price: Number(settingRows[0].team_boost_small_price ?? 30), connections: Number(settingRows[0].team_boost_small_connections ?? 5) },
+          large: { price: Number(settingRows[0].team_boost_large_price ?? 50), connections: Number(settingRows[0].team_boost_large_connections ?? 10) },
+          maxActive: Number(settingRows[0].team_boost_max_active ?? 3),
+        },
       } : DEFAULT_COMMISSION_CONFIG);
+      settings.boostPlans = settingRows?.[0] ? {
+        small: { price: Number(settingRows[0].team_boost_small_price ?? 30), connections: Number(settingRows[0].team_boost_small_connections ?? 5) },
+        large: { price: Number(settingRows[0].team_boost_large_price ?? 50), connections: Number(settingRows[0].team_boost_large_connections ?? 10) },
+        maxActive: Number(settingRows[0].team_boost_max_active ?? 3),
+      } : { small: { price: 30, connections: 5 }, large: { price: 50, connections: 10 }, maxActive: 3 };
 
       const detailAffiliateId = Number(req.query?.detail || 0);
       const detailMonth = String(req.query?.month || 'all');
@@ -116,6 +130,12 @@ module.exports = async function handler(req, res) {
         }
       }
 
+      const boostSpentByAffiliate = new Map();
+      for (const boost of boostRows || []) {
+        const aid = Number(boost.affiliate_id);
+        boostSpentByAffiliate.set(aid, (boostSpentByAffiliate.get(aid) || 0) + Number(boost.price || 0));
+      }
+
       const result = (affiliates || []).map(affiliate => {
         const bucket = stats.get(Number(affiliate.id)) || { sales: 0, revenue: 0, commission: 0, withdrawals: 0 };
         return {
@@ -125,7 +145,7 @@ module.exports = async function handler(req, res) {
           averageTicket: money(bucket.sales ? bucket.revenue / bucket.sales : 0),
           earnedCommission: money(bucket.commission),
           accesses: Number(bucket.accesses || 0),
-          balance: money(Math.max(0, bucket.commission - bucket.withdrawals)),
+          balance: money(Math.max(0, bucket.commission - bucket.withdrawals - (boostSpentByAffiliate.get(Number(affiliate.id)) || 0))),
           adminActive: Boolean(affiliate.admin_active),
           lastSaleAt: bucket.lastSaleAt,
           daysWithoutSales: bucket.lastSaleAt
@@ -346,6 +366,7 @@ module.exports = async function handler(req, res) {
         settings,
         globalStats: { all: globalAll, byMonth: monthlyStats, snapshots: historicalStats },
         availableMonths: monthsForSnapshot.sort().reverse(),
+        boostState: boostState || { activeCount: 0, queueCount: 0, completedCount: 0, active: [] },
       });
     }
 
@@ -430,22 +451,72 @@ module.exports = async function handler(req, res) {
     if (req.method === 'PATCH') {
       const { id, active, adminActive, commissionRate, password, settings: requestedSettings } = req.body || {};
 
+      // Metas dos Bônus Mensal/Fixo: tratadas separadamente para que a alteração
+      // dessas seis configurações nunca dependa das demais configurações do painel.
+      if (String(req.body?.action || '') === 'update_bonus_levels') {
+        const monthly = req.body?.monthlyLevels || {};
+        const fixed = req.body?.fixedLevels || {};
+        const values = {
+          monthly_bronze_sales: Number(monthly.bronze),
+          monthly_silver_sales: Number(monthly.silver),
+          monthly_gold_sales: Number(monthly.gold),
+          fixed_bronze_sales: Number(fixed.bronze),
+          fixed_silver_sales: Number(fixed.silver),
+          fixed_gold_sales: Number(fixed.gold),
+        };
+        const validNumbers = Object.values(values).every(value => Number.isInteger(value) && value > 0);
+        const orderedMonthly = values.monthly_bronze_sales < values.monthly_silver_sales && values.monthly_silver_sales < values.monthly_gold_sales;
+        const orderedFixed = values.fixed_bronze_sales < values.fixed_silver_sales && values.fixed_silver_sales < values.fixed_gold_sales;
+        if (!validNumbers || !orderedMonthly || !orderedFixed) {
+          return json(res, 400, { error: 'As metas devem ser números inteiros positivos e crescentes: Bronze < Prata < Ouro.' });
+        }
+        const rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1', {
+          method: 'PATCH',
+          headers: { Prefer: 'return=representation' },
+          body: JSON.stringify(values),
+        });
+        const row = rows?.[0] || {};
+        return json(res, 200, {
+          settings: {
+            monthlyLevels: { bronze: Number(row.monthly_bronze_sales ?? values.monthly_bronze_sales), silver: Number(row.monthly_silver_sales ?? values.monthly_silver_sales), gold: Number(row.monthly_gold_sales ?? values.monthly_gold_sales) },
+            fixedLevels: { bronze: Number(row.fixed_bronze_sales ?? values.fixed_bronze_sales), silver: Number(row.fixed_silver_sales ?? values.fixed_silver_sales), gold: Number(row.fixed_gold_sales ?? values.fixed_gold_sales) },
+          },
+        });
+      }
+
       if (requestedSettings) {
-        const currentRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold&limit=1');
+        const currentRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active&limit=1');
         const currentSettings = normalizeConfig(currentRows?.[0] ? {
           ticketThreshold: currentRows[0].ticket_threshold,
           ticketBonus: currentRows[0].ticket_bonus,
           teamCommissionPerSale: currentRows[0].team_commission_per_sale,
           commissions: { none: currentRows[0].commission_none, bronze: currentRows[0].commission_bronze, silver: currentRows[0].commission_silver, gold: currentRows[0].commission_gold },
+          monthlyLevels: { bronze: currentRows[0].monthly_bronze_sales, silver: currentRows[0].monthly_silver_sales, gold: currentRows[0].monthly_gold_sales },
+          fixedLevels: { bronze: currentRows[0].fixed_bronze_sales, silver: currentRows[0].fixed_silver_sales, gold: currentRows[0].fixed_gold_sales },
+          boostPlans: {
+            small: { price: Number(currentRows[0].team_boost_small_price ?? 30), connections: Number(currentRows[0].team_boost_small_connections ?? 5) },
+            large: { price: Number(currentRows[0].team_boost_large_price ?? 50), connections: Number(currentRows[0].team_boost_large_connections ?? 10) },
+            maxActive: Number(currentRows[0].team_boost_max_active ?? 3),
+          },
         } : DEFAULT_COMMISSION_CONFIG);
+        currentSettings.boostPlans = currentRows?.[0] ? { small: { price: Number(currentRows[0].team_boost_small_price ?? 30), connections: Number(currentRows[0].team_boost_small_connections ?? 5) }, large: { price: Number(currentRows[0].team_boost_large_price ?? 50), connections: Number(currentRows[0].team_boost_large_connections ?? 10) }, maxActive: Number(currentRows[0].team_boost_max_active ?? 3) } : { small: { price: 30, connections: 5 }, large: { price: 50, connections: 10 }, maxActive: 3 };
         const nextSettings = normalizeConfig({
           ticketThreshold: requestedSettings.ticketThreshold,
           ticketBonus: currentSettings.ticketBonus,
           teamCommissionPerSale: requestedSettings.teamCommissionPerSale,
           commissions: requestedSettings.commissions,
+          monthlyLevels: requestedSettings.monthlyLevels,
+          fixedLevels: requestedSettings.fixedLevels,
+          boostPlans: requestedSettings.boostPlans,
         });
-        if (nextSettings.ticketThreshold <= 0 || Object.values(nextSettings.commissions).some(value => value < 0)) {
-          return json(res, 400, { error: 'Os valores precisam ser válidos. A meta de ticket deve ser maior que zero e as comissões não podem ser negativas.' });
+        nextSettings.boostPlans = requestedSettings.boostPlans || currentSettings.boostPlans;
+        const monthly = nextSettings.monthlyLevels;
+        const fixed = nextSettings.fixedLevels;
+        const boost = nextSettings.boostPlans || { small: { price: 30, connections: 5 }, large: { price: 50, connections: 10 }, maxActive: 3 };
+        const boostValid = boost.small?.price > 0 && Number.isInteger(Number(boost.small?.connections)) && Number(boost.small.connections) > 0 && boost.large?.price > 0 && Number.isInteger(Number(boost.large?.connections)) && Number(boost.large.connections) > 0 && Number.isInteger(Number(boost.maxActive)) && Number(boost.maxActive) > 0;
+        const thresholdsValid = monthly.bronze < monthly.silver && monthly.silver < monthly.gold && fixed.bronze < fixed.silver && fixed.silver < fixed.gold;
+        if (nextSettings.ticketThreshold <= 0 || Object.values(nextSettings.commissions).some(value => value < 0) || !thresholdsValid || !boostValid) {
+          return json(res, 400, { error: 'Os valores precisam ser válidos. As metas devem ser crescentes (Bronze < Prata < Ouro) e a meta de ticket deve ser maior que zero.' });
         }
         const rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1', {
           method: 'PATCH',
@@ -457,8 +528,20 @@ module.exports = async function handler(req, res) {
             commission_bronze: nextSettings.commissions.bronze,
             commission_silver: nextSettings.commissions.silver,
             commission_gold: nextSettings.commissions.gold,
+            monthly_bronze_sales: nextSettings.monthlyLevels.bronze,
+            monthly_silver_sales: nextSettings.monthlyLevels.silver,
+            monthly_gold_sales: nextSettings.monthlyLevels.gold,
+            fixed_bronze_sales: nextSettings.fixedLevels.bronze,
+            fixed_silver_sales: nextSettings.fixedLevels.silver,
+            fixed_gold_sales: nextSettings.fixedLevels.gold,
+            team_boost_small_price: Number(boost.small.price),
+            team_boost_small_connections: Number(boost.small.connections),
+            team_boost_large_price: Number(boost.large.price),
+            team_boost_large_connections: Number(boost.large.connections),
+            team_boost_max_active: Number(boost.maxActive),
           }),
         });
+        await supabaseFetch('/rest/v1/rpc/she_team_boost_activate_waiting', { method: 'POST', body: '{}' }).catch(() => null);
         return json(res, 200, { settings: nextSettings, row: rows?.[0] || null });
       }
 
