@@ -726,9 +726,9 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-4 max-h-[500px] overflow-auto rounded-xl border border-zinc-100">
             <table className="w-full min-w-[1200px] text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-white">
                 <tr className="border-b border-zinc-100 text-left text-[10px] font-black uppercase tracking-[.14em] text-zinc-400">
                   <th className="pb-3 pr-4">Afiliada</th>
                   <th className="pb-3 pr-4">Acessos</th>
