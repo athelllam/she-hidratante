@@ -71,6 +71,10 @@ export default function AffiliateDashboard() {
   const [registerMode, setRegisterMode] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', password: '', whatsapp: '', cpf: '' })
   const [login, setLogin] = useState({ email: '', password: '' })
+  const [forgotOpen, setForgotOpen] = useState(false)
+  const [forgotWhatsapp, setForgotWhatsapp] = useState('')
+  const [forgotBusy, setForgotBusy] = useState(false)
+  const [forgotMessage, setForgotMessage] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -172,6 +176,25 @@ export default function AffiliateDashboard() {
     } catch (e) {
       setError(e.message)
     } finally { setBusy(false) }
+  }
+
+  const submitForgotPassword = async (event) => {
+    event.preventDefault()
+    setForgotBusy(true)
+    setForgotMessage('')
+    try {
+      const whatsapp = String(forgotWhatsapp || '').trim()
+      if (!whatsapp) throw new Error('Informe seu WhatsApp.')
+      const result = await api('/api/affiliate/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ whatsapp }),
+      })
+      setForgotMessage(result.message || 'Se o WhatsApp estiver cadastrado, você receberá o link para redefinir sua senha.')
+    } catch (e) {
+      setForgotMessage(e.message || 'Não foi possível enviar o link de recuperação.')
+    } finally {
+      setForgotBusy(false)
+    }
   }
 
   const submitRegister = (event) => {
@@ -410,12 +433,21 @@ export default function AffiliateDashboard() {
               <input value={login.password} onChange={e => setLogin({...login,password:e.target.value})} type="password" required placeholder="Senha" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
               {error && <p className="text-xs text-red-500">{error}</p>}
               <button disabled={busy} className="w-full rounded-2xl bg-pink-500 py-3.5 font-bold text-white disabled:opacity-60">{busy ? 'Entrando…' : 'Entrar'}</button>
-              <a href="https://wa.me/553132784332" target="_blank" rel="noreferrer" className="flex items-center justify-center gap-1.5 pt-1 text-xs font-semibold text-zinc-400 transition-colors hover:text-zinc-600">
-                <span>Esqueceu sua senha? Fale com o Suporte</span>
-                <svg aria-hidden="true" viewBox="0 0 24 24" className="h-3.5 w-3.5 shrink-0 fill-current">
-                  <path d="M20.52 3.48A11.82 11.82 0 0 0 12.08 0C5.55 0 .24 5.31.24 11.84c0 2.09.55 4.13 1.59 5.93L.13 24l6.38-1.67a11.8 11.8 0 0 0 5.57 1.42h.01c6.53 0 11.84-5.31 11.84-11.84 0-3.16-1.23-6.13-3.41-8.43ZM12.09 21.8h-.01a9.91 9.91 0 0 1-5.05-1.39l-.36-.21-3.79.99 1.01-3.69-.23-.38a9.9 9.9 0 0 1-1.52-5.28C2.14 6.37 6.6 1.91 12.08 1.91c2.65 0 5.14 1.03 7.01 2.9a9.86 9.86 0 0 1 2.91 7.02c0 5.48-4.46 9.94-9.91 9.97Zm5.44-7.45c-.3-.15-1.78-.88-2.05-.98-.27-.1-.47-.15-.67.15-.2.3-.77.98-.94 1.18-.17.2-.35.22-.65.07-.3-.15-1.27-.47-2.42-1.49-.9-.8-1.51-1.78-1.69-2.08-.18-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.61-.92-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.49s1.07 2.89 1.22 3.09c.15.2 2.11 3.22 5.12 4.52.72.31 1.28.5 1.72.64.72.23 1.37.2 1.89.12.58-.09 1.78-.73 2.03-1.44.25-.71.25-1.32.18-1.44-.07-.12-.27-.2-.57-.35Z"/>
-                </svg>
-              </a>
+              <button type="button" onClick={() => { setForgotOpen(v => !v); setForgotWhatsapp(''); setForgotMessage('') }} className="mx-auto flex items-center justify-center pt-1 text-xs font-semibold text-zinc-400 transition-colors hover:text-zinc-600">
+                Esqueceu sua senha? Receba um link pelo WhatsApp
+              </button>
+
+              {forgotOpen && (
+                <div className="rounded-2xl border border-pink-100 bg-pink-50/70 p-4">
+                  <p className="text-sm font-black text-zinc-900">Redefinir senha</p>
+                  <p className="mt-1 text-xs leading-5 text-zinc-500">Digite o WhatsApp cadastrado na sua conta e enviaremos um link seguro para criar uma nova senha.</p>
+                  <form onSubmit={submitForgotPassword} className="mt-3 space-y-2">
+                    <input value={forgotWhatsapp} onChange={e => setForgotWhatsapp(e.target.value)} type="tel" required placeholder="Seu WhatsApp" className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-pink-400" />
+                    <button disabled={forgotBusy} className="w-full rounded-xl bg-zinc-950 py-2.5 text-sm font-black text-white disabled:opacity-60">{forgotBusy ? 'Enviando…' : 'Enviar link pelo WhatsApp'}</button>
+                  </form>
+                  {forgotMessage && <p className="mt-2 text-xs leading-5 text-zinc-500">{forgotMessage}</p>}
+                </div>
+              )}
             </form>
           ) : (
             <form onSubmit={submitRegister} className="mt-7 space-y-3">

@@ -243,6 +243,11 @@ async function upsertAffiliateOrder(order, affiliateId, commissionRate) {
   const commission = isCancelledStatus(status) ? 0 : total * Number(commissionRate || 0);
   const createdAt = getCreatedAt(order);
 
+  const existingRows = await supabaseFetch(
+    `/rest/v1/affiliate_orders?yampi_order_id=eq.${encodeURIComponent(yampiOrderId)}&select=id,status&limit=1`
+  );
+  const previousStatus = existingRows?.[0]?.status || null;
+
   await supabaseFetch('/rest/v1/affiliate_orders?on_conflict=yampi_order_id', {
     method: 'POST',
     headers: {

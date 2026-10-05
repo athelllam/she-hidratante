@@ -1,4 +1,6 @@
 const { authFetch, supabaseFetch, setAuthCookie, clearAuthCookie, json } = require('../_lib/supabase');
+const crypto = require('crypto');
+const { sendPasswordResetWhatsApp, normalizeNumber } = require('../_lib/whatsapp');
 
 function normalizeCpf(value) {
   return String(value || '').replace(/\D/g, '');
@@ -51,6 +53,86 @@ async function login(req, res) {
 
   setAuthCookie(res, session.access_token);
   return json(res, 200, { affiliate: rows[0] });
+}
+
+
+
+async function forgotPassword(req, res) {
+  const cleanWhatsapp = normalizeNumber(req.body?.whatsapp || '');
+  if (!cleanWhatsapp) return json(res, 400, { error: 'Informe um WhatsApp válido.' });
+
+  const affiliates = await supabaseFetch(
+    `/rest/v1/affiliates?whatsapp=eq.${encodeURIComponent(cleanWhatsapp)}&select=id,name,whatsapp,auth_user_id,active&limit=1`
+  );
+
+  // Resposta genérica para não revelar se o número está cadastrado.
+  if (affiliates?.[0]?.active) {
+    const affiliate = affiliates[0];
+    const token = crypto.randomBytes(32).toString('base64url');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+
+    await supabaseFetch(`/rest/v1/affiliate_password_reset_tokens?affiliate_id=eq.${Number(affiliate.id)}&used_at=is.null`, {
+      method: 'DELETE',
+    });
+
+    await supabaseFetch('/rest/v1/affiliate_password_reset_tokens', {
+      method: 'POST',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        affiliate_id: affiliate.id,
+        token_hash: tokenHash,
+        expires_at: expiresAt,
+      }),
+    });
+
+    const result = await sendPasswordResetWhatsApp({
+      whatsapp: affiliate.whatsapp,
+      name: affiliate.name,
+      token,
+    });
+
+    if (result?.skipped) {
+      const error = new Error('WhatsApp não está configurado para envio de mensagens.');
+      error.statusCode = 503;
+      throw error;
+    }
+  }
+
+  return json(res, 200, { ok: true, message: 'Se o WhatsApp estiver cadastrado, você receberá o link para redefinir sua senha.' });
+}
+
+async function resetPassword(req, res) {
+  const token = String(req.body?.token || '').trim();
+  const password = String(req.body?.password || '');
+  if (!token) return json(res, 400, { error: 'Link de redefinição inválido ou expirado.' });
+  if (password.length < 8) return json(res, 400, { error: 'A nova senha precisa ter pelo menos 8 caracteres.' });
+
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const tokenRows = await supabaseFetch(
+    `/rest/v1/affiliate_password_reset_tokens?token_hash=eq.${encodeURIComponent(tokenHash)}&used_at=is.null&expires_at=gt.${encodeURIComponent(new Date().toISOString())}&select=id,affiliate_id,expires_at&limit=1`
+  );
+  const reset = tokenRows?.[0];
+  if (!reset) return json(res, 400, { error: 'Link de redefinição inválido ou expirado. Solicite um novo link.' });
+
+  const affiliates = await supabaseFetch(`/rest/v1/affiliates?id=eq.${Number(reset.affiliate_id)}&select=id,auth_user_id,active&limit=1`);
+  const affiliate = affiliates?.[0];
+  if (!affiliate?.active || !affiliate.auth_user_id) {
+    return json(res, 400, { error: 'Não foi possível redefinir esta conta.' });
+  }
+
+  await supabaseFetch(`/auth/v1/admin/users/${encodeURIComponent(affiliate.auth_user_id)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ password }),
+  });
+
+  await supabaseFetch(`/rest/v1/affiliate_password_reset_tokens?affiliate_id=eq.${Number(reset.affiliate_id)}&used_at=is.null`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({ used_at: new Date().toISOString() }),
+  });
+
+  return json(res, 200, { ok: true });
 }
 
 async function register(req, res) {
@@ -135,6 +217,8 @@ module.exports = async function handler(req, res) {
       return json(res, 200, { ok: true });
     }
     if (action === 'register') return await register(req, res);
+    if (action === 'forgot') return await forgotPassword(req, res);
+    if (action === 'reset') return await resetPassword(req, res);
     return await login(req, res);
   } catch (error) {
     return json(res, error.statusCode === 400 ? 401 : (error.statusCode || 500), {

@@ -1,5 +1,6 @@
 const { requireAffiliate, supabaseFetch, json } = require('../_lib/supabase');
-const { commissionForOrders, reconcileAffiliateOrderCommissions, DEFAULT_COMMISSION_CONFIG, normalizeConfig, isPaidOrder, monthKey } = require('../_lib/affiliateCommission');
+const { commissionForOrders, reconcileAffiliateOrderCommissions, DEFAULT_COMMISSION_CONFIG, normalizeConfig, isPaidOrder } = require('../_lib/affiliateCommission');
+const { sendAdminWithdrawalWhatsApp } = require('../_lib/whatsapp');
 
 module.exports = async function handler(req, res) {
   try {
@@ -48,23 +49,10 @@ module.exports = async function handler(req, res) {
     let earned = 0;
 
     if (source === 'personal') {
-      const [orders, children] = await Promise.all([
-        supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=id,status,total,commission,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot,created_at`),
-        supabaseFetch(`/rest/v1/affiliates?team_parent_id=eq.${affiliate.id}&select=id&limit=1000`),
-      ]);
-      const ids = (children || []).map(row => Number(row.id)).filter(Boolean);
-      const childOrders = ids.length
-        ? await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=in.(${ids.join(',')})&select=affiliate_id,status,created_at&limit=20000`)
-        : [];
-      const teamSalesByMonth = {};
-      for (const order of childOrders || []) {
-        if (!isPaidOrder(order)) continue;
-        const key = monthKey(order.created_at);
-        if (key) teamSalesByMonth[key] = Number(teamSalesByMonth[key] || 0) + 1;
-      }
-      await reconcileAffiliateOrderCommissions(supabaseFetch, affiliate.id, settings, { teamJoinedAt: affiliate.team_joined_at, teamSalesByMonth, orders }).catch(() => null);
-      const refreshedOrders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=id,status,total,commission,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot,created_at`);
-      earned = commissionForOrders(refreshedOrders || orders || [], settings, { teamJoinedAt: affiliate.team_joined_at, teamSalesByMonth }).total;
+      const orders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=status,total,commission,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot,created_at`);
+      await reconcileAffiliateOrderCommissions(supabaseFetch, affiliate.id, settings, { teamJoinedAt: affiliate.team_joined_at }).catch(() => null);
+      const refreshedOrders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=status,total,commission,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot,created_at`);
+      earned = commissionForOrders(refreshedOrders || orders || [], settings, { teamJoinedAt: affiliate.team_joined_at }).total;
     } else {
       const children = await supabaseFetch(`/rest/v1/affiliates?team_parent_id=eq.${affiliate.id}&select=id&limit=1000`);
       const ids = (children || []).map(row => Number(row.id)).filter(Boolean);
@@ -94,7 +82,17 @@ module.exports = async function handler(req, res) {
         status: 'pending',
       }),
     });
-    return json(res, 201, { withdrawal: rows?.[0], available: Math.max(0, available - amount) });
+    const withdrawal = rows?.[0] || null;
+    if (withdrawal) {
+      await sendAdminWithdrawalWhatsApp({
+        name: affiliate.name,
+        email: affiliate.email,
+        amount,
+        pixKey,
+        source,
+      }).catch(() => null);
+    }
+    return json(res, 201, { withdrawal, available: Math.max(0, available - amount) });
   } catch (e) {
     return json(res, e.statusCode || 500, { error: e.message });
   }

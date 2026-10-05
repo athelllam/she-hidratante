@@ -7,6 +7,7 @@ import AdminDashboard from './pages/AdminDashboard'
 import TrabalheConosco from './pages/TrabalheConosco'
 import Representantes from './pages/Representantes'
 import TermosAfiliadas from './pages/TermosAfiliadas'
+import AffiliatePasswordReset from './pages/AffiliatePasswordReset'
 
 const Home = lazy(() => import('./pages/Home'))
 const Hidratante = lazy(() => import('./pages/Hidratante'))
@@ -73,6 +74,8 @@ export default function App() {
           <Route path="/stick" element={<Stick />} />
           <Route path="/gummies" element={<Gummies />} />
           <Route path="/ovinhos" element={<Ovinhos />} />
+          <Route path="/afiliado/redefinir-senha" element={<AffiliatePasswordReset />} />
+          <Route path="/afiliado/redefinir-senha/:token" element={<AffiliatePasswordReset />} />
           <Route path="/afiliado" element={<AffiliateDashboard />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/trabalhe-conosco" element={<TrabalheConosco />} />

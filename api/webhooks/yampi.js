@@ -153,6 +153,11 @@ module.exports = async function handler(req, res) {
     const total = getTotal(payload);
     const commission = total * Number(affiliates[0].commission_rate || 0);
 
+    const existingRows = await supabaseFetch(
+      `/rest/v1/affiliate_orders?yampi_order_id=eq.${encodeURIComponent(yampiOrderId)}&select=id,status&limit=1`
+    );
+    const previousStatus = existingRows?.[0]?.status || null;
+
     await supabaseFetch(`/rest/v1/affiliate_orders?on_conflict=yampi_order_id`, {
       method: 'POST',
       headers: {

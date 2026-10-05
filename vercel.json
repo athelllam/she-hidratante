@@ -17,6 +17,14 @@
       "destination": "/api/affiliate/auth?action=logout"
     },
     {
+      "source": "/api/affiliate/forgot-password",
+      "destination": "/api/affiliate/auth?action=forgot"
+    },
+    {
+      "source": "/api/affiliate/reset-password",
+      "destination": "/api/affiliate/auth?action=reset"
+    },
+    {
       "source": "/((?!api(?:/|$)).*)",
       "destination": "/index.html"
     }

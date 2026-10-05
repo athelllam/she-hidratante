@@ -41,3 +41,8 @@ O bônus de ticket permanece em R$ 5,00/pedido e o sistema passa a usar a meta c
 ## Exclusão múltipla
 
 As afiliadas agora são selecionadas por um botão liga/desliga, sempre desmarcado ao entrar/atualizar o painel. A exclusão é feita por um único botão e exige duas confirmações: confirmação inicial do navegador e digitação de `EXCLUIR` na confirmação final.
+
+
+## WhatsApp
+
+Além da recuperação de senha, o sistema envia alertas de saque, vídeo, nova afiliada por impulso e saque aprovado. O número administrativo configurado atualmente em `.env.example` é +55 31 99651-4332; o número +55 31 3278-4332 é o remetente da She na Meta.
