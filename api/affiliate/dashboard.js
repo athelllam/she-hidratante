@@ -355,12 +355,27 @@ module.exports = async function handler(req, res) {
       ? new Date(teamBonusStart.getTime() + 30 * 24 * 60 * 60 * 1000)
       : null;
     const teamBonusActive = Boolean(teamBonusStart && teamBonusEnd && now >= teamBonusStart && now < teamBonusEnd);
-    const effectiveMonthlySales = teamBonusActive ? levelSales + 10 : levelSales;
-    const monthlyLevel = getLevel(effectiveMonthlySales, settings, 'monthly');
+
+    // O Bônus Fixo é o mestre do nível base. O bônus de equipe pode garantir
+    // no mínimo Bronze durante os 30 dias, mas nunca supera um nível fixo maior.
     const fixedLevel = getLevel(lifetimeSales, settings, 'fixed');
-    const level = LEVEL_ORDER[monthlyLevel.key] >= LEVEL_ORDER[fixedLevel.key]
-      ? monthlyLevel
-      : getLevel(settings.monthlyLevels[fixedLevel.key], settings, 'monthly');
+    const teamBonusLevel = teamBonusActive ? getLevel(settings.monthlyLevels.bronze, settings, 'monthly') : null;
+    const baseLevelKey = teamBonusLevel && LEVEL_ORDER[teamBonusLevel.key] > LEVEL_ORDER[fixedLevel.key]
+      ? teamBonusLevel.key
+      : fixedLevel.key;
+    const baseLevelPoints = baseLevelKey === 'gold'
+      ? Number(settings.monthlyLevels.gold || 0)
+      : baseLevelKey === 'silver'
+        ? Number(settings.monthlyLevels.silver || 0)
+        : baseLevelKey === 'bronze'
+          ? Number(settings.monthlyLevels.bronze || 0)
+          : 0;
+
+    // O card de níveis usa o piso do nível base + vendas reais do mês (afiliada + equipe).
+    // As vendas do card "Vendas" continuam sendo somente as vendas próprias.
+    const effectiveMonthlyPoints = baseLevelPoints + levelSales;
+    const monthlyLevel = getLevel(effectiveMonthlyPoints, settings, 'monthly');
+    const level = monthlyLevel;
     const teamSalesByAffiliate = new Map();
     for (const order of teamOrders || []) {
       if (!isPaidOrder(order)) continue;
