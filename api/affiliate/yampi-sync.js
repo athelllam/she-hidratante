@@ -1,4 +1,4 @@
-const { requireAffiliate, json } = require('../_lib/supabase');
+const { requireAffiliate, json, supabaseFetch } = require('../_lib/supabase');
 const { syncAffiliateOrders, getConfig } = require('../_lib/yampi');
 const { CART_TOKENS, loadPrices } = require('../_lib/cartPrices');
 
@@ -57,7 +57,17 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    const result = await syncAffiliateOrders(affiliate.id, affiliate.commission_rate);
+    const settingRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales&limit=1');
+    const setting = settingRows?.[0] || {};
+    const commissionConfig = {
+      ticketThreshold: setting.ticket_threshold,
+      ticketBonus: setting.ticket_bonus,
+      teamCommissionPerSale: setting.team_commission_per_sale,
+      commissions: { none: setting.commission_none, bronze: setting.commission_bronze, silver: setting.commission_silver, gold: setting.commission_gold },
+      monthlyLevels: { bronze: setting.monthly_bronze_sales, silver: setting.monthly_silver_sales, gold: setting.monthly_gold_sales },
+      fixedLevels: { bronze: setting.fixed_bronze_sales, silver: setting.fixed_silver_sales, gold: setting.fixed_gold_sales },
+    };
+    const result = await syncAffiliateOrders(affiliate.id, affiliate.commission_rate, commissionConfig, affiliate.team_joined_at);
     return json(res, 200, { ok: true, ...result });
   } catch (error) {
     return json(res, error.statusCode || 500, {

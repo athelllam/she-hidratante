@@ -270,7 +270,7 @@ module.exports = async function handler(req, res) {
 
     const [events, orders, withdrawals, settingRows, boostRows] = await Promise.all([
       supabaseFetch(`/rest/v1/affiliate_events?affiliate_id=eq.${id}&select=type,created_at&order=created_at.desc&limit=10000`),
-      supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${id}&select=yampi_order_id,status,total,commission,created_at,updated_at&order=created_at.desc&limit=5000`),
+      supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${id}&select=yampi_order_id,status,total,commission,commission_locked,team_commission,created_at,updated_at&order=created_at.desc&limit=5000`),
       supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${id}&status=in.(pending,approved,paid)&select=id,amount,status,pix_key,source,requested_at,processed_at,note&order=requested_at.desc&limit=500`),
       supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales&limit=1'),
       supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${id}&status=neq.cancelled&select=id,price,connections_total,connections_remaining,status,queue_created_at,activated_at&order=id.desc&limit=20`).catch(() => []),
@@ -288,7 +288,11 @@ module.exports = async function handler(req, res) {
     const accessEvents = (events || []).filter((e) => e.type === 'access');
     const joinedMonth = affiliate.team_joined_at ? String(affiliate.team_joined_at).slice(0, 7) : null;
     const currentJoinMonthFloor = joinedMonth ? { [joinedMonth]: 10 } : {};
-    const { orders: annotatedPaidOrders, total: totalEarnedCommission, salesByMonth, monthlyStats } = commissionForOrders(orders || [], settings, { teamJoinedAt: affiliate.team_joined_at });
+    const calculated = commissionForOrders(orders || [], settings, { teamJoinedAt: affiliate.team_joined_at });
+    const annotatedPaidOrders = calculated.orders.map(order => ({ ...order, commission: order.commission_locked ? Number(order.commission || 0) : Number(order.commission || 0) }));
+    const totalEarnedCommission = annotatedPaidOrders.reduce((sum, order) => sum + Number(order.commission || 0), 0);
+    const salesByMonth = calculated.salesByMonth;
+    const monthlyStats = calculated.monthlyStats;
     const lifetimeSales = annotatedPaidOrders.length;
 
     const selectedOrders = annotatedPaidOrders;
@@ -320,12 +324,12 @@ module.exports = async function handler(req, res) {
     const openingBalance = 0;
     const closingBalance = availableCommission;
 
-    const teamMembers = await supabaseFetch(`/rest/v1/affiliates?team_parent_id=eq.${id}&select=id,name,slug,whatsapp,created_at&order=created_at.asc&limit=1000`);
+    const teamMembers = await supabaseFetch(`/rest/v1/affiliates?team_parent_id=eq.${id}&select=id,name,slug,whatsapp,team_join_source,created_at&order=created_at.asc&limit=1000`);
     const teamParentRows = affiliate.team_parent_id ? await supabaseFetch(`/rest/v1/affiliates?id=eq.${Number(affiliate.team_parent_id)}&select=id,name,slug,whatsapp&limit=1`) : [];
     const teamParent = teamParentRows?.[0] || null;
     const teamIds = (teamMembers || []).map(member => Number(member.id)).filter(Boolean);
     const teamOrders = teamIds.length
-      ? await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=in.(${teamIds.join(',')})&select=affiliate_id,status,created_at&order=created_at.asc&limit=20000`)
+      ? await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=in.(${teamIds.join(',')})&select=affiliate_id,status,commission,team_commission,created_at&order=created_at.asc&limit=20000`)
       : [];
     const teamRate = Number(settings.teamCommissionPerSale || 10);
     const levelMonth = defaultMonth;
@@ -352,12 +356,14 @@ module.exports = async function handler(req, res) {
       ? monthlyLevel
       : getLevel(settings.monthlyLevels[fixedLevel.key], settings, 'monthly');
     const teamSalesByAffiliate = new Map();
+    const teamCommissionByAffiliate = new Map();
     for (const order of teamOrders || []) {
       if (!isPaidOrder(order)) continue;
       const childId = Number(order.affiliate_id);
       teamSalesByAffiliate.set(childId, (teamSalesByAffiliate.get(childId) || 0) + 1);
+      teamCommissionByAffiliate.set(childId, (teamCommissionByAffiliate.get(childId) || 0) + Number(order.team_commission || 0));
     }
-    const teamEarnedCommission = Array.from(teamSalesByAffiliate.values()).reduce((sum, sales) => sum + sales * teamRate, 0);
+    const teamEarnedCommission = Array.from(teamCommissionByAffiliate.values()).reduce((sum, value) => sum + value, 0);
     const teamReserved = teamWithdrawals.reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const teamAvailableCommission = Math.max(0, teamEarnedCommission - teamReserved);
     const team = {
@@ -374,7 +380,7 @@ module.exports = async function handler(req, res) {
       availableCommission: money(teamAvailableCommission),
       members: (teamMembers || []).map(member => {
         const sales = teamSalesByAffiliate.get(Number(member.id)) || 0;
-        return { id: Number(member.id), name: member.name, slug: member.slug, whatsapp: member.whatsapp || '', sales, commission: money(sales * teamRate) };
+        return { id: Number(member.id), name: member.name, slug: member.slug, whatsapp: member.whatsapp || '', sales, commission: money(teamCommissionByAffiliate.get(Number(member.id)) || 0), teamJoinSource: member.team_join_source || 'organic' };
       }),
     };
 

@@ -48,6 +48,14 @@ alter table public.affiliates enable row level security;
 alter table public.affiliate_events enable row level security;
 alter table public.affiliate_orders enable row level security;
 
+-- Comissão histórica: cada pedido mantém o valor calculado no momento em que foi creditado.
+alter table public.affiliate_orders
+  add column if not exists commission_locked boolean not null default false;
+alter table public.affiliate_orders
+  add column if not exists team_commission numeric(12,2) not null default 0;
+create index if not exists affiliate_orders_commission_locked_idx on public.affiliate_orders(commission_locked);
+
+
 -- The application uses the server-side service role for these tables.
 -- No client-side INSERT/SELECT policies are intentionally created.
 
