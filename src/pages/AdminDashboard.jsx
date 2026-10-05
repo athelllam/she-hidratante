@@ -106,7 +106,6 @@ export default function AdminDashboard() {
   const [settings, setSettings] = useState({ ticketThreshold: 170, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 }, monthlyLevels: { bronze: 10, silver: 50, gold: 101 }, fixedLevels: { bronze: 100, silver: 300, gold: 500 } })
   const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', teamCommissionPerSale: '10', none: '30', bronze: '40', silver: '50', gold: '60', monthlyBronze: '10', monthlySilver: '50', monthlyGold: '101', fixedBronze: '100', fixedSilver: '300', fixedGold: '500', smallBoostPrice: '30', smallBoostConnections: '5', largeBoostPrice: '50', largeBoostConnections: '10', maxActiveBoosts: '3' })
   const [savingSettings, setSavingSettings] = useState(false)
-  const [savingBonusLevels, setSavingBonusLevels] = useState(false)
   const [globalStatsData, setGlobalStatsData] = useState({ all: { sales: 0, revenue: 0, averageTicket: 0, accesses: 0 }, byMonth: {}, snapshots: {} })
   const [availableMonths, setAvailableMonths] = useState([])
   const [selectedMonths, setSelectedMonths] = useState([])
@@ -317,51 +316,6 @@ export default function AdminDashboard() {
     }
   }
 
-  const saveBonusLevels = async () => {
-    const monthlyLevels = {
-      bronze: Number.parseInt(String(settingsForm.monthlyBronze).trim(), 10),
-      silver: Number.parseInt(String(settingsForm.monthlySilver).trim(), 10),
-      gold: Number.parseInt(String(settingsForm.monthlyGold).trim(), 10),
-    }
-    const fixedLevels = {
-      bronze: Number.parseInt(String(settingsForm.fixedBronze).trim(), 10),
-      silver: Number.parseInt(String(settingsForm.fixedSilver).trim(), 10),
-      gold: Number.parseInt(String(settingsForm.fixedGold).trim(), 10),
-    }
-    const allValid = [...Object.values(monthlyLevels), ...Object.values(fixedLevels)].every(value => Number.isInteger(value) && value > 0)
-    const monthlyOrdered = monthlyLevels.bronze < monthlyLevels.silver && monthlyLevels.silver < monthlyLevels.gold
-    const fixedOrdered = fixedLevels.bronze < fixedLevels.silver && fixedLevels.silver < fixedLevels.gold
-    if (!allValid || !monthlyOrdered || !fixedOrdered) {
-      setMessage('As metas devem ser números inteiros positivos e crescentes: Bronze < Prata < Ouro.')
-      return
-    }
-    setSavingBonusLevels(true)
-    setMessage('')
-    try {
-      const result = await api('/api/admin/affiliates', {
-        method: 'PATCH',
-        body: JSON.stringify({ action: 'update_bonus_levels', monthlyLevels, fixedLevels }),
-      })
-      const next = result.settings || {}
-      setSettings(current => ({ ...current, monthlyLevels: next.monthlyLevels || monthlyLevels, fixedLevels: next.fixedLevels || fixedLevels }))
-      setSettingsForm(current => ({
-        ...current,
-        monthlyBronze: String(next.monthlyLevels?.bronze ?? monthlyLevels.bronze),
-        monthlySilver: String(next.monthlyLevels?.silver ?? monthlyLevels.silver),
-        monthlyGold: String(next.monthlyLevels?.gold ?? monthlyLevels.gold),
-        fixedBronze: String(next.fixedLevels?.bronze ?? fixedLevels.bronze),
-        fixedSilver: String(next.fixedLevels?.silver ?? fixedLevels.silver),
-        fixedGold: String(next.fixedLevels?.gold ?? fixedLevels.gold),
-      }))
-      setMessage('Metas do Bônus Mensal e Bônus Fixo atualizadas.')
-      await loadPanel()
-    } catch (e) {
-      setMessage(e.message || 'Não foi possível atualizar as metas dos bônus.')
-    } finally {
-      setSavingBonusLevels(false)
-    }
-  }
-
   const saveSettings = async (event) => {
     event.preventDefault()
     setSavingSettings(true)
@@ -395,6 +349,13 @@ export default function AdminDashboard() {
       if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || !Number.isFinite(payload.teamCommissionPerSale) || payload.teamCommissionPerSale < 0 || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0) || Object.values(payload.monthlyLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.fixedLevels).some(value => !Number.isInteger(value) || value <= 0) || payload.boostPlans.small.price <= 0 || !Number.isInteger(payload.boostPlans.small.connections) || payload.boostPlans.small.connections <= 0 || payload.boostPlans.large.price <= 0 || !Number.isInteger(payload.boostPlans.large.connections) || payload.boostPlans.large.connections <= 0 || !Number.isInteger(payload.boostPlans.maxActive) || payload.boostPlans.maxActive <= 0 || !(payload.monthlyLevels.bronze < payload.monthlyLevels.silver && payload.monthlyLevels.silver < payload.monthlyLevels.gold) || !(payload.fixedLevels.bronze < payload.fixedLevels.silver && payload.fixedLevels.silver < payload.fixedLevels.gold)) {
         throw new Error('Informe valores válidos. As metas devem ser números inteiros e crescentes: Bronze < Prata < Ouro.')
       }
+      // Salva primeiro as metas Mensal/Fixo em uma operação isolada.
+      // Assim elas continuam funcionando mesmo que outra configuração do painel tenha algum problema.
+      const bonusResult = await api('/api/admin/affiliates', {
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'update_bonus_levels', monthlyLevels: payload.monthlyLevels, fixedLevels: payload.fixedLevels }),
+      })
+
       const result = await api('/api/admin/affiliates', {
         method: 'PATCH',
         body: JSON.stringify({ settings: payload }),
@@ -920,11 +881,6 @@ export default function AdminDashboard() {
               <div className="mt-3 grid grid-cols-3 gap-2">
                 {[['fixedBronze','Bronze'],['fixedSilver','Prata'],['fixedGold','Ouro']].map(([key,label]) => <label key={key}><span className="text-[10px] font-black uppercase text-zinc-500">{label}</span><input value={settingsForm[key]} onChange={e => setSettingsForm(v => ({...v,[key]:e.target.value}))} inputMode="numeric" className="mt-1 w-full rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-lg font-black outline-none focus:border-amber-400" /></label>)}
               </div>
-            </div>
-
-            <div className="md:col-span-2 xl:col-span-6 flex flex-col gap-3 rounded-2xl border border-zinc-100 bg-zinc-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-zinc-500">As metas dos Bônus Mensal e Bônus Fixo são salvas separadamente das demais configurações.</p>
-              <button type="button" onClick={saveBonusLevels} disabled={savingBonusLevels} className="rounded-xl bg-zinc-950 px-5 py-3 text-sm font-black text-white transition hover:bg-pink-500 disabled:opacity-50">{savingBonusLevels ? 'Atualizando…' : 'Atualizar bônus'} </button>
             </div>
 
             <div className="md:col-span-2 xl:col-span-6 flex flex-col gap-3 border-t border-zinc-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
