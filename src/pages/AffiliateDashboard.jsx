@@ -584,8 +584,11 @@ export default function AffiliateDashboard() {
           </div>
 
           <div className="relative mx-auto mt-8 h-[92px] w-[82%] max-w-[520px] px-0">
-            <div className="absolute left-0 right-0 top-4 h-4 rounded-full bg-black/10">
-              <div className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-orange-400 via-zinc-400 to-amber-400 transition-all duration-700" style={{ width: `${Math.max(monthlyLevel.progress, level.progress)}%` }} />
+            <div className="absolute left-0 right-0 top-4 h-4 overflow-hidden rounded-full bg-zinc-200/80">
+              <div className="absolute inset-y-0 left-0 bg-zinc-400 transition-all duration-700" style={{ width: `${Math.min(100, Math.max(0, Math.min(Math.max(monthlyLevel.progress, level.progress), 10)))}%` }} />
+              <div className="absolute inset-y-0 left-[10%] bg-orange-400 transition-all duration-700" style={{ width: `${Math.max(0, Math.min(40, Math.max(monthlyLevel.progress, level.progress) - 10))}%` }} />
+              <div className="absolute inset-y-0 left-[50%] bg-zinc-500 transition-all duration-700" style={{ width: `${Math.max(0, Math.min(40, Math.max(monthlyLevel.progress, level.progress) - 50))}%` }} />
+              <div className="absolute inset-y-0 left-[90%] bg-amber-400 transition-all duration-700" style={{ width: `${Math.max(0, Math.min(10, Math.max(monthlyLevel.progress, level.progress) - 90))}%` }} />
             </div>
 
 

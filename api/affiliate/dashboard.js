@@ -356,71 +356,60 @@ module.exports = async function handler(req, res) {
       : null;
     const teamBonusActive = Boolean(teamBonusStart && teamBonusEnd && now >= teamBonusStart && now < teamBonusEnd);
 
-    // O Bônus Fixo é o mestre do nível base. O bônus de equipe pode garantir
-    // no mínimo Bronze durante os 30 dias, mas nunca supera um nível fixo maior.
+    // O Bônus Fixo é o mestre do piso mensal. O bônus de equipe garante
+    // no mínimo Bronze durante os 30 dias. A pontuação mensal começa no
+    // limiar do maior piso vigente e soma as vendas reais do mês (próprias + equipe).
     const fixedLevel = getLevel(lifetimeSales, settings, 'fixed');
+    const teamBonusLevel = teamBonusActive
+      ? getLevel(settings.monthlyLevels.bronze, settings, 'monthly')
+      : null;
 
-    // O Bônus Mensal pode, por si só, definir um nível base quando o desempenho
-    // do mês já alcançou o respectivo nível. O bônus de equipe de 30 dias adiciona
-    // o piso Bronze aos pontos mensais para essa avaliação.
-    // O desempenho mensal é calculado apenas pelas vendas reais do mês
-    // (afiliada + equipe). O bônus de equipe de 30 dias funciona como um
-    // piso Bronze independente, e não soma pontos duas vezes.
-    const monthlyPerformancePoints = levelSales;
-    const monthlyPerformanceLevel = getLevel(monthlyPerformancePoints, settings, 'monthly');
-    const teamBonusLevel = teamBonusActive ? getLevel(settings.monthlyLevels.bronze, settings, 'monthly') : null;
-
-    // Os pontos exibidos no card são SOMENTE as vendas reais do mês:
-    // vendas pessoais + vendas da equipe. O nível base (Fixo/Equipe) serve
-    // apenas para definir o piso do nível, nunca para somar pontos exibidos.
-    const monthlyPoints = levelSales;
-
-    // O nível exibido é o maior entre Bônus Fixo, desempenho mensal e
-    // Bônus de Equipe. O contador de pontos continua sendo mensal puro.
-    const baseCandidatesFinal = [fixedLevel.key, monthlyPerformanceLevel.key, teamBonusLevel?.key || 'none'];
-    const currentLevelKey = baseCandidatesFinal.reduce((best, candidate) =>
+    const baseCandidates = [fixedLevel.key, teamBonusLevel?.key || 'none'];
+    const baseLevelKey = baseCandidates.reduce((best, candidate) =>
       LEVEL_ORDER[candidate] > LEVEL_ORDER[best] ? candidate : best, 'none');
-
-    const currentLevelThreshold = currentLevelKey === 'gold'
+    const basePoints = baseLevelKey === 'gold'
       ? Number(settings.monthlyLevels?.gold || 101)
-      : currentLevelKey === 'silver'
+      : baseLevelKey === 'silver'
         ? Number(settings.monthlyLevels?.silver || 50)
-        : currentLevelKey === 'bronze'
+        : baseLevelKey === 'bronze'
           ? Number(settings.monthlyLevels?.bronze || 10)
           : 0;
-    const currentLevel = getLevel(currentLevelThreshold, settings, 'monthly');
 
-    // A mensagem inferior usa os pontos mensais reais para mostrar quanto falta
-    // para o próximo nível. O nível pode estar garantido pelo Bônus Fixo, mas
-    // os pontos exibidos continuam sendo apenas vendas pessoais + equipe.
+    const monthlyPoints = basePoints + levelSales;
+    const monthlyPerformanceLevel = getLevel(monthlyPoints, settings, 'monthly');
+    const currentLevelKey = monthlyPerformanceLevel.key;
+    const currentLevel = getLevel(monthlyPoints, settings, 'monthly');
+
     const nextLevelMap = { bronze: 'Prata', silver: 'Ouro', gold: null, none: 'Bronze' };
     const nextKeyMap = { bronze: 'silver', silver: 'gold', gold: null, none: 'bronze' };
     const nextKey = nextKeyMap[currentLevelKey];
     const nextMin = nextKey
       ? Number(settings.monthlyLevels?.[nextKey] || (nextKey === 'gold' ? 101 : nextKey === 'silver' ? 50 : 10))
       : null;
-    // A barra representa o nível atual como um piso visual. Quando o nível
-    // é garantido pelo Bônus Fixo ou pelo Bônus de Equipe, a barra nunca pode
-    // ficar visualmente abaixo desse marcador. Depois do marcador atual, o
-    // preenchimento avança proporcionalmente até o próximo nível usando
-    // somente as vendas reais do mês (pessoais + equipe).
-    const levelMarker = { none: 0, bronze: 10, silver: 50, gold: 100 };
-    const currentMarker = levelMarker[currentLevelKey] ?? 0;
-    const nextMarker = currentLevelKey === 'none' ? levelMarker.bronze : currentLevelKey === 'bronze' ? levelMarker.silver : currentLevelKey === 'silver' ? 90 : 100;
-    const currentThresholdForBar = currentLevelKey === 'gold' ? Number(settings.monthlyLevels.gold) : currentLevelKey === 'silver' ? Number(settings.monthlyLevels.silver) : currentLevelKey === 'bronze' ? Number(settings.monthlyLevels.bronze) : 0;
-    const nextThresholdForBar = nextMin === null ? currentThresholdForBar : nextMin;
-    const barFraction = currentLevelKey === 'gold' || nextMin === null
+
+    // A barra usa as metas configuradas no painel, sem valores fixos 10/50/100.
+    // O piso vigente já posiciona a barra no nível correspondente; as vendas
+    // reais do mês fazem o preenchimento avançar até a próxima meta.
+    const bronzeMin = Number(settings.monthlyLevels?.bronze || 10);
+    const silverMin = Number(settings.monthlyLevels?.silver || 50);
+    const goldMin = Number(settings.monthlyLevels?.gold || 101);
+    const markerPct = { none: 0, bronze: 10, silver: 50, gold: 90 };
+    const currentThreshold = currentLevelKey === 'gold' ? goldMin : currentLevelKey === 'silver' ? silverMin : currentLevelKey === 'bronze' ? bronzeMin : 0;
+    const previousThreshold = currentLevelKey === 'gold' ? silverMin : currentLevelKey === 'silver' ? bronzeMin : 0;
+    const targetPct = currentLevelKey === 'gold' ? 100 : currentLevelKey === 'silver' ? 90 : currentLevelKey === 'bronze' ? 50 : 10;
+    const startPct = markerPct[currentLevelKey] ?? 0;
+    const barFraction = currentLevelKey === 'gold'
       ? 1
-      : monthlyPoints <= currentThresholdForBar
-        ? 0
-        : Math.min(1, (monthlyPoints - currentThresholdForBar) / Math.max(1, nextThresholdForBar - currentThresholdForBar));
-    const levelProgress = currentMarker + ((nextMarker - currentMarker) * barFraction);
+      : Math.min(1, Math.max(0, (monthlyPoints - currentThreshold) / Math.max(1, nextMin - currentThreshold)));
+    const levelProgress = startPct + ((targetPct - startPct) * barFraction);
 
     const monthlyLevel = {
       ...currentLevel,
       key: currentLevelKey,
       label: currentLevelKey === 'gold' ? 'Ouro' : currentLevelKey === 'silver' ? 'Prata' : currentLevelKey === 'bronze' ? 'Bronze' : 'Início',
-      sales: monthlyPoints,
+      // O contador exibido no card mostra apenas as vendas reais do mês.
+      // A base do Bônus Fixo/Equipe é usada internamente para definir o piso e a posição na barra.
+      sales: levelSales,
       nextLevel: nextLevelMap[currentLevelKey],
       nextMinSales: nextMin,
       salesToNext: nextMin === null ? 0 : Math.max(0, nextMin - monthlyPoints),
