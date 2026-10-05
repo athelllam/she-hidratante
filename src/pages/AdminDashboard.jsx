@@ -419,7 +419,7 @@ export default function AdminDashboard() {
         largeBoostConnections: String(result.settings.boostPlans?.large?.connections ?? 10),
         maxActiveBoosts: String(result.settings.boostPlans?.maxActive ?? 3),
       })
-      setMessage('Configurações de comissões e metas dos Bônus Mensal e Fixo atualizadas para todas as afiliadas.')
+      setMessage('Configurações atualizadas e comissões do mês atual recalculadas conforme o novo nível.')
       await loadPanel()
     } catch (e) {
       setMessage(e.message || 'Não foi possível atualizar as configurações.')

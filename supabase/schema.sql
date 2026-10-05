@@ -45,10 +45,10 @@ create index if not exists affiliate_orders_affiliate_idx on public.affiliate_or
 create index if not exists affiliate_orders_status_idx on public.affiliate_orders(status);
 
 -- Snapshot da comissão aplicada à venda.
--- A configuração do painel pode mudar sem alterar retroativamente uma venda
--- que permaneceu no mesmo nível. Quando a venda muda de nível por progressão
--- ou por nova meta configurada, o valor é recalculado com a comissão vigente
--- daquele novo nível.
+-- As vendas do mês atual usam a configuração vigente e podem ser recalculadas
+-- retroativamente dentro do próprio mês quando o nível da afiliada muda.
+-- Quando o mês termina, o campo commission fica congelado e meses anteriores
+-- não são recalculados por alterações posteriores no painel.
 alter table public.affiliate_orders
   add column if not exists commission_level_snapshot text,
   add column if not exists commission_base_snapshot numeric(12,2),

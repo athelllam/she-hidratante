@@ -1,5 +1,5 @@
 const { requireAdmin, supabaseFetch } = require('../_lib/admin');
-const { commissionForOrders, isPaidOrder, DEFAULT_COMMISSION_CONFIG, normalizeConfig } = require('../_lib/affiliateCommission');
+const { commissionForOrders, isPaidOrder, DEFAULT_COMMISSION_CONFIG, normalizeConfig, reconcileAllCurrentMonthCommissions, monthKey } = require('../_lib/affiliateCommission');
 
 function json(res, status, body) { res.status(status).json(body); }
 function money(value) { return Math.round((Number(value) || 0) * 100) / 100; }
@@ -100,6 +100,18 @@ module.exports = async function handler(req, res) {
         accessesByAffiliate.set(id, (accessesByAffiliate.get(id) || 0) + 1);
       }
 
+      const parentByAffiliate = new Map((affiliates || []).map(row => [Number(row.id), row.team_parent_id ? Number(row.team_parent_id) : null]));
+      const teamSalesByParentMonth = new Map();
+      for (const order of orders || []) {
+        if (!isPaidOrder(order)) continue;
+        const parentId = parentByAffiliate.get(Number(order.affiliate_id));
+        const key = monthKey(order.created_at);
+        if (!parentId || !key) continue;
+        if (!teamSalesByParentMonth.has(parentId)) teamSalesByParentMonth.set(parentId, {});
+        const bucket = teamSalesByParentMonth.get(parentId);
+        bucket[key] = Number(bucket[key] || 0) + 1;
+      }
+
       const stats = new Map();
       for (const affiliate of affiliates || []) {
         const affiliateOrders = ordersByAffiliate.get(Number(affiliate.id)) || [];
@@ -108,7 +120,7 @@ module.exports = async function handler(req, res) {
           const value = order.created_at ? new Date(order.created_at).getTime() : 0;
           return value > latest ? value : latest;
         }, 0);
-        const commissionData = commissionForOrders(affiliateOrders, settings);
+        const commissionData = commissionForOrders(affiliateOrders, settings, { teamSalesByMonth: teamSalesByParentMonth.get(Number(affiliate.id)) || {} });
         const revenue = paidOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
         stats.set(Number(affiliate.id), {
           sales: paidOrders.length,
@@ -265,7 +277,7 @@ module.exports = async function handler(req, res) {
           else if (activeAt === false) inactiveCount += 1;
 
           const affiliateOrdersUntilEnd = monthOrders.filter(order => Number(order.affiliate_id) === Number(affiliate.id));
-          const commissionUntilEnd = commissionForOrders(affiliateOrdersUntilEnd, settings).total;
+          const commissionUntilEnd = commissionForOrders(affiliateOrdersUntilEnd, settings, { teamSalesByMonth: teamSalesByParentMonth.get(Number(affiliate.id)) || {} }).total;
           const withdrawalsUntilEnd = (withdrawals || []).filter(w => String(w.source || 'personal') === 'personal' && Number(w.affiliate_id) === Number(affiliate.id) && new Date(w.requested_at).getTime() < endExclusive.getTime() && ['pending','approved','paid'].includes(String(w.status || '').toLowerCase()))
             .reduce((sum, w) => sum + Number(w.amount || 0), 0);
           balance += Math.max(0, commissionUntilEnd - withdrawalsUntilEnd);
@@ -470,12 +482,30 @@ module.exports = async function handler(req, res) {
         if (!validNumbers || !orderedMonthly || !orderedFixed) {
           return json(res, 400, { error: 'As metas devem ser números inteiros positivos e crescentes: Bronze < Prata < Ouro.' });
         }
+        const currentRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold&limit=1');
+        const currentRow = currentRows?.[0] || {};
         const rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1', {
           method: 'PATCH',
           headers: { Prefer: 'return=representation' },
           body: JSON.stringify(values),
         });
         const row = rows?.[0] || {};
+        const nextForReconcile = normalizeConfig({
+          ticketThreshold: currentRow.ticket_threshold ?? DEFAULT_COMMISSION_CONFIG.ticketThreshold,
+          ticketBonus: currentRow.ticket_bonus ?? DEFAULT_COMMISSION_CONFIG.ticketBonus,
+          teamCommissionPerSale: currentRow.team_commission_per_sale ?? DEFAULT_COMMISSION_CONFIG.teamCommissionPerSale,
+          commissions: {
+            none: currentRow.commission_none ?? DEFAULT_COMMISSION_CONFIG.commissions.none,
+            bronze: currentRow.commission_bronze ?? DEFAULT_COMMISSION_CONFIG.commissions.bronze,
+            silver: currentRow.commission_silver ?? DEFAULT_COMMISSION_CONFIG.commissions.silver,
+            gold: currentRow.commission_gold ?? DEFAULT_COMMISSION_CONFIG.commissions.gold,
+          },
+          monthlyLevels: { bronze: values.monthly_bronze_sales, silver: values.monthly_silver_sales, gold: values.monthly_gold_sales },
+          fixedLevels: { bronze: values.fixed_bronze_sales, silver: values.fixed_silver_sales, gold: values.fixed_gold_sales },
+        });
+        await reconcileAllCurrentMonthCommissions(supabaseFetch, nextForReconcile).catch(error => {
+          console.error('[She Commission] Falha ao recalcular mês atual após alterar metas:', error);
+        });
         return json(res, 200, {
           settings: {
             monthlyLevels: { bronze: Number(row.monthly_bronze_sales ?? values.monthly_bronze_sales), silver: Number(row.monthly_silver_sales ?? values.monthly_silver_sales), gold: Number(row.monthly_gold_sales ?? values.monthly_gold_sales) },
@@ -540,6 +570,9 @@ module.exports = async function handler(req, res) {
             team_boost_large_connections: Number(boost.large.connections),
             team_boost_max_active: Number(boost.maxActive),
           }),
+        });
+        await reconcileAllCurrentMonthCommissions(supabaseFetch, nextSettings).catch(error => {
+          console.error('[She Commission] Falha ao recalcular o mês atual após atualizar configurações:', error);
         });
         await supabaseFetch('/rest/v1/rpc/she_team_boost_activate_waiting', { method: 'POST', body: '{}' }).catch(() => null);
         return json(res, 200, { settings: nextSettings, row: rows?.[0] || null });
