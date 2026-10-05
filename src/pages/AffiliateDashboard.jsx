@@ -636,8 +636,8 @@ export default function AffiliateDashboard() {
           })}
         </section>
 
-        <section className="mt-6 grid min-w-0 grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(340px,1fr)]">
-          <div className="self-start w-full min-w-0 rounded-[1.5rem] bg-white p-5 border border-pink-100 shadow-sm">
+        <section className="mt-6 grid min-w-0 grid-cols-1 items-start gap-6 lg:grid-cols-2">
+          <div className="order-1 self-start w-full min-w-0 rounded-[1.5rem] bg-white p-5 border border-pink-100 shadow-sm lg:col-start-1 lg:row-start-1">
             <div className="flex items-end justify-between gap-4">
               <div>
                 <h2 className="font-black text-xl">Desempenho mensal</h2>
@@ -668,8 +668,7 @@ export default function AffiliateDashboard() {
             <p className="mt-1 text-center text-[10px] text-zinc-400 sm:hidden">Deslize para ver os meses anteriores</p>
           </div>
 
-          <div className="space-y-6">
-            <div className="rounded-[1.5rem] bg-white p-6 border border-pink-100 shadow-sm">
+          <div className="order-2 rounded-[1.5rem] bg-white p-6 border border-pink-100 shadow-sm lg:col-start-2 lg:row-start-1">
               <h2 className="font-black text-xl">Solicitar saque</h2>
               <p className="mt-2 text-sm text-zinc-500">Disponível para saque: <strong className="text-zinc-900">{brl(availableCommission)}</strong></p>
               <form onSubmit={requestWithdraw} className="mt-5">
@@ -686,9 +685,9 @@ export default function AffiliateDashboard() {
               </form>
               <p className="mt-3 text-xs leading-5 text-zinc-400">Saque mínimo de R$ 100,00. Os pedidos devem ser feitos em múltiplos de R$ 100,00.</p>
               {withdrawMessage && <p className="mt-3 rounded-xl bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-600">{withdrawMessage}</p>}
-            </div>
+          </div>
 
-            <div className="rounded-[1.5rem] bg-white p-6 border border-pink-100 shadow-sm">
+          <div className="order-3 rounded-[1.5rem] bg-white p-6 border border-pink-100 shadow-sm lg:col-start-1 lg:row-start-2">
               <h2 className="font-black text-xl">PIX de recebimento</h2>
               <p className="mt-2 text-sm text-zinc-500">Cadastre a chave PIX onde você quer receber seus saques.</p>
               {pixKey ? (
@@ -726,15 +725,14 @@ export default function AffiliateDashboard() {
                 </form>
               )}
               {pixMessage && <p className="mt-3 rounded-xl bg-zinc-50 px-3 py-2 text-xs font-semibold leading-5 text-zinc-600">{pixMessage}</p>}
-            </div>
+          </div>
 
-            <div className="rounded-[1.5rem] bg-white p-6 border border-pink-100 shadow-sm">
+          <div className="order-4 rounded-[1.5rem] bg-white p-6 border border-pink-100 shadow-sm lg:col-start-2 lg:row-start-2">
               <h2 className="font-black text-xl">Seu link</h2>
               <p className="mt-2 text-sm text-zinc-500">Compartilhe sua página exclusiva.</p>
               <div className="mt-5 rounded-xl bg-zinc-50 p-4 text-sm font-semibold break-all">{publicUrl}</div>
               <button onClick={() => navigator.clipboard?.writeText(publicUrl)} className="mt-3 w-full rounded-xl bg-pink-500 py-3 font-bold text-white">Copiar link</button>
               <img src={qrUrl} alt="QR Code da afiliada" className="mx-auto mt-5 h-44 w-44 rounded-xl border border-zinc-100 p-2" />
-            </div>
           </div>
         </section>
 

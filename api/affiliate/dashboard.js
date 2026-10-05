@@ -345,7 +345,7 @@ module.exports = async function handler(req, res) {
       ? new Date(teamBonusStart.getTime() + 30 * 24 * 60 * 60 * 1000)
       : null;
     const teamBonusActive = Boolean(teamBonusStart && teamBonusEnd && now >= teamBonusStart && now < teamBonusEnd);
-    const effectiveMonthlySales = teamBonusActive ? Math.max(levelSales, settings.monthlyLevels.bronze) : levelSales;
+    const effectiveMonthlySales = teamBonusActive ? levelSales + 10 : levelSales;
     const monthlyLevel = getLevel(effectiveMonthlySales, settings, 'monthly');
     const fixedLevel = getLevel(lifetimeSales, settings, 'fixed');
     const level = LEVEL_ORDER[monthlyLevel.key] >= LEVEL_ORDER[fixedLevel.key]
