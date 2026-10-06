@@ -242,7 +242,7 @@ function IngredientCards() {
 
 
 function StickBeforeAfterComparison({ before, after, label }) {
-  const [position, setPosition] = useState(50)
+  const [position, setPosition] = useState(75)
   const [dragging, setDragging] = useState(false)
   const comparisonInViewRef = useRef(null)
   const comparisonIntensity = useViewportCenterIntensity(comparisonInViewRef)
