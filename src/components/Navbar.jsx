@@ -56,7 +56,7 @@ export default function Navbar({ compact = false, onBuy, buttonLabel = 'Comprar'
       <div className="bg-white/50 backdrop-blur-md border border-white/40 rounded-[1.5rem] px-4 md:px-2.5 shadow-[0_10px_40px_rgba(0,0,0,0.06)]">
         <div className="flex items-center justify-between">
 
-          <Link to="/home">
+          <Link to="/">
             <motion.img
               whileHover={{ scale: 1.02 }}
               src={logo}
