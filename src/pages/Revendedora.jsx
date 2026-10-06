@@ -183,10 +183,17 @@ export default function Revendedora() {
                 <div className="relative flex min-h-[220px] flex-col justify-between">
                   <div>
                     <span className="inline-flex rounded-full bg-pink-50 px-3 py-1 text-[9px] font-black uppercase tracking-[.16em] text-pink-500">{index === 3 ? 'Mais completo' : 'Revenda'}</span>
-                    <div className={`mt-5 flex h-28 w-full items-center justify-center gap-2 overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-pink-50 to-rose-100 p-3 ${product.images.length === 1 ? '' : 'sm:gap-3'}`}>
+                    <div className="mt-5 flex h-36 w-full items-center justify-center gap-3 rounded-[1.75rem] bg-gradient-to-br from-pink-50 to-rose-100 p-3">
                       {product.images.map((image, imageIndex) => (
-                        <div key={`${product.key}-${imageIndex}`} className={`flex h-full flex-1 items-center justify-center ${product.images.length === 1 ? 'max-w-[170px]' : ''}`}>
-                          <img src={image} alt={`${product.name} ${imageIndex + 1}`} className="max-h-full w-full object-contain drop-shadow-[0_8px_14px_rgba(0,0,0,.10)]" />
+                        <div
+                          key={`${product.key}-${imageIndex}`}
+                          className="flex h-full min-w-0 flex-1 items-center justify-center overflow-hidden rounded-2xl border border-white/90 bg-white/80 p-2 shadow-sm"
+                        >
+                          <img
+                            src={image}
+                            alt={`${product.name} — produto ${imageIndex + 1}`}
+                            className="h-full w-full object-contain drop-shadow-[0_8px_14px_rgba(0,0,0,.10)]"
+                          />
                         </div>
                       ))}
                     </div>
@@ -196,8 +203,14 @@ export default function Revendedora() {
                   <div className="mt-6 flex items-end justify-between gap-4">
                     <div>
                       <p className="text-[9px] font-black uppercase tracking-[.15em] text-zinc-400">Preço por unidade</p>
-                      <p className="mt-1 text-2xl font-black text-zinc-950">{price > 0 ? brl(price) : '—'}</p>
-                      <p className="mt-1 text-[10px] font-bold text-pink-500">10 un. = 5% · 15 = 10% · 20+ = 15%</p>
+                      {quantity >= 10 ? (
+                        <>
+                          <p className="mt-1 text-lg font-black text-zinc-400 line-through">{price > 0 ? brl(price) : '—'}</p>
+                          <p className="mt-0.5 text-2xl font-black text-pink-500">{price > 0 ? brl(discountedUnitPrice(price, quantity)) : '—'} <span className="text-[10px] font-bold text-pink-400">/ un.</span></p>
+                        </>
+                      ) : (
+                        <p className="mt-1 text-2xl font-black text-zinc-950">{price > 0 ? brl(price) : '—'}</p>
+                      )}
                     </div>
                     <div className="flex items-center rounded-2xl bg-zinc-950 p-1 text-white">
                       <button type="button" onClick={() => setQuantity(product.key, quantity <= 5 ? 0 : quantity - 5)} className="h-10 w-10 rounded-xl text-lg font-black transition hover:bg-white/10">−</button>
