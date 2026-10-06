@@ -281,12 +281,15 @@ export default function Revendedora() {
 
       {customerOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-950/40 p-3 backdrop-blur-sm sm:items-center" onMouseDown={e => e.target === e.currentTarget && setCustomerOpen(false)}>
-          <div className="w-full max-w-xl rounded-[2rem] bg-white p-6 shadow-2xl">
+          <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
+            <div className="shrink-0 border-b border-zinc-100 p-6 pb-4">
             <div className="flex items-start justify-between gap-4">
               <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-pink-500">Dados para envio</p><h2 className="mt-1 text-2xl font-black">Antes de finalizar</h2><p className="mt-1 text-sm text-zinc-400">Preencha seus dados para enviarmos tudo junto na mensagem do WhatsApp.</p></div>
               <button onClick={() => setCustomerOpen(false)} className="h-9 w-9 shrink-0 rounded-full bg-zinc-100 font-black text-zinc-500">×</button>
             </div>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5 [scrollbar-width:thin]">
+              <div className="grid gap-4 sm:grid-cols-2">
               {[['fullName','Nome completo','text','Digite seu nome completo'],['cpf','CPF','text','000.000.000-00'],['email','E-mail','email','seu@email.com']].map(([key,label,type,placeholder]) => (
                 <label key={key} className="block">
                   <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[.14em] text-zinc-500">{label}</span>
@@ -327,8 +330,11 @@ export default function Revendedora() {
                   <input value={customer.state} onChange={e => setCustomer(current => ({ ...current, state: e.target.value }))} placeholder="UF" maxLength={2} className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold uppercase outline-none transition focus:border-pink-300 focus:bg-white" />
                 </label>
               </div>
+              </div>
             </div>
-            <button onClick={() => checkout()} disabled={!items.length} className="mt-5 w-full rounded-2xl bg-pink-500 px-5 py-4 text-sm font-black text-white transition hover:bg-pink-600 disabled:opacity-40">Continuar para o WhatsApp →</button>
+            <div className="shrink-0 border-t border-zinc-100 bg-white p-6 pt-4">
+            <button onClick={() => checkout()} disabled={!items.length} className="w-full rounded-2xl bg-pink-500 px-5 py-4 text-sm font-black text-white transition hover:bg-pink-600 disabled:opacity-40">Continuar para o WhatsApp →</button>
+            </div>
           </div>
         </div>
       )}
