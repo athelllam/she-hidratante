@@ -17,6 +17,10 @@ import stickPraticidadeVideo from '../assets/videos/1006.mp4'
 import scrollVideoPoster from '../assets/videos/1001-poster.webp'
 import logo from '../assets/she-logo.webp'
 import amazonLogo from '../assets/amazon-logo.webp'
+import comparativoAxilaAntes from '../assets/stick/comparativos/axila-antes.webp'
+import comparativoAxilaDepois from '../assets/stick/comparativos/axila-depois.webp'
+import comparativoVirilhaAntes from '../assets/stick/comparativos/virilha-antes.webp'
+import comparativoVirilhaDepois from '../assets/stick/comparativos/virilha-depois.webp'
 
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -235,6 +239,113 @@ function IngredientCards() {
 }
 
 
+
+
+function StickBeforeAfterComparison({ before, after, label }) {
+  const [position, setPosition] = useState(50)
+  const [dragging, setDragging] = useState(false)
+  const comparisonInViewRef = useRef(null)
+  const comparisonIntensity = useViewportCenterIntensity(comparisonInViewRef)
+
+  const updatePosition = (clientX) => {
+    const rect = comparisonInViewRef.current?.getBoundingClientRect()
+    if (!rect) return
+
+    const next = ((clientX - rect.left) / rect.width) * 100
+    setPosition(Math.min(100, Math.max(0, next)))
+  }
+
+  const handlePointerDown = (event) => {
+    setDragging(true)
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    updatePosition(event.clientX)
+  }
+
+  const handlePointerMove = (event) => {
+    if (!dragging) return
+    updatePosition(event.clientX)
+  }
+
+  const handlePointerUp = (event) => {
+    setDragging(false)
+    try {
+      event.currentTarget.releasePointerCapture?.(event.pointerId)
+    } catch {
+      // Pointer capture may already have been released by the browser.
+    }
+  }
+
+  return (
+    <section className="bg-white px-6 pt-12 pb-20 md:pt-20 md:pb-28">
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-10">
+          <p className="text-[11px] md:text-xs tracking-[0.35em] uppercase text-zinc-400">
+            {label}
+          </p>
+        </div>
+
+        <div
+          ref={comparisonInViewRef}
+          className="relative aspect-[3/4] w-full overflow-hidden rounded-[2.5rem] bg-zinc-100 shadow-[0_30px_80px_rgba(0,0,0,0.12)] select-none"
+          style={{ touchAction: 'pan-y' }}
+          role="slider"
+          aria-label={`Comparador antes e depois — ${label}`}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(position)}
+          tabIndex={0}
+        >
+          {/* DEPOIS — imagem inteira fixa por baixo */}
+          <img
+            src={after}
+            alt="Depois"
+            draggable="false"
+            className="absolute inset-0 h-full w-full object-cover pointer-events-none"
+          />
+
+          {/* ANTES — mesma escala; somente o recorte muda */}
+          <img
+            src={before}
+            alt="Antes"
+            draggable="false"
+            className="absolute inset-0 h-full w-full object-cover pointer-events-none"
+            style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
+          />
+
+          {/* DIVISOR + CONTROLE */}
+          <div
+            className="absolute inset-y-0 z-20 w-[3px] bg-white shadow-[0_0_18px_rgba(0,0,0,0.28)] pointer-events-none"
+            style={{ left: `${position}%`, transform: 'translateX(-50%)' }}
+          >
+            <button
+              type="button"
+              aria-label="Arraste para comparar antes e depois"
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
+              className="pointer-events-auto absolute left-1/2 top-1/2 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/80 bg-white shadow-[0_8px_30px_rgba(0,0,0,0.22)] cursor-ew-resize"
+              style={{ touchAction: 'none' }}
+            >
+              <span className="text-lg font-semibold text-zinc-900" aria-hidden="true">↔</span>
+            </button>
+          </div>
+        </div>
+
+        <p
+          className="mt-5 text-center font-medium uppercase tracking-[0.28em]"
+          style={{
+            color: `rgb(${161 + Math.round(83 * comparisonIntensity)}, ${161 - Math.round(84 * comparisonIntensity)}, ${161 + Math.round(4 * comparisonIntensity)})`,
+            fontSize: `calc(${12 + 3 * comparisonIntensity}px)`,
+            transition: 'color 120ms linear, font-size 120ms linear',
+          }}
+        >
+          Arraste para comparar
+        </p>
+      </div>
+    </section>
+  )
+}
 
 function VideoCover({ children, onPlay, ariaLabel, source }) {
   const [ready, setReady] = useState(false)
@@ -1340,6 +1451,18 @@ export default function Stick({ affiliateId = null, affiliate = null }) {
   </motion.div>
 </section>
 
+
+      <StickBeforeAfterComparison
+        before={comparativoAxilaAntes}
+        after={comparativoAxilaDepois}
+        label="AXILAS"
+      />
+
+      <StickBeforeAfterComparison
+        before={comparativoVirilhaAntes}
+        after={comparativoVirilhaDepois}
+        label="VIRILHAS"
+      />
 
       <div className="mt-16 md:mt-20 w-full overflow-hidden select-none" aria-label="Avaliações de clientes">
       <div className="text-center px-4">
