@@ -60,7 +60,7 @@ module.exports = async function handler(req, res) {
       const childOrders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=in.(${ids.join(',')})&select=affiliate_id,status,team_commission_snapshot,created_at&limit=20000`);
       earned = (childOrders || []).filter(isPaidOrder).reduce((sum, order) => {
         const snapshot = Number(order.team_commission_snapshot);
-        return sum + (Number.isFinite(snapshot) ? snapshot : Number(settings.teamCommissionPerSale || 10));
+        return sum + (Number.isFinite(snapshot) && snapshot > 0 ? snapshot : Number(settings.teamCommissionPerSale || 10));
       }, 0);
     }
 

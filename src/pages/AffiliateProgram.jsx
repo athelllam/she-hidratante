@@ -159,21 +159,21 @@ export default function AffiliateProgram() {
       name: 'Bronze',
       sales: monthly.bronze,
       commission: commissions.bronze,
-      description: `Você alcança este nível a partir de ${integer(monthly.bronze)} ${pluralSales(monthly.bronze)} no mês.`
+      description: `Você alcança este nível a partir de ${integer(monthly.bronze)} ${pluralSales(monthly.bronze)} suas somadas às da sua equipe no mês.`
     },
     {
       key: 'silver',
       name: 'Prata',
       sales: monthly.silver,
       commission: commissions.silver,
-      description: `A partir de ${integer(monthly.silver)} ${pluralSales(monthly.silver)} no mês, você entra no Prata.`
+      description: `A partir de ${integer(monthly.silver)} ${pluralSales(monthly.silver)} suas somadas às da sua equipe no mês, você entra no Prata.`
     },
     {
       key: 'gold',
       name: 'Ouro',
       sales: monthly.gold,
       commission: commissions.gold,
-      description: `A partir de ${integer(monthly.gold)} ${pluralSales(monthly.gold)} no mês, você chega ao nível máximo.`
+      description: `A partir de ${integer(monthly.gold)} ${pluralSales(monthly.gold)} suas somadas às da sua equipe no mês, você chega ao nível máximo.`
     },
   ]
 
@@ -206,9 +206,6 @@ export default function AffiliateProgram() {
                 <Link to="/afiliado" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-500 px-7 py-4 text-base font-black text-white shadow-[0_16px_45px_rgba(236,72,153,0.26)] transition hover:-translate-y-0.5">
                   Quero ser afiliada <ArrowIcon />
                 </Link>
-                <a href="#niveis" className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white/80 px-7 py-4 text-base font-black text-zinc-800 transition hover:border-pink-300 hover:text-pink-600">
-                  Conhecer os níveis
-                </a>
               </div>
               <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm text-zinc-500">
                 <span className="inline-flex items-center gap-2"><SparkIcon className="w-4 h-4 text-pink-500" /> Metas definidas no painel</span>
@@ -270,19 +267,8 @@ export default function AffiliateProgram() {
               <p className="mt-5 text-base md:text-lg leading-8 text-zinc-600">No dia 1, o ciclo mensal reinicia. O mês anterior fica congelado, e o novo mês começa considerando o seu Bônus Fixo como nível-base.</p>
               <div className="mt-7 rounded-[1.8rem] border border-pink-100 bg-white p-6 shadow-sm">
                 <p className="text-sm font-black text-zinc-950">O detalhe que faz diferença</p>
-                <p className="mt-2 text-sm leading-7 text-zinc-500">Ao alcançar um novo nível durante o mês, as vendas daquele mesmo mês passam a receber a comissão correspondente ao nível alcançado.</p>
+                <p className="mt-2 text-sm leading-7 text-zinc-500">Ao alcançar um novo nível durante o mês, todas as vendas daquele mês passam a receber a comissão correspondente ao nível alcançado.</p>
               </div>
-            </div>
-            <div className="grid md:grid-cols-3 gap-4">
-              {badgeLevels.map((level, index) => (
-                <motion.div key={level.key} whileHover={{ y: -5 }} className={`rounded-[2rem] p-6 bg-white border shadow-sm ${index === 0 ? 'border-orange-100' : index === 1 ? 'border-zinc-200' : 'border-amber-100'}`}>
-                  <img src={badgeAssets[level.key]} alt={`Broche ${level.name}`} className="w-16" />
-                  <h3 className="mt-5 text-xl font-black">{level.name}</h3>
-                  <p className="mt-2 text-sm font-bold text-zinc-700">{integer(level.sales)} {pluralSales(level.sales)} no mês</p>
-                  <p className="mt-4 text-3xl font-black text-zinc-950">{brl(level.commission)}</p>
-                  <p className="text-xs text-zinc-400">por venda</p>
-                </motion.div>
-              ))}
             </div>
           </div>
         </section>

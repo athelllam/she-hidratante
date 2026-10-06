@@ -487,7 +487,7 @@ module.exports = async function handler(req, res) {
       .filter(order => isPaidOrder(order))
       .reduce((sum, order) => {
         const snapshot = Number(order.team_commission_snapshot);
-        return sum + (Number.isFinite(snapshot) ? snapshot : teamRate);
+        return sum + (Number.isFinite(snapshot) && snapshot > 0 ? snapshot : teamRate);
       }, 0);
     const teamReserved = teamWithdrawals.reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const teamAvailableCommission = Math.max(0, teamEarnedCommission - teamReserved);
@@ -509,7 +509,7 @@ module.exports = async function handler(req, res) {
         const sales = memberOrders.length;
         const commission = memberOrders.reduce((sum, order) => {
           const snapshot = Number(order.team_commission_snapshot);
-          return sum + (Number.isFinite(snapshot) ? snapshot : teamRate);
+          return sum + (Number.isFinite(snapshot) && snapshot > 0 ? snapshot : teamRate);
         }, 0);
         return { id: memberId, name: member.name, slug: member.slug, whatsapp: member.whatsapp || '', teamJoinSource: member.team_join_source || 'organic', sales, commission: money(commission) };
       }),

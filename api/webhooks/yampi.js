@@ -145,7 +145,7 @@ module.exports = async function handler(req, res) {
       return json(res, 200, { ok: true, ignored: true, reason: 'Evento/status não representa pagamento aprovado.' });
     }
 
-    const affiliates = await supabaseFetch(`/rest/v1/affiliates?id=eq.${affiliateId}&select=id,team_joined_at&limit=1`);
+    const affiliates = await supabaseFetch(`/rest/v1/affiliates?id=eq.${affiliateId}&select=id,team_joined_at,team_parent_id&limit=1`);
     if (!affiliates?.[0]) {
       return json(res, 200, { ok: true, ignored: true, reason: 'Afiliada inexistente.' });
     }
@@ -181,6 +181,7 @@ module.exports = async function handler(req, res) {
         status,
         total,
         commission: 0,
+        team_commission_snapshot: affiliates[0].team_parent_id ? Number(commissionConfig.teamCommissionPerSale || 0) : 0,
         raw_payload: payload,
         updated_at: new Date().toISOString(),
       }),

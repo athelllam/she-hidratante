@@ -1041,7 +1041,7 @@ export default function AffiliateDashboard() {
             </div>
             <div className="mt-5 space-y-4 text-sm leading-6 text-zinc-600">
               <p>Os pontos do mês são a soma das suas vendas com as vendas das afiliadas diretamente na sua equipe. O progresso reinicia no dia 1 de cada mês, à 00:00, mas nunca fica abaixo do seu Bônus Fixo.</p>
-              <p>Os níveis atingidos são retroativos às vendas do mês: ao alcançar um novo nível, o valor por pedido daquele nível é aplicado às vendas realizadas no mês.</p>
+              <p>Os níveis atingidos são retroativos às vendas do mês: ao alcançar um novo nível, todas as vendas daquele mês passam a receber o valor por pedido daquele nível.</p>
               <p>Ao entrar em uma equipe, o bônus de Bronze dura exatamente 30 dias corridos a partir da data e hora do cadastro na equipe. Ele não termina na virada do mês. Quando os 30 dias acabam, o bônus é retirado e o nível volta imediatamente ao progresso real do mês, respeitando o Bônus Fixo já conquistado.</p>
             </div>
             <button type="button" onClick={() => setLevelHelpOpen(false)} className="mt-6 w-full rounded-xl bg-zinc-950 py-3 font-black text-white transition hover:bg-pink-500">Entendi</button>
