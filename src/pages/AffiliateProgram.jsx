@@ -239,8 +239,8 @@ export default function AffiliateProgram() {
                 <div className="mt-7 rounded-[1.75rem] bg-zinc-950 text-white p-5 md:p-6">
                   <p className="text-[10px] uppercase tracking-[.2em] text-white/45 font-black">Potencial pessoal</p>
                   <div className="mt-2 flex flex-wrap items-end gap-x-3 gap-y-1">
-                    <span className="text-3xl md:text-4xl font-black">{brl(maximumPersonal)}</span>
-                    <span className="text-sm text-white/55 mb-1">no Ouro + bônus de ticket</span>
+                    <span className="text-3xl md:text-4xl font-black">{brl(commissions.gold)}</span>
+                    <span className="text-sm text-white/55 mb-1">/pedido no Ouro + bônus de ticket</span>
                   </div>
                   <p className="mt-2 text-xs leading-5 text-white/45">O bônus de ticket entra quando o ticket médio do mês fica acima da meta configurada.</p>
                 </div>
@@ -255,7 +255,6 @@ export default function AffiliateProgram() {
             <div className="max-w-3xl">
               <p className="text-xs font-black uppercase tracking-[.22em] text-pink-500">Broches She</p>
               <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">Seu nível deixa de ser abstrato. Ele vira conquista.</h2>
-              <p className="mt-5 text-base md:text-lg leading-8 text-zinc-500">Os níveis abaixo usam as metas e comissões configuradas no painel administrativo. Quando a configuração mudar, esta página acompanha automaticamente.</p>
             </div>
             <div className="mt-12 grid lg:grid-cols-3 gap-5">
               {badgeLevels.map(level => <BadgeCard key={level.key} level={level} sales={level.sales} commission={level.commission} description={level.description} />)}
