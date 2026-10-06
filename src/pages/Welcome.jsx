@@ -149,7 +149,7 @@ export default function Welcome({ affiliateSlug = null, affiliate = null }) {
             </a>
             <a
               href="/revendedora"
-              className="text-xs font-semibold text-pink-500 transition-colors hover:text-pink-600"
+              className="text-xs font-medium text-zinc-400 transition-colors hover:text-zinc-600"
             >
               Revendedora
             </a>

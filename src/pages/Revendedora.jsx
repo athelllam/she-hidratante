@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import cartHidratante from '../assets/cart/hidratante.webp'
+import cartBlister from '../assets/cart/blister.webp'
+import cartStick from '../assets/cart/stick-clareador.webp'
 
 const WHATSAPP_NUMBER = '553132784332'
 
 const PRODUCTS = [
-  { key: 'hydrant', name: 'Hidratante Íntimo', short: 'Hidratante', description: 'Hidratação íntima premium para sua revenda.' },
-  { key: 'hydrantBlister', name: 'Kit Hidratante + Blister', short: 'Kit Hidratante + Blister', description: 'Hidratante acompanhado do blister de ovinhos.' },
-  { key: 'stick', name: 'Stick Clareador', short: 'Stick', description: 'Stick prático para tratamento de manchas.' },
-  { key: 'complete', name: 'Kit Hidratante + Blister + Stick', short: 'Kit Completo', description: 'O combo completo da She para sua revenda.' },
+  { key: 'hydrant', name: 'Hidratante Íntimo', short: 'Hidratante', description: 'Hidratação íntima premium para sua revenda.', images: [cartHidratante] },
+  { key: 'hydrantBlister', name: 'Kit Hidratante + Blister', short: 'Kit Hidratante + Blister', description: 'Hidratante acompanhado do blister de ovinhos.', images: [cartHidratante, cartBlister] },
+  { key: 'stick', name: 'Stick Clareador', short: 'Stick', description: 'Stick prático para tratamento de manchas.', images: [cartStick] },
+  { key: 'complete', name: 'Kit Hidratante + Blister + Stick', short: 'Kit Completo', description: 'O combo completo da She para sua revenda.', images: [cartHidratante, cartBlister, cartStick] },
 ]
 
 const FALLBACK_PRICES = { hydrant: 0, hydrantBlister: 0, stick: 0, complete: 0 }
@@ -17,15 +20,17 @@ function brl(value) {
 }
 
 function resellerDiscountPercent(quantity) {
-  if (quantity < 5) return 0
-  return Math.min(15, Math.floor(quantity / 5) * 5)
+  if (quantity < 10) return 0
+  if (quantity < 15) return 5
+  if (quantity < 20) return 10
+  return 15
 }
 
 function discountedUnitPrice(price, quantity) {
   return price * (1 - resellerDiscountPercent(quantity) / 100)
 }
 
-function buildWhatsappMessage(items, total) {
+function buildWhatsappMessage(items, total, customer) {
   const lines = items.map(item => {
     const discount = resellerDiscountPercent(item.quantity)
     const unit = discountedUnitPrice(item.price, item.quantity)
@@ -33,6 +38,13 @@ function buildWhatsappMessage(items, total) {
   })
   return [
     'Oi She! Gostaria de adquirir esse pedido como revendedora.',
+    '',
+    'Meus dados:',
+    `Nome completo: ${customer.fullName}`,
+    `CPF: ${customer.cpf}`,
+    `E-mail: ${customer.email}`,
+    `CEP: ${customer.cep}`,
+    `Endereço completo: ${customer.address}`,
     '',
     'Meu pedido:',
     ...lines,
@@ -49,6 +61,8 @@ export default function Revendedora() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [cartOpen, setCartOpen] = useState(false)
+  const [customer, setCustomer] = useState({ fullName: '', cpf: '', email: '', cep: '', address: '' })
+  const [customerOpen, setCustomerOpen] = useState(false)
 
   useEffect(() => {
     fetch('/api/reseller/settings', { headers: { Accept: 'application/json' } })
@@ -83,7 +97,12 @@ export default function Revendedora() {
 
   const checkout = () => {
     if (!items.length) return setCartOpen(true)
-    const message = buildWhatsappMessage(items, total)
+    if (!customer.fullName || !customer.cpf || !customer.email || !customer.cep || !customer.address) {
+      setCartOpen(false)
+      setCustomerOpen(true)
+      return
+    }
+    const message = buildWhatsappMessage(items, total, customer)
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer')
   }
 
@@ -134,9 +153,9 @@ export default function Revendedora() {
               <p className="mt-1 text-xs leading-5 text-zinc-500">Cada produto precisa ser pedido em múltiplos de 5. O desconto é calculado separadamente para cada kit.</p>
             </div>
             <div className="flex shrink-0 gap-2 text-[10px] font-black">
-              <span className="rounded-full bg-white px-3 py-2 text-pink-500 shadow-sm">5 un. · 5%</span>
-              <span className="rounded-full bg-white px-3 py-2 text-pink-500 shadow-sm">10 un. · 10%</span>
-              <span className="rounded-full bg-zinc-950 px-3 py-2 text-white shadow-sm">15+ · 15%</span>
+              <span className="rounded-full bg-white px-3 py-2 text-pink-500 shadow-sm">10 un. · 5%</span>
+              <span className="rounded-full bg-white px-3 py-2 text-pink-500 shadow-sm">15 un. · 10%</span>
+              <span className="rounded-full bg-zinc-950 px-3 py-2 text-white shadow-sm">20+ · 15%</span>
             </div>
           </div>
         </div>
@@ -164,8 +183,12 @@ export default function Revendedora() {
                 <div className="relative flex min-h-[220px] flex-col justify-between">
                   <div>
                     <span className="inline-flex rounded-full bg-pink-50 px-3 py-1 text-[9px] font-black uppercase tracking-[.16em] text-pink-500">{index === 3 ? 'Mais completo' : 'Revenda'}</span>
-                    <div className="mt-5 flex h-24 w-24 items-center justify-center rounded-[1.75rem] bg-gradient-to-br from-pink-50 to-rose-100 text-center text-[10px] font-black uppercase tracking-widest text-pink-400">
-                      SHE
+                    <div className={`mt-5 flex h-28 w-full items-center justify-center gap-2 overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-pink-50 to-rose-100 p-3 ${product.images.length === 1 ? '' : 'sm:gap-3'}`}>
+                      {product.images.map((image, imageIndex) => (
+                        <div key={`${product.key}-${imageIndex}`} className={`flex h-full flex-1 items-center justify-center ${product.images.length === 1 ? 'max-w-[170px]' : ''}`}>
+                          <img src={image} alt={`${product.name} ${imageIndex + 1}`} className="max-h-full w-full object-contain drop-shadow-[0_8px_14px_rgba(0,0,0,.10)]" />
+                        </div>
+                      ))}
                     </div>
                     <h3 className="mt-5 text-xl font-black tracking-tight">{product.name}</h3>
                     <p className="mt-1.5 max-w-sm text-xs leading-5 text-zinc-400">{product.description}</p>
@@ -174,7 +197,7 @@ export default function Revendedora() {
                     <div>
                       <p className="text-[9px] font-black uppercase tracking-[.15em] text-zinc-400">Preço por unidade</p>
                       <p className="mt-1 text-2xl font-black text-zinc-950">{price > 0 ? brl(price) : '—'}</p>
-                      <p className="mt-1 text-[10px] font-bold text-pink-500">5 un. = 5% · 10 = 10% · 15+ = 15%</p>
+                      <p className="mt-1 text-[10px] font-bold text-pink-500">10 un. = 5% · 15 = 10% · 20+ = 15%</p>
                     </div>
                     <div className="flex items-center rounded-2xl bg-zinc-950 p-1 text-white">
                       <button type="button" onClick={() => setQuantity(product.key, quantity <= 5 ? 0 : quantity - 5)} className="h-10 w-10 rounded-xl text-lg font-black transition hover:bg-white/10">−</button>
@@ -203,6 +226,30 @@ export default function Revendedora() {
           </button>
         </div>
       </div>
+
+      {customerOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-950/40 p-3 backdrop-blur-sm sm:items-center" onMouseDown={e => e.target === e.currentTarget && setCustomerOpen(false)}>
+          <div className="w-full max-w-xl rounded-[2rem] bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-pink-500">Dados para envio</p><h2 className="mt-1 text-2xl font-black">Antes de finalizar</h2><p className="mt-1 text-sm text-zinc-400">Preencha seus dados para enviarmos tudo junto na mensagem do WhatsApp.</p></div>
+              <button onClick={() => setCustomerOpen(false)} className="h-9 w-9 shrink-0 rounded-full bg-zinc-100 font-black text-zinc-500">×</button>
+            </div>
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              {[['fullName','Nome completo','text','Digite seu nome completo'],['cpf','CPF','text','000.000.000-00'],['email','E-mail','email','seu@email.com'],['cep','CEP','text','00000-000']].map(([key,label,type,placeholder]) => (
+                <label key={key} className="block">
+                  <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[.14em] text-zinc-500">{label}</span>
+                  <input type={type} value={customer[key]} onChange={e => setCustomer(current => ({ ...current, [key]: e.target.value }))} placeholder={placeholder} className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold outline-none transition focus:border-pink-300 focus:bg-white" />
+                </label>
+              ))}
+              <label className="block sm:col-span-2">
+                <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[.14em] text-zinc-500">Endereço completo para envio</span>
+                <textarea value={customer.address} onChange={e => setCustomer(current => ({ ...current, address: e.target.value }))} placeholder="Rua, número, complemento, bairro, cidade e estado" rows={3} className="w-full resize-none rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold outline-none transition focus:border-pink-300 focus:bg-white" />
+              </label>
+            </div>
+            <button onClick={() => checkout()} disabled={!items.length} className="mt-5 w-full rounded-2xl bg-pink-500 px-5 py-4 text-sm font-black text-white transition hover:bg-pink-600 disabled:opacity-40">Continuar para o WhatsApp →</button>
+          </div>
+        </div>
+      )}
 
       {cartOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-950/40 p-3 backdrop-blur-sm sm:items-center" onMouseDown={e => e.target === e.currentTarget && setCartOpen(false)}>
