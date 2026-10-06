@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 
 import logo from '../assets/she-logo.webp'
 
-export default function Navbar({ compact = false, onBuy }) {
+export default function Navbar({ compact = false, onBuy, buttonLabel = 'Comprar' }) {
   const [hasReachedTenPercent, setHasReachedTenPercent] = useState(false)
   const [visitorName, setVisitorName] = useState('')
 
@@ -108,7 +108,7 @@ export default function Navbar({ compact = false, onBuy }) {
               }}
               className="relative isolate overflow-hidden bg-gradient-to-r from-pink-500 to-rose-500 text-white px-6 md:px-8 py-2.5 rounded-2xl text-sm md:text-base font-bold shadow-[0_10px_30px_rgba(236,72,153,0.28)]"
             >
-              <span className="relative z-10">Comprar</span>
+              <span className="relative z-10">{buttonLabel}</span>
             </motion.button>
             <motion.div
               initial={false}

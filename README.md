@@ -54,3 +54,11 @@ Notificações: nova solicitação de saque e novo vídeo para o administrador; 
 ### Banco
 
 Para um banco já existente, execute `supabase/migration_email_notifications.sql` uma vez para criar o marcador de idempotência do aviso de saque aprovado. A tabela de tokens de recuperação já existe nas migrations anteriores e também está no `schema.sql`.
+
+## Landing pública do programa de afiliadas
+
+A rota `/programa-afiliadas` carrega os valores públicos diretamente de `GET /api/affiliate/auth?action=public_settings`. A página não usa valores de comissões, metas, ticket médio ou Impulsionar Equipe hardcoded no frontend.
+
+Os valores públicos são os mesmos do painel administrativo: metas do Bônus Mensal, metas do Bônus Fixo, comissões por nível, meta e bônus de ticket, comissão de equipe e planos/capacidade do Impulsionar Equipe.
+
+O campo `Bônus de ticket · por pedido` foi disponibilizado no bloco de configurações administrativas e grava em `affiliate_settings.ticket_bonus`.

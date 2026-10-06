@@ -502,7 +502,7 @@ module.exports = async function handler(req, res) {
         currentSettings.boostPlans = currentRows?.[0] ? { small: { price: Number(currentRows[0].team_boost_small_price ?? 30), connections: Number(currentRows[0].team_boost_small_connections ?? 5) }, large: { price: Number(currentRows[0].team_boost_large_price ?? 50), connections: Number(currentRows[0].team_boost_large_connections ?? 10) }, maxActive: Number(currentRows[0].team_boost_max_active ?? 3) } : { small: { price: 30, connections: 5 }, large: { price: 50, connections: 10 }, maxActive: 3 };
         const nextSettings = normalizeConfig({
           ticketThreshold: requestedSettings.ticketThreshold,
-          ticketBonus: currentSettings.ticketBonus,
+          ticketBonus: requestedSettings.ticketBonus,
           teamCommissionPerSale: requestedSettings.teamCommissionPerSale,
           commissions: requestedSettings.commissions,
           monthlyLevels: requestedSettings.monthlyLevels,
@@ -515,7 +515,7 @@ module.exports = async function handler(req, res) {
         const boost = nextSettings.boostPlans || { small: { price: 30, connections: 5 }, large: { price: 50, connections: 10 }, maxActive: 3 };
         const boostValid = boost.small?.price > 0 && Number.isInteger(Number(boost.small?.connections)) && Number(boost.small.connections) > 0 && boost.large?.price > 0 && Number.isInteger(Number(boost.large?.connections)) && Number(boost.large.connections) > 0 && Number.isInteger(Number(boost.maxActive)) && Number(boost.maxActive) > 0;
         const thresholdsValid = monthly.bronze < monthly.silver && monthly.silver < monthly.gold && fixed.bronze < fixed.silver && fixed.silver < fixed.gold;
-        if (nextSettings.ticketThreshold <= 0 || Object.values(nextSettings.commissions).some(value => value < 0) || !thresholdsValid || !boostValid) {
+        if (nextSettings.ticketThreshold <= 0 || nextSettings.ticketBonus < 0 || Object.values(nextSettings.commissions).some(value => value < 0) || !thresholdsValid || !boostValid) {
           return json(res, 400, { error: 'Os valores precisam ser válidos. As metas devem ser crescentes (Bronze < Prata < Ouro) e a meta de ticket deve ser maior que zero.' });
         }
         const rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1', {
@@ -523,6 +523,7 @@ module.exports = async function handler(req, res) {
           headers: { Prefer: 'return=representation' },
           body: JSON.stringify({
             ticket_threshold: nextSettings.ticketThreshold,
+            ticket_bonus: nextSettings.ticketBonus,
             team_commission_per_sale: nextSettings.teamCommissionPerSale,
             commission_none: nextSettings.commissions.none,
             commission_bronze: nextSettings.commissions.bronze,

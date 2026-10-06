@@ -36,6 +36,40 @@ function slugify(value) {
     .replace(/^-+|-+$/g, '').slice(0, 50);
 }
 
+async function publicSettings(req, res) {
+  const rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active&limit=1');
+  const row = rows?.[0] || {};
+  return json(res, 200, {
+    settings: {
+      ticketThreshold: Number(row.ticket_threshold ?? 170),
+      ticketBonus: Number(row.ticket_bonus ?? 5),
+      teamCommissionPerSale: Number(row.team_commission_per_sale ?? 10),
+      commissions: {
+        none: Number(row.commission_none ?? 30),
+        bronze: Number(row.commission_bronze ?? 40),
+        silver: Number(row.commission_silver ?? 50),
+        gold: Number(row.commission_gold ?? 60),
+      },
+      monthlyLevels: {
+        bronze: Number(row.monthly_bronze_sales ?? 10),
+        silver: Number(row.monthly_silver_sales ?? 50),
+        gold: Number(row.monthly_gold_sales ?? 101),
+      },
+      fixedLevels: {
+        bronze: Number(row.fixed_bronze_sales ?? 100),
+        silver: Number(row.fixed_silver_sales ?? 300),
+        gold: Number(row.fixed_gold_sales ?? 500),
+      },
+      boostPlans: {
+        small: { price: Number(row.team_boost_small_price ?? 30), connections: Number(row.team_boost_small_connections ?? 5) },
+        large: { price: Number(row.team_boost_large_price ?? 50), connections: Number(row.team_boost_large_connections ?? 10) },
+        maxActive: Number(row.team_boost_max_active ?? 3),
+      },
+      teamBonusDays: 30,
+    },
+  });
+}
+
 async function login(req, res) {
   const { email, password } = req.body || {};
   const cleanEmail = String(email || '').trim().toLowerCase();
@@ -219,10 +253,10 @@ async function register(req, res) {
 }
 
 module.exports = async function handler(req, res) {
-  if (req.method !== 'POST') return json(res, 405, { error: 'Método não permitido.' });
-
   const action = String(req.query?.action || 'login').toLowerCase();
   try {
+    if (req.method === 'GET' && action === 'public_settings') return await publicSettings(req, res);
+    if (req.method !== 'POST') return json(res, 405, { error: 'Método não permitido.' });
     if (action === 'logout') {
       clearAuthCookie(res);
       return json(res, 200, { ok: true });

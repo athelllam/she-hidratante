@@ -103,8 +103,8 @@ export default function AdminDashboard() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deletePhrase, setDeletePhrase] = useState('')
   const [deletingIds, setDeletingIds] = useState([])
-  const [settings, setSettings] = useState({ ticketThreshold: 170, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 }, monthlyLevels: { bronze: 10, silver: 50, gold: 101 }, fixedLevels: { bronze: 100, silver: 300, gold: 500 } })
-  const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', teamCommissionPerSale: '10', none: '30', bronze: '40', silver: '50', gold: '60', monthlyBronze: '10', monthlySilver: '50', monthlyGold: '101', fixedBronze: '100', fixedSilver: '300', fixedGold: '500', smallBoostPrice: '30', smallBoostConnections: '5', largeBoostPrice: '50', largeBoostConnections: '10', maxActiveBoosts: '3' })
+  const [settings, setSettings] = useState({ ticketThreshold: 170, ticketBonus: 5, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 }, monthlyLevels: { bronze: 10, silver: 50, gold: 101 }, fixedLevels: { bronze: 100, silver: 300, gold: 500 } })
+  const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', ticketBonus: '5', teamCommissionPerSale: '10', none: '30', bronze: '40', silver: '50', gold: '60', monthlyBronze: '10', monthlySilver: '50', monthlyGold: '101', fixedBronze: '100', fixedSilver: '300', fixedGold: '500', smallBoostPrice: '30', smallBoostConnections: '5', largeBoostPrice: '50', largeBoostConnections: '10', maxActiveBoosts: '3' })
   const [savingSettings, setSavingSettings] = useState(false)
   const [savingBonusLevels, setSavingBonusLevels] = useState(false)
   const [globalStatsData, setGlobalStatsData] = useState({ all: { sales: 0, revenue: 0, averageTicket: 0, accesses: 0 }, byMonth: {}, snapshots: {} })
@@ -129,6 +129,7 @@ export default function AdminDashboard() {
     setSettings(nextSettings)
     setSettingsForm({
       ticketThreshold: String(nextSettings.ticketThreshold),
+      ticketBonus: String(nextSettings.ticketBonus ?? 5),
       teamCommissionPerSale: String(nextSettings.teamCommissionPerSale ?? 10),
       none: String(nextSettings.commissions?.none ?? 30),
       bronze: String(nextSettings.commissions?.bronze ?? 40),
@@ -369,6 +370,7 @@ export default function AdminDashboard() {
     try {
       const payload = {
         ticketThreshold: Number(String(settingsForm.ticketThreshold).replace(',', '.')),
+        ticketBonus: Number(String(settingsForm.ticketBonus).replace(',', '.')),
         teamCommissionPerSale: Number(String(settingsForm.teamCommissionPerSale).replace(',', '.')),
         commissions: {
           none: Number(String(settingsForm.none).replace(',', '.')),
@@ -392,7 +394,7 @@ export default function AdminDashboard() {
           maxActive: Number(settingsForm.maxActiveBoosts),
         },
       }
-      if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || !Number.isFinite(payload.teamCommissionPerSale) || payload.teamCommissionPerSale < 0 || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0) || Object.values(payload.monthlyLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.fixedLevels).some(value => !Number.isInteger(value) || value <= 0) || payload.boostPlans.small.price <= 0 || !Number.isInteger(payload.boostPlans.small.connections) || payload.boostPlans.small.connections <= 0 || payload.boostPlans.large.price <= 0 || !Number.isInteger(payload.boostPlans.large.connections) || payload.boostPlans.large.connections <= 0 || !Number.isInteger(payload.boostPlans.maxActive) || payload.boostPlans.maxActive <= 0 || !(payload.monthlyLevels.bronze < payload.monthlyLevels.silver && payload.monthlyLevels.silver < payload.monthlyLevels.gold) || !(payload.fixedLevels.bronze < payload.fixedLevels.silver && payload.fixedLevels.silver < payload.fixedLevels.gold)) {
+      if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || !Number.isFinite(payload.ticketBonus) || payload.ticketBonus < 0 || !Number.isFinite(payload.teamCommissionPerSale) || payload.teamCommissionPerSale < 0 || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0) || Object.values(payload.monthlyLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.fixedLevels).some(value => !Number.isInteger(value) || value <= 0) || payload.boostPlans.small.price <= 0 || !Number.isInteger(payload.boostPlans.small.connections) || payload.boostPlans.small.connections <= 0 || payload.boostPlans.large.price <= 0 || !Number.isInteger(payload.boostPlans.large.connections) || payload.boostPlans.large.connections <= 0 || !Number.isInteger(payload.boostPlans.maxActive) || payload.boostPlans.maxActive <= 0 || !(payload.monthlyLevels.bronze < payload.monthlyLevels.silver && payload.monthlyLevels.silver < payload.monthlyLevels.gold) || !(payload.fixedLevels.bronze < payload.fixedLevels.silver && payload.fixedLevels.silver < payload.fixedLevels.gold)) {
         throw new Error('Informe valores válidos. As metas devem ser números inteiros e crescentes: Bronze < Prata < Ouro.')
       }
       const result = await api('/api/admin/affiliates', {
@@ -402,6 +404,7 @@ export default function AdminDashboard() {
       setSettings(result.settings)
       setSettingsForm({
         ticketThreshold: String(result.settings.ticketThreshold),
+        ticketBonus: String(result.settings.ticketBonus ?? 5),
         teamCommissionPerSale: String(result.settings.teamCommissionPerSale ?? 10),
         none: String(result.settings.commissions.none),
         bronze: String(result.settings.commissions.bronze),
@@ -886,6 +889,15 @@ export default function AdminDashboard() {
                 <input value={settingsForm.ticketThreshold} onChange={e => setSettingsForm(v => ({ ...v, ticketThreshold: e.target.value }))} inputMode="decimal" className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-lg font-black outline-none focus:border-amber-400" />
               </div>
               <p className="mt-2 text-[10px] font-semibold text-amber-700">Acima dessa meta, entra o bônus de +R$ 5,00/pedido.</p>
+            </label>
+
+            <label className="rounded-2xl border border-fuchsia-200 bg-fuchsia-50 p-4">
+              <span className="text-[10px] font-black uppercase tracking-[.14em] text-fuchsia-600">Bônus de ticket · por pedido</span>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="font-black text-zinc-500">R$</span>
+                <input value={settingsForm.ticketBonus} onChange={e => setSettingsForm(v => ({ ...v, ticketBonus: e.target.value }))} inputMode="decimal" className="w-full rounded-xl border border-fuchsia-200 bg-white px-3 py-2.5 text-lg font-black outline-none focus:border-fuchsia-400" />
+              </div>
+              <p className="mt-2 text-[10px] font-semibold text-fuchsia-700">Valor adicional por pedido quando o ticket médio supera a meta.</p>
             </label>
 
             <label className="rounded-2xl border border-pink-200 bg-pink-50 p-4">
