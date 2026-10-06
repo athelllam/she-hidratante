@@ -72,7 +72,7 @@ export default function AffiliateDashboard() {
   const [form, setForm] = useState({ name: '', email: '', password: '', whatsapp: '', cpf: '' })
   const [login, setLogin] = useState({ email: '', password: '' })
   const [forgotOpen, setForgotOpen] = useState(false)
-  const [forgotWhatsapp, setForgotWhatsapp] = useState('')
+  const [forgotEmail, setForgotEmail] = useState('')
   const [forgotBusy, setForgotBusy] = useState(false)
   const [forgotMessage, setForgotMessage] = useState('')
   const [error, setError] = useState('')
@@ -179,17 +179,17 @@ export default function AffiliateDashboard() {
   }
 
   const submitForgotPassword = async (event) => {
-    event.preventDefault()
+    event?.preventDefault()
     setForgotBusy(true)
     setForgotMessage('')
     try {
-      const whatsapp = String(forgotWhatsapp || '').trim()
-      if (!whatsapp) throw new Error('Informe seu WhatsApp.')
+      const email = String(forgotEmail || '').trim().toLowerCase()
+      if (!email) throw new Error('Informe seu e-mail.')
       const result = await api('/api/affiliate/forgot-password', {
         method: 'POST',
-        body: JSON.stringify({ whatsapp }),
+        body: JSON.stringify({ email }),
       })
-      setForgotMessage(result.message || 'Se o WhatsApp estiver cadastrado, você receberá o link para redefinir sua senha.')
+      setForgotMessage(result.message || 'Se o e-mail estiver cadastrado, você receberá o link para redefinir sua senha.')
     } catch (e) {
       setForgotMessage(e.message || 'Não foi possível enviar o link de recuperação.')
     } finally {
@@ -433,18 +433,18 @@ export default function AffiliateDashboard() {
               <input value={login.password} onChange={e => setLogin({...login,password:e.target.value})} type="password" required placeholder="Senha" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
               {error && <p className="text-xs text-red-500">{error}</p>}
               <button disabled={busy} className="w-full rounded-2xl bg-pink-500 py-3.5 font-bold text-white disabled:opacity-60">{busy ? 'Entrando…' : 'Entrar'}</button>
-              <button type="button" onClick={() => { setForgotOpen(v => !v); setForgotWhatsapp(''); setForgotMessage('') }} className="mx-auto flex items-center justify-center pt-1 text-xs font-semibold text-zinc-400 transition-colors hover:text-zinc-600">
-                Esqueceu sua senha? Receba um link pelo WhatsApp
+              <button type="button" onClick={() => { setForgotOpen(v => !v); setForgotEmail(''); setForgotMessage('') }} className="mx-auto flex items-center justify-center pt-1 text-xs font-semibold text-zinc-400 transition-colors hover:text-zinc-600">
+                Esqueceu sua senha? Receba um link por e-mail
               </button>
 
               {forgotOpen && (
                 <div className="rounded-2xl border border-pink-100 bg-pink-50/70 p-4">
                   <p className="text-sm font-black text-zinc-900">Redefinir senha</p>
-                  <p className="mt-1 text-xs leading-5 text-zinc-500">Digite o WhatsApp cadastrado na sua conta e enviaremos um link seguro para criar uma nova senha.</p>
-                  <form onSubmit={submitForgotPassword} className="mt-3 space-y-2">
-                    <input value={forgotWhatsapp} onChange={e => setForgotWhatsapp(e.target.value)} type="tel" required placeholder="Seu WhatsApp" className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-pink-400" />
-                    <button disabled={forgotBusy} className="w-full rounded-xl bg-zinc-950 py-2.5 text-sm font-black text-white disabled:opacity-60">{forgotBusy ? 'Enviando…' : 'Enviar link pelo WhatsApp'}</button>
-                  </form>
+                  <p className="mt-1 text-xs leading-5 text-zinc-500">Digite o e-mail cadastrado na sua conta e enviaremos um link seguro para criar uma nova senha.</p>
+                  <div className="mt-3 space-y-2">
+                    <input value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} type="email" required placeholder="Seu e-mail" className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-pink-400" />
+                    <button type="button" onClick={submitForgotPassword} disabled={forgotBusy} className="w-full rounded-xl bg-zinc-950 py-2.5 text-sm font-black text-white disabled:opacity-60">{forgotBusy ? 'Enviando…' : 'Enviar link por e-mail'}</button>
+                  </div>
                   {forgotMessage && <p className="mt-2 text-xs leading-5 text-zinc-500">{forgotMessage}</p>}
                 </div>
               )}

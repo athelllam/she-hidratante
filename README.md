@@ -43,6 +43,14 @@ O bônus de ticket permanece em R$ 5,00/pedido e o sistema passa a usar a meta c
 As afiliadas agora são selecionadas por um botão liga/desliga, sempre desmarcado ao entrar/atualizar o painel. A exclusão é feita por um único botão e exige duas confirmações: confirmação inicial do navegador e digitação de `EXCLUIR` na confirmação final.
 
 
-## WhatsApp
+## E-mail transacional (Resend)
 
-Além da recuperação de senha, o sistema envia alertas de saque, vídeo, nova afiliada por impulso e saque aprovado. O número administrativo configurado atualmente em `.env.example` é +55 31 99651-4332; o número +55 31 3278-4332 é o remetente da She na Meta.
+Esta versão usa somente e-mail transacional via Resend.
+
+Configure `RESEND_API_KEY`, `EMAIL_FROM`, `ADMIN_EMAILS` e `SITE_URL` no Vercel.
+
+Notificações: nova solicitação de saque e novo vídeo para o administrador; nova afiliada por Impulsionar Equipe e saque aprovado/pago para a afiliada; recuperação de senha por e-mail. Não há notificações de vendas por e-mail.
+
+### Banco
+
+Para um banco já existente, execute `supabase/migration_email_notifications.sql` uma vez para criar o marcador de idempotência do aviso de saque aprovado. A tabela de tokens de recuperação já existe nas migrations anteriores e também está no `schema.sql`.

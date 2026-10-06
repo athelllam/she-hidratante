@@ -8,7 +8,7 @@ const {
   LEVEL_ORDER,
   isPaidOrder,
 } = require('../_lib/affiliateCommission');
-const { sendAdminVideoWhatsApp, sendTeamBoostJoinWhatsApp } = require('../_lib/whatsapp');
+const { sendEmail, adminRecipients, adminVideoEmail, affiliateBoostJoinEmail } = require('../_lib/email');
 
 function money(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
@@ -145,13 +145,14 @@ module.exports = async function handler(req, res) {
       const result = await supabaseFetch('/rest/v1/rpc/she_team_boost_confirm', { method: 'POST', body: JSON.stringify({ p_affiliate_id: Number(affiliate.id), p_reservation_id: reservationId }) });
       const parentId = Number(result?.parentId);
       if (parentId > 0) {
-        const parents = await supabaseFetch(`/rest/v1/affiliates?id=eq.${parentId}&select=id,name,whatsapp&limit=1`).catch(() => []);
+        const parents = await supabaseFetch(`/rest/v1/affiliates?id=eq.${parentId}&select=id,name,email,whatsapp&limit=1`).catch(() => []);
         const parent = parents?.[0];
-        if (parent?.whatsapp) {
-          await sendTeamBoostJoinWhatsApp({
-            parentWhatsapp: parent.whatsapp,
-            parentName: parent.name,
-            childName: affiliate.name,
+        if (parent?.email) {
+          await sendEmail({
+            to: parent.email,
+            subject: `Nova afiliada entrou na sua equipe — ${affiliate.name}`,
+            html: affiliateBoostJoinEmail({ parentName: parent.name, childName: affiliate.name }),
+            tags: [{ name: 'category', value: 'team-boost-join' }],
           }).catch(() => null);
         }
       }
@@ -201,7 +202,12 @@ module.exports = async function handler(req, res) {
       });
       const video = rows?.[0] || null;
       if (video) {
-        await sendAdminVideoWhatsApp({ name: affiliate.name, id: video.id, url: video.video_url }).catch(() => null);
+        await sendEmail({
+          to: adminRecipients(),
+          subject: `Novo vídeo para análise — ${affiliate.name}`,
+          html: adminVideoEmail({ name: affiliate.name, id: video.id, url: video.video_url }),
+          tags: [{ name: 'category', value: 'video-submission' }],
+        }).catch(() => null);
       }
       return json(res, 201, { video });
     } catch (error) {

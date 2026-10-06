@@ -45,15 +45,9 @@ YAMPI_USER_SECRET_KEY=...
 YAMPI_SYNC_DAYS=365
 YAMPI_SYNC_MAX_ORDERS=2000
 SITE_URL=https://seusite.com
-WHATSAPP_ACCESS_TOKEN=SEU_SYSTEM_USER_ACCESS_TOKEN
-WHATSAPP_PHONE_NUMBER_ID=SEU_PHONE_NUMBER_ID
-WHATSAPP_GRAPH_VERSION=VERSAO_GRAPH_ATUAL
-WHATSAPP_ADMIN_NUMBER=SEU_NUMERO_PESSOAL_COM_55
-WHATSAPP_TEMPLATE_LANGUAGE=pt_BR
-WHATSAPP_TEMPLATE_PASSWORD_RESET=she_password_reset
-WHATSAPP_TEMPLATE_ADMIN_WITHDRAWAL=she_admin_withdrawal
-WHATSAPP_TEMPLATE_ADMIN_VIDEO=she_admin_video
-WHATSAPP_TEMPLATE_TEAM_BOOST_JOIN=she_team_boost_join
+RESEND_API_KEY=re_xxxxxxxxx
+EMAIL_FROM=She Afiliadas <noreply@seu-dominio.com>
+ADMIN_EMAILS=seu-email@dominio.com
 ```
 
 ## 3. Yampi
@@ -108,36 +102,43 @@ O painel considera venda apenas pedido pago conforme `isPaidOrder` e, se a afili
 
 A senha atual das afiliadas não é recuperável pelo Supabase Auth. O painel mostra o e-mail e permite ao administrador definir uma nova senha pelo botão de dados de acesso, sem armazenar senha em texto puro.
 
-## WhatsApp Cloud API (Meta)
+## E-mail transacional (Resend)
 
-Esta versão usa somente WhatsApp para notificações. Não depende de Resend ou de e-mail transacional.
+Esta versão usa somente e-mail para as notificações. Não depende de WhatsApp/Meta e não cria novas Serverless Functions. O envio é feito pela API HTTP do Resend a partir das funções existentes.
+
+Configure no Vercel:
+
+```text
+RESEND_API_KEY=re_xxxxxxxxx
+EMAIL_FROM=She Afiliadas <noreply@seu-dominio.com>
+ADMIN_EMAILS=seu-email@dominio.com
+SITE_URL=https://seu-dominio.com
+```
+
+`EMAIL_FROM` deve usar um remetente/domínio autorizado no Resend.
 
 ### Recuperação de senha
 
-Em `Esqueceu sua senha?`, a afiliada informa o WhatsApp cadastrado. O backend gera um token aleatório de uso único, grava somente o hash no Supabase e envia pelo WhatsApp um template com botão que aponta para o próprio site:
+Em `Esqueceu sua senha?`, a afiliada informa o e-mail cadastrado. O backend cria um token aleatório de uso único, grava somente o hash em `affiliate_password_reset_tokens` e envia um link do próprio site:
 
-`https://seusite.com/afiliado/redefinir-senha/<TOKEN>`
+`https://seu-dominio.com/afiliado/redefinir-senha/<TOKEN>`
 
-O token expira em 30 minutos. Ao salvar a nova senha, o token é invalidado. A alteração de senha é feita no servidor usando o administrador do Supabase Auth. O segredo de serviço nunca chega ao navegador.
+O token expira em 30 minutos e é invalidado após a alteração da senha.
 
-### Alertas
+### Notificações administrativas
 
-- Nova solicitação de saque → WhatsApp para `WHATSAPP_ADMIN_NUMBER`.
-- Novo vídeo enviado → WhatsApp para `WHATSAPP_ADMIN_NUMBER`.
-- Nova afiliada que entrou por Impulsionar Equipe → WhatsApp para a mãe. Entrada orgânica não dispara esse aviso.
+- Nova solicitação de saque → e-mail para todos os endereços de `ADMIN_EMAILS`.
+- Novo vídeo enviado → e-mail para todos os endereços de `ADMIN_EMAILS`.
 
-### Templates
+### Notificações para afiliada
 
-Crie e aprove no WhatsApp Manager estes templates em português (`pt_BR`):
+- Nova afiliada efetivada por `Impulsionar Equipe` → e-mail para a afiliada mãe.
+- Saque aprovado/pago no painel → e-mail para a afiliada.
 
-1. `she_password_reset` — **UTILITY** — botão URL. URL base: `https://seusite.com/afiliado/redefinir-senha/` e uma variável dinâmica como sufixo. Corpo com 1 variável para o nome da afiliada.
-2. `she_admin_withdrawal` — **UTILITY** — sem botão. Corpo com 4 variáveis: nome, valor, origem e PIX.
-3. `she_admin_video` — **UTILITY** — sem botão. Corpo com 3 variáveis: nome, ID da solicitação e link do vídeo.
-4. `she_team_boost_join` — **UTILITY** — sem botão. Corpo com 2 variáveis: nome da mãe e nome da nova afiliada.
-
-A Cloud API envia templates pelo endpoint `/{Phone-Number-ID}/messages`. A documentação oficial da Meta mostra também como consultar o Phone Number ID, assinar o WABA ao aplicativo e enviar templates.
+Não existem notificações por e-mail de venda própria ou venda da equipe.
 
 ### Banco
 
-Execute `supabase/migration_whatsapp_password_reset.sql` no SQL Editor caso o `schema.sql` completo já tenha sido executado anteriormente. Se estiver instalando do zero, o `schema.sql` já contém a tabela de tokens de recuperação.
+A tabela `affiliate_password_reset_tokens` já está no `supabase/schema.sql`. Como o banco deste projeto já recebeu a migration de recuperação de senha executada anteriormente, não é necessário executar outra migration para a tabela de tokens.
 
+Execute também `supabase/migration_email_notifications.sql` no banco atual. Ela cria `email_approved_notified_at`, usado exclusivamente para impedir duplicidade do aviso de saque aprovado por e-mail. Essa coluna é separada das colunas legadas da etapa de WhatsApp.

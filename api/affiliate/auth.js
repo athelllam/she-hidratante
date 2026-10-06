@@ -1,6 +1,6 @@
 const { authFetch, supabaseFetch, setAuthCookie, clearAuthCookie, json } = require('../_lib/supabase');
 const crypto = require('crypto');
-const { sendPasswordResetWhatsApp, normalizeNumber } = require('../_lib/whatsapp');
+const { sendEmail, resetPasswordEmail } = require('../_lib/email');
 
 function normalizeCpf(value) {
   return String(value || '').replace(/\D/g, '');
@@ -58,16 +58,25 @@ async function login(req, res) {
 
 
 async function forgotPassword(req, res) {
-  const cleanWhatsapp = normalizeNumber(req.body?.whatsapp || '');
-  if (!cleanWhatsapp) return json(res, 400, { error: 'Informe um WhatsApp válido.' });
+  const cleanEmail = String(req.body?.email || '').trim().toLowerCase();
+  if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    return json(res, 400, { error: 'Informe um e-mail válido.' });
+  }
 
   const affiliates = await supabaseFetch(
-    `/rest/v1/affiliates?whatsapp=eq.${encodeURIComponent(cleanWhatsapp)}&select=id,name,whatsapp,auth_user_id,active&limit=1`
+    `/rest/v1/affiliates?email=eq.${encodeURIComponent(cleanEmail)}&select=id,name,email,auth_user_id,active&limit=1`
   );
 
-  // Resposta genérica para não revelar se o número está cadastrado.
+  // Resposta genérica para não revelar se o e-mail está cadastrado.
   if (affiliates?.[0]?.active) {
     const affiliate = affiliates[0];
+    const baseUrl = String(process.env.SITE_URL || process.env.APP_BASE_URL || '').replace(/\/$/, '');
+    if (!baseUrl) {
+      const error = new Error('SITE_URL não configurada no ambiente.');
+      error.statusCode = 500;
+      throw error;
+    }
+
     const token = crypto.randomBytes(32).toString('base64url');
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
@@ -86,20 +95,22 @@ async function forgotPassword(req, res) {
       }),
     });
 
-    const result = await sendPasswordResetWhatsApp({
-      whatsapp: affiliate.whatsapp,
-      name: affiliate.name,
-      token,
+    const actionLink = `${baseUrl}/afiliado/redefinir-senha/${encodeURIComponent(token)}`;
+    const result = await sendEmail({
+      to: affiliate.email,
+      subject: 'Redefina sua senha — She Afiliadas',
+      html: resetPasswordEmail({ name: affiliate.name, actionLink }),
+      tags: [{ name: 'category', value: 'password-reset' }],
     });
 
     if (result?.skipped) {
-      const error = new Error('WhatsApp não está configurado para envio de mensagens.');
+      const error = new Error('Serviço de e-mail não configurado.');
       error.statusCode = 503;
       throw error;
     }
   }
 
-  return json(res, 200, { ok: true, message: 'Se o WhatsApp estiver cadastrado, você receberá o link para redefinir sua senha.' });
+  return json(res, 200, { ok: true, message: 'Se o e-mail estiver cadastrado, você receberá um link para redefinir sua senha.' });
 }
 
 async function resetPassword(req, res) {

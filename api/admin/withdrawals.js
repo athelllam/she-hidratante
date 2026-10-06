@@ -1,5 +1,5 @@
 const { requireAdmin, supabaseFetch } = require('../_lib/admin');
-const { sendWithdrawalApprovedWhatsApp } = require('../_lib/whatsapp');
+const { sendEmail, affiliateWithdrawalApprovedEmail } = require('../_lib/email');
 function json(res, status, body) { res.status(status).json(body); }
 
 module.exports = async function handler(req, res) {
@@ -15,7 +15,8 @@ module.exports = async function handler(req, res) {
       const { id } = req.body || {};
       if (!id) return json(res, 400, { error: 'ID do saque obrigatório.' });
 
-      const current = await supabaseFetch(`/rest/v1/affiliate_withdrawals?id=eq.${Number(id)}&select=id,status,amount,affiliate_id,whatsapp_approved_notified_at,affiliates(id,name,whatsapp)&limit=1`);
+      // Marcador idempotente exclusivo do canal de e-mail.
+      const current = await supabaseFetch(`/rest/v1/affiliate_withdrawals?id=eq.${Number(id)}&select=id,status,amount,affiliate_id,email_approved_notified_at,affiliates(id,name,email)&limit=1`);
       if (!current?.[0]) return json(res, 404, { error: 'Solicitação de saque não encontrada.' });
       if (current[0].status === 'paid') return json(res, 200, { withdrawal: current[0] });
       if (current[0].status !== 'pending' && current[0].status !== 'approved') {
@@ -35,26 +36,31 @@ module.exports = async function handler(req, res) {
       });
       const updated = rows?.[0] || null;
       const shouldNotifyAffiliate = ['approved', 'paid'].includes(targetStatus) && current[0].status !== targetStatus;
-      if (shouldNotifyAffiliate && current[0].affiliates?.whatsapp && !current[0].whatsapp_approved_notified_at) {
-        const claimed = await supabaseFetch(`/rest/v1/affiliate_withdrawals?id=eq.${Number(id)}&whatsapp_approved_notified_at=is.null`, {
+      if (shouldNotifyAffiliate && current[0].affiliates?.email && !current[0].email_approved_notified_at) {
+        const claimed = await supabaseFetch(`/rest/v1/affiliate_withdrawals?id=eq.${Number(id)}&email_approved_notified_at=is.null`, {
           method: 'PATCH',
           headers: { Prefer: 'return=representation' },
-          body: JSON.stringify({ whatsapp_approved_notified_at: new Date().toISOString() }),
+          body: JSON.stringify({ email_approved_notified_at: new Date().toISOString() }),
         });
         if (Array.isArray(claimed) && claimed.length) {
           try {
-            await sendWithdrawalApprovedWhatsApp({
-              whatsapp: current[0].affiliates.whatsapp,
-              name: current[0].affiliates.name,
-              amount: current[0].amount,
+            await sendEmail({
+              to: current[0].affiliates.email,
+              subject: `Saque ${targetStatus === 'approved' ? 'aprovado' : 'pago'} — She Afiliadas`,
+              html: affiliateWithdrawalApprovedEmail({
+                name: current[0].affiliates.name,
+                amount: current[0].amount,
+                status: targetStatus,
+              }),
+              tags: [{ name: 'category', value: 'withdrawal-approved' }],
             });
           } catch (error) {
             await supabaseFetch(`/rest/v1/affiliate_withdrawals?id=eq.${Number(id)}`, {
               method: 'PATCH',
               headers: { Prefer: 'return=minimal' },
-              body: JSON.stringify({ whatsapp_approved_notified_at: null }),
+              body: JSON.stringify({ email_approved_notified_at: null }),
             }).catch(() => null);
-            console.error('[She WhatsApp] Falha no aviso de saque aprovado:', error);
+            console.error('[She Email] Falha no aviso de saque aprovado:', error);
           }
         }
       }

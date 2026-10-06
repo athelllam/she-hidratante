@@ -611,3 +611,5 @@ alter table public.affiliate_password_reset_tokens enable row level security;
 -- WhatsApp: evita duplicidade no aviso de saque aprovado.
 alter table public.affiliate_withdrawals
   add column if not exists whatsapp_approved_notified_at timestamptz;
+alter table public.affiliate_withdrawals
+  add column if not exists email_approved_notified_at timestamptz;

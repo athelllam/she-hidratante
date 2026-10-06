@@ -1,6 +1,6 @@
 const { requireAffiliate, supabaseFetch, json } = require('../_lib/supabase');
 const { commissionForOrders, reconcileAffiliateOrderCommissions, DEFAULT_COMMISSION_CONFIG, normalizeConfig, isPaidOrder } = require('../_lib/affiliateCommission');
-const { sendAdminWithdrawalWhatsApp } = require('../_lib/whatsapp');
+const { sendEmail, adminRecipients, adminWithdrawalEmail } = require('../_lib/email');
 
 module.exports = async function handler(req, res) {
   try {
@@ -84,13 +84,20 @@ module.exports = async function handler(req, res) {
     });
     const withdrawal = rows?.[0] || null;
     if (withdrawal) {
-      await sendAdminWithdrawalWhatsApp({
-        name: affiliate.name,
-        email: affiliate.email,
-        amount,
-        pixKey,
-        source,
-      }).catch(() => null);
+      await sendEmail({
+        to: adminRecipients(),
+        subject: `Nova solicitação de saque — ${affiliate.name}`,
+        html: adminWithdrawalEmail({
+          name: affiliate.name,
+          email: affiliate.email,
+          amount: withdrawal.amount,
+          pixKey: withdrawal.pix_key,
+          source: withdrawal.source,
+        }),
+        tags: [{ name: 'category', value: 'withdrawal-request' }],
+      }).catch((error) => {
+        console.error('[She Email] Falha no aviso de nova solicitação de saque:', error);
+      });
     }
     return json(res, 201, { withdrawal, available: Math.max(0, available - amount) });
   } catch (e) {
