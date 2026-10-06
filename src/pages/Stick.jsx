@@ -844,7 +844,7 @@ function ScrollDrivenIntroVideo() {
 
       try {
         video.currentTime = 0
-        video.playbackRate = 1.5
+        video.playbackRate = 1.4
       } catch {}
 
       const playPromise = video.play()
