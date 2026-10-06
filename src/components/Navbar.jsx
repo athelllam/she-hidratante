@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 
 import logo from '../assets/she-logo.webp'
 
-export default function Navbar({ compact = false, onBuy, buttonLabel = 'Comprar' }) {
+export default function Navbar({ compact = false, onBuy, buttonLabel = 'Comprar', productPrice = null, productOldPrice = null }) {
   const [hasReachedTenPercent, setHasReachedTenPercent] = useState(false)
   const [visitorName, setVisitorName] = useState('')
 
@@ -112,13 +112,15 @@ export default function Navbar({ compact = false, onBuy, buttonLabel = 'Comprar'
             </motion.button>
             <motion.div
               initial={false}
-              animate={{ opacity: compact ? 1 : 0, y: compact ? 0 : -4, height: compact ? 'auto' : 0 }}
+              animate={{ opacity: hasReachedTenPercent && productPrice != null ? 1 : 0, y: hasReachedTenPercent && productPrice != null ? 0 : -4, height: hasReachedTenPercent && productPrice != null ? 'auto' : 0 }}
               transition={{ duration: 0.45, ease: 'easeOut' }}
               className="mt-0.5 flex items-center justify-center gap-1.5 whitespace-nowrap text-[11px] md:text-[12px] leading-none font-medium tracking-wide overflow-hidden"
-              aria-hidden={!compact}
+              aria-hidden={!(hasReachedTenPercent && productPrice != null)}
             >
-              <span className="text-zinc-500 line-through decoration-zinc-400">R$139</span>
-              <span className="font-semibold text-[#DB2777]">R$119,90</span>
+              {productOldPrice != null && (
+                <span className="text-zinc-500 line-through decoration-zinc-400">R${Number(productOldPrice).toFixed(2).replace('.', ',')}</span>
+              )}
+              <span className="font-semibold text-[#DB2777]">R${Number(productPrice).toFixed(2).replace('.', ',')}</span>
             </motion.div>
             </motion.div>
           </div>

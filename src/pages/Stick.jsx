@@ -309,7 +309,7 @@ function CartProduct({ image, name, description, price, oldPrice, quantity, onMi
   )
 }
 
-function SheCart({ open, onClose, affiliateId = null }) {
+function SheCart({ open, onClose, affiliateId = null, onPricesUpdated = null }) {
   const [stickQty, setStickQty] = useState(1)
   const [hydrantQty, setHydrantQty] = useState(0)
   const [blisterQty, setBlisterQty] = useState(0)
@@ -333,6 +333,7 @@ function SheCart({ open, onClose, affiliateId = null }) {
       .then((prices) => {
         if (!active) return
         setCartPrices(prices)
+        onPricesUpdated?.(prices)
         setPricesError(false)
       })
       .catch((error) => {
@@ -966,6 +967,42 @@ export default function Stick({ affiliateId = null, affiliate = null }) {
 
   const [visitorName, setVisitorName] = useState('')
   const [cartOpen, setCartOpen] = useState(false)
+  const [navbarProductPrice, setNavbarProductPrice] = useState(() => {
+    const prices = getCachedCartPrices()
+    const product = getCartProductPrice(prices, 'GVVB8UXHJ8')
+    return product ? { price: product.effectivePrice ?? null, oldPrice: product.promotionalPrice ? product.salePrice : null } : null
+  })
+
+  useEffect(() => {
+    const cached = getCachedCartPrices()
+    const product = getCartProductPrice(cached, 'GVVB8UXHJ8')
+    if (product?.effectivePrice != null) return
+
+    let active = true
+    syncCartPrices()
+      .then((prices) => {
+        if (!active) return
+        const next = getCartProductPrice(prices, 'GVVB8UXHJ8')
+        if (next?.effectivePrice != null) {
+          setNavbarProductPrice({
+            price: next.effectivePrice,
+            oldPrice: next.promotionalPrice ? next.salePrice : null,
+          })
+        }
+      })
+      .catch(() => {})
+    return () => { active = false }
+  }, [])
+
+  const updateNavbarProductPrice = (prices) => {
+    const product = getCartProductPrice(prices, 'GVVB8UXHJ8')
+    if (product?.effectivePrice != null) {
+      setNavbarProductPrice({
+        price: product.effectivePrice,
+        oldPrice: product.promotionalPrice ? product.salePrice : null,
+      })
+    }
+  }
   const [ingredientSectionInView, setIngredientSectionInView] = useState(false)
   const ingredientSectionRef = useRef(null)
   const ingredientSectionIntensity = useViewportCenterIntensity(ingredientSectionRef)
@@ -994,7 +1031,7 @@ export default function Stick({ affiliateId = null, affiliate = null }) {
       
 
       
-<Navbar onBuy={() => setCartOpen(true)} />
+<Navbar onBuy={() => setCartOpen(true)} productPrice={navbarProductPrice?.price} productOldPrice={navbarProductPrice?.oldPrice} />
 
       <ScrollDrivenIntroVideo />
 
@@ -1404,7 +1441,7 @@ export default function Stick({ affiliateId = null, affiliate = null }) {
 
 </section>
 
-      <SheCart open={cartOpen} onClose={() => setCartOpen(false)} affiliateId={affiliateId} />
+      <SheCart open={cartOpen} onClose={() => setCartOpen(false)} affiliateId={affiliateId} onPricesUpdated={updateNavbarProductPrice} />
 
       <footer className="relative overflow-hidden bg-[#0b0b0d] text-white px-6 pt-16 pb-8 md:pt-24 md:pb-10">
         <div
