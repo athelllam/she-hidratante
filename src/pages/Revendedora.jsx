@@ -31,6 +31,13 @@ function discountedUnitPrice(price, quantity) {
 }
 
 function buildWhatsappMessage(items, total, customer) {
+  const fullAddress = [
+    `${customer.street}, ${customer.number}`.replace(/, $/, ''),
+    customer.complement,
+    customer.neighborhood,
+    [customer.city, customer.state].filter(Boolean).join(' - '),
+    customer.cep,
+  ].filter(Boolean).join(', ')
   const lines = items.map(item => {
     const discount = resellerDiscountPercent(item.quantity)
     const unit = discountedUnitPrice(item.price, item.quantity)
@@ -44,7 +51,7 @@ function buildWhatsappMessage(items, total, customer) {
     `CPF: ${customer.cpf}`,
     `E-mail: ${customer.email}`,
     `CEP: ${customer.cep}`,
-    `Endereço completo: ${customer.address}`,
+    `Endereço completo: ${fullAddress}`,
     '',
     'Meu pedido:',
     ...lines,
@@ -61,7 +68,9 @@ export default function Revendedora() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [cartOpen, setCartOpen] = useState(false)
-  const [customer, setCustomer] = useState({ fullName: '', cpf: '', email: '', cep: '', address: '' })
+  const [customer, setCustomer] = useState({ fullName: '', cpf: '', email: '', cep: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '' })
+  const [cepLoading, setCepLoading] = useState(false)
+  const [cepError, setCepError] = useState('')
   const [customerOpen, setCustomerOpen] = useState(false)
 
   useEffect(() => {
@@ -75,6 +84,36 @@ export default function Revendedora() {
       .catch(err => setError(err.message || 'Não foi possível carregar os preços.'))
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    const cep = customer.cep.replace(/\D/g, '')
+    if (cep.length !== 8) {
+      setCepError('')
+      return
+    }
+    let cancelled = false
+    setCepLoading(true)
+    setCepError('')
+    fetch(`https://viacep.com.br/ws/${cep}/json/`)
+      .then(async response => {
+        if (!response.ok) throw new Error('Não foi possível consultar o CEP.')
+        return response.json()
+      })
+      .then(data => {
+        if (cancelled) return
+        if (data.erro) throw new Error('CEP não encontrado.')
+        setCustomer(current => ({
+          ...current,
+          street: data.logradouro || '',
+          neighborhood: data.bairro || '',
+          city: data.localidade || '',
+          state: data.uf || '',
+        }))
+      })
+      .catch(err => { if (!cancelled) setCepError(err.message || 'Não foi possível consultar o CEP.') })
+      .finally(() => { if (!cancelled) setCepLoading(false) })
+    return () => { cancelled = true }
+  }, [customer.cep])
 
   const items = useMemo(() => PRODUCTS.map(product => ({
     ...product,
@@ -97,7 +136,7 @@ export default function Revendedora() {
 
   const checkout = () => {
     if (!items.length) return setCartOpen(true)
-    if (!customer.fullName || !customer.cpf || !customer.email || !customer.cep || !customer.address) {
+    if (!customer.fullName || !customer.cpf || !customer.email || !customer.cep || !customer.street || !customer.number || !customer.neighborhood || !customer.city || !customer.state) {
       setCartOpen(false)
       setCustomerOpen(true)
       return
@@ -248,16 +287,46 @@ export default function Revendedora() {
               <button onClick={() => setCustomerOpen(false)} className="h-9 w-9 shrink-0 rounded-full bg-zinc-100 font-black text-zinc-500">×</button>
             </div>
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              {[['fullName','Nome completo','text','Digite seu nome completo'],['cpf','CPF','text','000.000.000-00'],['email','E-mail','email','seu@email.com'],['cep','CEP','text','00000-000']].map(([key,label,type,placeholder]) => (
+              {[['fullName','Nome completo','text','Digite seu nome completo'],['cpf','CPF','text','000.000.000-00'],['email','E-mail','email','seu@email.com']].map(([key,label,type,placeholder]) => (
                 <label key={key} className="block">
                   <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[.14em] text-zinc-500">{label}</span>
                   <input type={type} value={customer[key]} onChange={e => setCustomer(current => ({ ...current, [key]: e.target.value }))} placeholder={placeholder} className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold outline-none transition focus:border-pink-300 focus:bg-white" />
                 </label>
               ))}
-              <label className="block sm:col-span-2">
-                <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[.14em] text-zinc-500">Endereço completo para envio</span>
-                <textarea value={customer.address} onChange={e => setCustomer(current => ({ ...current, address: e.target.value }))} placeholder="Rua, número, complemento, bairro, cidade e estado" rows={3} className="w-full resize-none rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold outline-none transition focus:border-pink-300 focus:bg-white" />
+              <label className="block">
+                <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[.14em] text-zinc-500">CEP</span>
+                <input type="text" inputMode="numeric" maxLength={9} value={customer.cep} onChange={e => setCustomer(current => ({ ...current, cep: e.target.value.replace(/\D/g, '').slice(0, 8).replace(/(\d{5})(\d)/, '$1-$2') }))} placeholder="00000-000" className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold outline-none transition focus:border-pink-300 focus:bg-white" />
+                {cepLoading && <span className="mt-1 block text-[10px] font-bold text-zinc-400">Buscando endereço…</span>}
+                {!cepLoading && cepError && <span className="mt-1 block text-[10px] font-bold text-red-500">{cepError}</span>}
               </label>
+              <label className="block sm:col-span-2">
+                <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[.14em] text-zinc-500">Rua</span>
+                <input value={customer.street} onChange={e => setCustomer(current => ({ ...current, street: e.target.value }))} placeholder="Preenchida automaticamente pelo CEP" className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold outline-none transition focus:border-pink-300 focus:bg-white" />
+              </label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[.14em] text-zinc-500">Número</span>
+                  <input value={customer.number} onChange={e => setCustomer(current => ({ ...current, number: e.target.value }))} placeholder="123" className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold outline-none transition focus:border-pink-300 focus:bg-white" />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[.14em] text-zinc-500">Complemento</span>
+                  <input value={customer.complement} onChange={e => setCustomer(current => ({ ...current, complement: e.target.value }))} placeholder="Apto, sala... (opcional)" className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold outline-none transition focus:border-pink-300 focus:bg-white" />
+                </label>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-3 sm:col-span-2">
+                <label className="block">
+                  <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[.14em] text-zinc-500">Bairro</span>
+                  <input value={customer.neighborhood} onChange={e => setCustomer(current => ({ ...current, neighborhood: e.target.value }))} placeholder="Automático" className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold outline-none transition focus:border-pink-300 focus:bg-white" />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[.14em] text-zinc-500">Cidade</span>
+                  <input value={customer.city} onChange={e => setCustomer(current => ({ ...current, city: e.target.value }))} placeholder="Automática" className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold outline-none transition focus:border-pink-300 focus:bg-white" />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[.14em] text-zinc-500">Estado</span>
+                  <input value={customer.state} onChange={e => setCustomer(current => ({ ...current, state: e.target.value }))} placeholder="UF" maxLength={2} className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold uppercase outline-none transition focus:border-pink-300 focus:bg-white" />
+                </label>
+              </div>
             </div>
             <button onClick={() => checkout()} disabled={!items.length} className="mt-5 w-full rounded-2xl bg-pink-500 px-5 py-4 text-sm font-black text-white transition hover:bg-pink-600 disabled:opacity-40">Continuar para o WhatsApp →</button>
           </div>
