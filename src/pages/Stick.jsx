@@ -969,6 +969,24 @@ export default function Stick({ affiliateId = null, affiliate = null }) {
 
   const [visitorName, setVisitorName] = useState('')
   const [cartOpen, setCartOpen] = useState(false)
+  const [navbarPriceVisible, setNavbarPriceVisible] = useState(false)
+
+  useEffect(() => {
+    const updateNavbarPriceVisibility = () => {
+      const scrollable = Math.max(1, document.documentElement.scrollHeight - window.innerHeight)
+      setNavbarPriceVisible(window.scrollY / scrollable >= 0.20)
+    }
+
+    updateNavbarPriceVisibility()
+    window.addEventListener('scroll', updateNavbarPriceVisibility, { passive: true })
+    window.addEventListener('resize', updateNavbarPriceVisibility)
+
+    return () => {
+      window.removeEventListener('scroll', updateNavbarPriceVisibility)
+      window.removeEventListener('resize', updateNavbarPriceVisibility)
+    }
+  }, [])
+
   const [navbarProductPrice, setNavbarProductPrice] = useState(() => {
     const prices = getCachedCartPrices()
     const product = getCartProductPrice(prices, 'GVVB8UXHJ8')
@@ -1033,7 +1051,7 @@ export default function Stick({ affiliateId = null, affiliate = null }) {
       
 
       
-<Navbar onBuy={() => setCartOpen(true)} productPrice={navbarProductPrice?.price} productOldPrice={navbarProductPrice?.oldPrice} />
+<Navbar onBuy={() => setCartOpen(true)}  productPrice={navbarPriceVisible ? navbarProductPrice?.price : undefined} productOldPrice={navbarPriceVisible ? navbarProductPrice?.oldPrice : undefined} />
 
       <ScrollDrivenIntroVideo />
 
