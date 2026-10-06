@@ -163,7 +163,16 @@ function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG, options
     // vigente. Meses anteriores ficam congelados no valor já gravado no pedido.
     let commission;
     let baseCommission;
-    if (isCurrentMonth) {
+
+    // O Bônus de Equipe é um benefício promocional de 30 dias corridos.
+    // Durante esse período, toda venda própria da afiliada deve receber
+    // obrigatoriamente a comissão do Bronze configurado (ex.: R$100),
+    // mesmo que o pedido tenha sido salvo anteriormente com a comissão
+    // do plano Início ou com outro snapshot.
+    if (teamBonusActiveForOrder) {
+      baseCommission = Number(normalized.commissions.bronze || 0);
+      commission = Number((baseCommission + multiplier).toFixed(2));
+    } else if (isCurrentMonth) {
       baseCommission = Number(normalized.commissions[effectiveLevel.key] || 0);
       commission = Number((baseCommission + multiplier).toFixed(2));
     } else {
@@ -226,8 +235,6 @@ async function reconcileAffiliateOrderCommissions(supabaseFetch, affiliateId, co
 
   for (const order of paid) {
     const key = monthKey(order.created_at);
-    if (key !== currentMonth) continue;
-
     const stats = monthlyStats[key] || { sales: 0, revenue: 0, averageTicket: 0, multiplierActive: false };
     const monthlyLevel = getLevel(stats.sales, normalized, 'monthly');
     const fixedLevel = getLevel(cumulativeByMonth[key] || 0, normalized, 'fixed');
@@ -239,6 +246,9 @@ async function reconcileAffiliateOrderCommissions(supabaseFetch, affiliateId, co
       orderDate >= teamJoinedAt &&
       orderDate < new Date(teamJoinedAt.getTime() + 30 * 24 * 60 * 60 * 1000)
     );
+    // Pedidos fora do mês atual continuam congelados, exceto quando
+    // precisam ser corrigidos por terem ocorrido dentro do Bônus de Equipe.
+    if (key !== currentMonth && !teamBonusActiveForOrder) continue;
     // Bônus de Equipe garante diretamente o nível mínimo Bronze por 30 dias.
     // O Bônus Fixo também define um piso permanente para o mês.
     let floorLevelKey = fixedLevel.key;
@@ -248,7 +258,11 @@ async function reconcileAffiliateOrderCommissions(supabaseFetch, affiliateId, co
       : getLevel(normalized.monthlyLevels[floorLevelKey] || 0, normalized, 'monthly');
 
     const multiplier = stats.multiplierActive ? normalized.ticketBonus : 0;
-    const nextBase = Number(normalized.commissions[effectiveLevel.key] || 0);
+    // Se a venda aconteceu dentro dos 30 dias do Bônus de Equipe,
+    // o Bronze promocional prevalece sobre qualquer snapshot anterior.
+    const nextBase = teamBonusActiveForOrder
+      ? Number(normalized.commissions.bronze || 0)
+      : Number(normalized.commissions[effectiveLevel.key] || 0);
     const nextCommission = Number((nextBase + multiplier).toFixed(2));
     const existingBase = Number(order.commission_base_snapshot);
     const existingCommission = Number(order.commission);
