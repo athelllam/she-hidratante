@@ -103,6 +103,10 @@ export default function AffiliateDashboard() {
   const [pixOpen, setPixOpen] = useState(false)
   const [pixBusy, setPixBusy] = useState(false)
   const [pixMessage, setPixMessage] = useState('')
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [profileForm, setProfileForm] = useState({ email: '', cpf: '', whatsapp: '', password: '' })
+  const [profileBusy, setProfileBusy] = useState(false)
+  const [profileMessage, setProfileMessage] = useState('')
   const [levelHelpOpen, setLevelHelpOpen] = useState(false)
   const [fixedHelpOpen, setFixedHelpOpen] = useState(false)
   const [videoHelpOpen, setVideoHelpOpen] = useState(false)
@@ -232,6 +236,31 @@ export default function AffiliateDashboard() {
       setLinkMessage(e.message || 'Não foi possível criar seu link.')
     } finally {
       setLinkBusy(false)
+    }
+  }
+
+  const openProfile = () => {
+    setProfileForm({ email: affiliate?.email || '', cpf: affiliate?.cpf || '', whatsapp: affiliate?.whatsapp || '', password: '' })
+    setProfileMessage('')
+    setProfileOpen(true)
+  }
+
+  const saveProfile = async (event) => {
+    event.preventDefault()
+    setProfileBusy(true)
+    setProfileMessage('')
+    try {
+      const result = await api('/api/affiliate/dashboard', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'update_profile', ...profileForm }),
+      })
+      setAffiliate(current => current ? { ...current, ...result.affiliate } : current)
+      setProfileForm(current => ({ ...current, password: '' }))
+      setProfileMessage(result.passwordChanged ? 'Dados e senha atualizados com sucesso.' : 'Dados atualizados com sucesso.')
+    } catch (e) {
+      setProfileMessage(e.message || 'Não foi possível atualizar seus dados.')
+    } finally {
+      setProfileBusy(false)
     }
   }
 
@@ -534,6 +563,9 @@ export default function AffiliateDashboard() {
 
           <div className="flex flex-wrap items-center gap-2">
             {syncMessage && <span className="text-xs font-semibold text-zinc-400">{syncMessage}</span>}
+            <button type="button" onClick={openProfile} className="rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-xs font-black text-zinc-700 shadow-sm transition hover:border-pink-300 hover:text-pink-600">
+              Meus Dados
+            </button>
             <button onClick={() => load({ sync: true })} disabled={syncing} className="rounded-xl bg-pink-500 px-4 py-2.5 text-sm font-bold text-white shadow-sm disabled:opacity-60">
               {syncing ? 'Atualizando…' : 'Atualizar vendas'}
             </button>
@@ -974,6 +1006,50 @@ export default function AffiliateDashboard() {
 
 
       {videoTermsOpen && (
+        {profileOpen && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 px-5 py-8" onMouseDown={event => { if (event.target === event.currentTarget && !profileBusy) setProfileOpen(false) }}>
+            <div className="w-full max-w-lg rounded-[2rem] bg-white p-6 shadow-[0_30px_100px_rgba(0,0,0,.25)]">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[.22em] text-pink-500">Minha conta</p>
+                  <h3 className="mt-1 text-2xl font-black text-zinc-950">Meus Dados</h3>
+                  <p className="mt-1 text-sm text-zinc-400">Confira e altere seus dados de cadastro.</p>
+                </div>
+                <button type="button" disabled={profileBusy} onClick={() => setProfileOpen(false)} className="h-9 w-9 rounded-full bg-zinc-100 text-zinc-500 disabled:opacity-50">×</button>
+              </div>
+
+              <form onSubmit={saveProfile} className="mt-6 space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block sm:col-span-2">
+                    <span className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">E-mail</span>
+                    <input value={profileForm.email} onChange={e => setProfileForm(current => ({ ...current, email: e.target.value }))} type="email" required autoComplete="email" className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm font-semibold outline-none focus:border-pink-400" />
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">CPF</span>
+                    <input value={profileForm.cpf} onChange={e => setProfileForm(current => ({ ...current, cpf: e.target.value.replace(/\D/g, '').slice(0, 11) }))} inputMode="numeric" maxLength={11} required className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm font-semibold outline-none focus:border-pink-400" />
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">WhatsApp</span>
+                    <input value={profileForm.whatsapp} onChange={e => setProfileForm(current => ({ ...current, whatsapp: e.target.value }))} type="tel" required autoComplete="tel" className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm font-semibold outline-none focus:border-pink-400" />
+                  </label>
+                </div>
+
+                <div className="border-t border-zinc-100 pt-4">
+                  <p className="text-sm font-black text-zinc-900">Alterar senha</p>
+                  <p className="mt-1 text-xs text-zinc-400">Deixe em branco para manter a senha atual.</p>
+                  <input value={profileForm.password} onChange={e => setProfileForm(current => ({ ...current, password: e.target.value }))} type="password" minLength={8} autoComplete="new-password" placeholder="Nova senha (mín. 8 caracteres)" className="mt-3 w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm font-semibold outline-none focus:border-pink-400" />
+                </div>
+
+                {profileMessage && <p className="rounded-xl bg-zinc-50 px-3 py-2.5 text-xs font-semibold text-zinc-600">{profileMessage}</p>}
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <button type="button" disabled={profileBusy} onClick={() => setProfileOpen(false)} className="rounded-xl border border-zinc-200 px-4 py-3 text-sm font-black text-zinc-600 disabled:opacity-50">Fechar</button>
+                  <button type="submit" disabled={profileBusy} className="rounded-xl bg-zinc-950 px-5 py-3 text-sm font-black text-white transition hover:bg-pink-500 disabled:opacity-50">{profileBusy ? 'Salvando…' : 'Salvar alterações'}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-5 py-8" onMouseDown={event => { if (event.target === event.currentTarget && !videoBusy) setVideoTermsOpen(false) }}>
           <div role="dialog" aria-modal="true" className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] bg-white p-6 shadow-[0_30px_100px_rgba(0,0,0,.3)]">
             <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Termos e Condições · versão 1.0</p><h3 className="mt-1 text-2xl font-black text-zinc-950">Autorização de uso do vídeo</h3></div><button type="button" disabled={videoBusy} onClick={() => setVideoTermsOpen(false)} className="h-9 w-9 rounded-full bg-zinc-100 text-zinc-500">×</button></div>

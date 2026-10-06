@@ -54,7 +54,74 @@ function monthLabelForChart(value) {
     .replace('.', '');
 }
 
+
+function normalizeCpf(value) {
+  return String(value || '').replace(/\D/g, '').slice(0, 11);
+}
+
+function isValidCpf(value) {
+  const cpf = normalizeCpf(value);
+  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += Number(cpf[i]) * (10 - i);
+  let digit = (sum * 10) % 11;
+  if (digit === 10) digit = 0;
+  if (digit !== Number(cpf[9])) return false;
+  sum = 0;
+  for (let i = 0; i < 10; i++) sum += Number(cpf[i]) * (11 - i);
+  digit = (sum * 10) % 11;
+  if (digit === 10) digit = 0;
+  return digit === Number(cpf[10]);
+}
+
+function normalizeWhatsapp(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('55')) return digits.slice(0, 13);
+  return `55${digits}`.slice(0, 13);
+}
+
 module.exports = async function handler(req, res) {
+  if (req.method === 'POST' && String(req.body?.action || '') === 'update_profile') {
+    try {
+      const { affiliate } = await requireAffiliate(req);
+      const email = String(req.body?.email || '').trim().toLowerCase();
+      const cpf = normalizeCpf(req.body?.cpf);
+      const whatsapp = normalizeWhatsapp(req.body?.whatsapp);
+      const password = String(req.body?.password || '');
+
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(res, 400, { error: 'Informe um e-mail válido.' });
+      if (!isValidCpf(cpf)) return json(res, 400, { error: 'Informe um CPF válido.' });
+      if (!whatsapp || whatsapp.length < 12) return json(res, 400, { error: 'Informe um WhatsApp válido.' });
+      if (password && password.length < 8) return json(res, 400, { error: 'A nova senha precisa ter pelo menos 8 caracteres.' });
+
+      const duplicate = await supabaseFetch(
+        `/rest/v1/affiliates?or=(email.eq.${encodeURIComponent(email)},cpf.eq.${encodeURIComponent(cpf)})&id=neq.${Number(affiliate.id)}&select=id,email,cpf&limit=1`
+      );
+      if (duplicate?.length) {
+        if (duplicate[0].cpf === cpf) return json(res, 409, { error: 'Este CPF já está cadastrado.' });
+        return json(res, 409, { error: 'Este e-mail já está cadastrado.' });
+      }
+
+      const authPatch = { email, email_confirm: true };
+      if (password) authPatch.password = password;
+      await supabaseFetch(`/auth/v1/admin/users/${encodeURIComponent(affiliate.auth_user_id)}`, {
+        method: 'PUT',
+        body: JSON.stringify(authPatch),
+      });
+
+      const rows = await supabaseFetch(`/rest/v1/affiliates?id=eq.${Number(affiliate.id)}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ email, cpf, whatsapp }),
+      });
+
+      return json(res, 200, { affiliate: rows?.[0] || { ...affiliate, email, cpf, whatsapp }, passwordChanged: Boolean(password) });
+    } catch (error) {
+      return json(res, error.statusCode || 500, { error: error.message || 'Não foi possível atualizar seus dados.' });
+    }
+  }
+
   if (req.method === 'GET' && String(req.query?.boost || '') === '1') {
     try {
       const { affiliate } = await requireAffiliate(req);

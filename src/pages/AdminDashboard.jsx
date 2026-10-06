@@ -748,6 +748,7 @@ export default function AdminDashboard() {
               <thead className="sticky top-0 z-10 bg-white">
                 <tr className="border-b border-zinc-100 text-left text-[10px] font-black uppercase tracking-[.14em] text-zinc-400">
                   <th className="pb-3 pr-4">Afiliada</th>
+                  <th className="pb-3 pr-4">Data de entrada</th>
                   <th className="pb-3 pr-4">Acessos</th>
                   <th className="pb-3 pr-4">Vendas</th>
                   <th className="pb-3 pr-4">Faturamento</th>
@@ -773,6 +774,7 @@ export default function AdminDashboard() {
                         <div className="mt-1 text-[10px] text-amber-600">Ainda não possui venda</div>
                       )}
                     </td>
+                    <td className="py-4 pr-4 font-bold text-zinc-700">{affiliate.created_at ? new Date(affiliate.created_at).toLocaleDateString('pt-BR') : '—'}</td>
                     <td className="py-4 pr-4 font-black text-zinc-950">{affiliate.accesses || 0}</td>
                     <td className="py-4 pr-4 font-black text-zinc-950">{affiliate.sales}</td>
                     <td className="py-4 pr-4 font-black text-zinc-950">{brl(affiliate.revenue)}</td>
@@ -839,7 +841,7 @@ export default function AdminDashboard() {
                 ))}
                 {!filteredAffiliates.length && (
                   <tr>
-                    <td colSpan={12} className="py-10 text-center text-sm font-semibold text-zinc-400">
+                    <td colSpan={13} className="py-10 text-center text-sm font-semibold text-zinc-400">
                       Nenhuma afiliada encontrada{affiliateSearch ? ` para "${affiliateSearch}"` : ''}.
                     </td>
                   </tr>
