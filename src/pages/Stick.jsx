@@ -235,6 +235,63 @@ function IngredientCards() {
 }
 
 
+
+function VideoCover({ children, onPlay, ariaLabel, source }) {
+  const [ready, setReady] = useState(false)
+  const coverVideoRef = useRef(null)
+
+  useEffect(() => {
+    const video = coverVideoRef.current
+    if (!video) return
+
+    const showFirstFrame = () => setReady(true)
+    video.addEventListener('loadeddata', showFirstFrame)
+    video.addEventListener('canplay', showFirstFrame)
+
+    return () => {
+      video.removeEventListener('loadeddata', showFirstFrame)
+      video.removeEventListener('canplay', showFirstFrame)
+    }
+  }, [])
+
+  return (
+    <div className="absolute inset-0 z-10 overflow-hidden rounded-[inherit]">
+      <video
+        ref={coverVideoRef}
+        playsInline
+        preload="metadata"
+        className={`absolute inset-0 w-full h-full object-cover scale-[1.015] blur-[3px] transition-opacity duration-500 ${ready ? 'opacity-100' : 'opacity-0'}`}
+        aria-hidden="true"
+      >
+        <source src={source} type="video/mp4" />
+      </video>
+
+      <button
+        type="button"
+        onClick={onPlay}
+        className="absolute inset-0 flex flex-col items-center justify-center px-8 text-center cursor-pointer"
+        aria-label={ariaLabel}
+      >
+        <div className="absolute inset-0 bg-black/10" />
+
+        <div className="relative z-10 flex flex-col items-center">
+          <div className="relative px-8 py-5 md:px-12 md:py-7">
+            <div className="absolute inset-y-1/2 -translate-y-1/2 -inset-x-12 bg-gradient-to-r from-transparent via-white/90 to-transparent blur-xl" />
+            <div className="absolute inset-y-1/2 -translate-y-1/2 -inset-x-6 bg-gradient-to-r from-transparent via-white/65 to-transparent blur-md" />
+            <div className="relative">
+              {children}
+            </div>
+          </div>
+
+          <span className="mt-5 flex h-16 w-16 items-center justify-center rounded-full bg-black text-white shadow-[0_0_30px_rgba(255,255,255,0.85),0_12px_35px_rgba(0,0,0,0.28)] transition-transform duration-300 hover:scale-110 active:scale-95">
+            <span className="block ml-1 text-[22px] leading-none" aria-hidden="true">▶</span>
+          </span>
+        </div>
+      </button>
+    </div>
+  )
+}
+
 function formatBRL(value) {
   if (value == null || !Number.isFinite(Number(value))) return '—'
   return `R$ ${Number(value).toFixed(2).replace('.', ',')}`
@@ -971,6 +1028,20 @@ export default function Stick({ affiliateId = null, affiliate = null }) {
 
   const [visitorName, setVisitorName] = useState('')
   const [cartOpen, setCartOpen] = useState(false)
+  const stickPraticidadeVideoRef = useRef(null)
+  const [stickPraticidadeVideoStarted, setStickPraticidadeVideoStarted] = useState(false)
+
+  const handleStickPraticidadeVideoPlay = () => {
+    setStickPraticidadeVideoStarted(true)
+  }
+
+  const handleStickPraticidadeCoverPlay = async () => {
+    try {
+      await stickPraticidadeVideoRef.current?.play()
+    } catch (error) {
+      // Os controles nativos continuam disponíveis caso o navegador bloqueie a reprodução.
+    }
+  }
   const [navbarPriceVisible, setNavbarPriceVisible] = useState(false)
 
   useEffect(() => {
@@ -1442,20 +1513,48 @@ export default function Stick({ affiliateId = null, affiliate = null }) {
 
     </h2>
 
-    <motion.video
+    <motion.div
       initial={{ opacity: 0, y: 40 }}
       whileInView={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8 }}
       viewport={{ once: true }}
-      src={stickPraticidadeVideo}
-      autoPlay
-      muted
-      loop
-      playsInline
-      preload="metadata"
-      aria-label="Vídeo do Stick Clareador de Pele She"
-      className="w-full max-w-xl mx-auto my-20"
-    />
+      className="relative overflow-hidden rounded-[3rem] shadow-[0_30px_80px_rgba(0,0,0,0.08)] aspect-[9/16] max-w-[450px] mx-auto my-20 bg-white"
+    >
+      <video
+        ref={stickPraticidadeVideoRef}
+        playsInline
+        controls
+        preload="none"
+        onPlay={handleStickPraticidadeVideoPlay}
+        className="w-full h-full object-cover"
+      >
+        <source
+          src={stickPraticidadeVideo}
+          type="video/mp4"
+        />
+      </video>
+
+      {!stickPraticidadeVideoStarted && (
+        <VideoCover
+          source={stickPraticidadeVideo}
+          onPlay={handleStickPraticidadeCoverPlay}
+          ariaLabel="Aperte o Play para assistir ao vídeo de como o Stick pode te ajudar"
+        >
+          <span
+            className="block text-black text-2xl md:text-3xl font-black leading-tight max-w-[330px]"
+            style={{ textShadow: '0 0 5px rgba(255,255,255,0.98), 0 0 14px rgba(255,255,255,0.9)' }}
+          >
+            Descubra como o Stick pode te ajudar.
+          </span>
+          <span
+            className="block mt-4 text-black text-sm md:text-base font-semibold tracking-wide"
+            style={{ textShadow: '0 0 4px rgba(255,255,255,0.98), 0 0 12px rgba(255,255,255,0.9)' }}
+          >
+            Aperte o Play!
+          </span>
+        </VideoCover>
+      )}
+    </motion.div>
 
     <h3 className="text-4xl md:text-6xl font-black leading-tight">
 
