@@ -104,7 +104,7 @@ export default function AdminDashboard() {
   const [deletePhrase, setDeletePhrase] = useState('')
   const [deletingIds, setDeletingIds] = useState([])
   const [settings, setSettings] = useState({ ticketThreshold: 170, ticketBonus: 5, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 }, monthlyLevels: { bronze: 10, silver: 50, gold: 101 }, fixedLevels: { bronze: 100, silver: 300, gold: 500 } })
-  const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', ticketBonus: '5', teamCommissionPerSale: '10', none: '30', bronze: '40', silver: '50', gold: '60', monthlyBronze: '10', monthlySilver: '50', monthlyGold: '101', fixedBronze: '100', fixedSilver: '300', fixedGold: '500', smallBoostPrice: '30', smallBoostConnections: '5', largeBoostPrice: '50', largeBoostConnections: '10', maxActiveBoosts: '3' })
+  const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', ticketBonus: '5', teamCommissionPerSale: '10', none: '30', bronze: '40', silver: '50', gold: '60', monthlyBronze: '10', monthlySilver: '50', monthlyGold: '101', fixedBronze: '100', fixedSilver: '300', fixedGold: '500', smallBoostPrice: '30', smallBoostConnections: '5', largeBoostPrice: '50', largeBoostConnections: '10', maxActiveBoosts: '3', resellerHydrant: '0', resellerHydrantBlister: '0', resellerStick: '0', resellerComplete: '0' })
   const [savingSettings, setSavingSettings] = useState(false)
   const [savingBonusLevels, setSavingBonusLevels] = useState(false)
   const [globalStatsData, setGlobalStatsData] = useState({ all: { sales: 0, revenue: 0, averageTicket: 0, accesses: 0 }, byMonth: {}, snapshots: {} })
@@ -146,6 +146,10 @@ export default function AdminDashboard() {
       largeBoostPrice: String(nextSettings.boostPlans?.large?.price ?? 50),
       largeBoostConnections: String(nextSettings.boostPlans?.large?.connections ?? 10),
       maxActiveBoosts: String(nextSettings.boostPlans?.maxActive ?? 3),
+      resellerHydrant: String(nextSettings.resellerPrices?.hydrant ?? 0),
+      resellerHydrantBlister: String(nextSettings.resellerPrices?.hydrantBlister ?? 0),
+      resellerStick: String(nextSettings.resellerPrices?.stick ?? 0),
+      resellerComplete: String(nextSettings.resellerPrices?.complete ?? 0),
     })
     setSelectedAffiliateIds(new Set())
     setDeleteModalOpen(false)
@@ -393,8 +397,14 @@ export default function AdminDashboard() {
           large: { price: Number(String(settingsForm.largeBoostPrice).replace(',', '.')), connections: Number(settingsForm.largeBoostConnections) },
           maxActive: Number(settingsForm.maxActiveBoosts),
         },
+        resellerPrices: {
+          hydrant: Number(String(settingsForm.resellerHydrant).replace(',', '.')),
+          hydrantBlister: Number(String(settingsForm.resellerHydrantBlister).replace(',', '.')),
+          stick: Number(String(settingsForm.resellerStick).replace(',', '.')),
+          complete: Number(String(settingsForm.resellerComplete).replace(',', '.')),
+        },
       }
-      if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || !Number.isFinite(payload.ticketBonus) || payload.ticketBonus < 0 || !Number.isFinite(payload.teamCommissionPerSale) || payload.teamCommissionPerSale < 0 || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0) || Object.values(payload.monthlyLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.fixedLevels).some(value => !Number.isInteger(value) || value <= 0) || payload.boostPlans.small.price <= 0 || !Number.isInteger(payload.boostPlans.small.connections) || payload.boostPlans.small.connections <= 0 || payload.boostPlans.large.price <= 0 || !Number.isInteger(payload.boostPlans.large.connections) || payload.boostPlans.large.connections <= 0 || !Number.isInteger(payload.boostPlans.maxActive) || payload.boostPlans.maxActive <= 0 || !(payload.monthlyLevels.bronze < payload.monthlyLevels.silver && payload.monthlyLevels.silver < payload.monthlyLevels.gold) || !(payload.fixedLevels.bronze < payload.fixedLevels.silver && payload.fixedLevels.silver < payload.fixedLevels.gold)) {
+      if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || !Number.isFinite(payload.ticketBonus) || payload.ticketBonus < 0 || !Number.isFinite(payload.teamCommissionPerSale) || payload.teamCommissionPerSale < 0 || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0) || Object.values(payload.monthlyLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.fixedLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.resellerPrices).some(value => !Number.isFinite(value) || value < 0) || payload.boostPlans.small.price <= 0 || !Number.isInteger(payload.boostPlans.small.connections) || payload.boostPlans.small.connections <= 0 || payload.boostPlans.large.price <= 0 || !Number.isInteger(payload.boostPlans.large.connections) || payload.boostPlans.large.connections <= 0 || !Number.isInteger(payload.boostPlans.maxActive) || payload.boostPlans.maxActive <= 0 || !(payload.monthlyLevels.bronze < payload.monthlyLevels.silver && payload.monthlyLevels.silver < payload.monthlyLevels.gold) || !(payload.fixedLevels.bronze < payload.fixedLevels.silver && payload.fixedLevels.silver < payload.fixedLevels.gold)) {
         throw new Error('Informe valores válidos. As metas devem ser números inteiros e crescentes: Bronze < Prata < Ouro.')
       }
       const result = await api('/api/admin/affiliates', {
@@ -421,6 +431,10 @@ export default function AdminDashboard() {
         largeBoostPrice: String(result.settings.boostPlans?.large?.price ?? 50),
         largeBoostConnections: String(result.settings.boostPlans?.large?.connections ?? 10),
         maxActiveBoosts: String(result.settings.boostPlans?.maxActive ?? 3),
+        resellerHydrant: String(result.settings.resellerPrices?.hydrant ?? 0),
+        resellerHydrantBlister: String(result.settings.resellerPrices?.hydrantBlister ?? 0),
+        resellerStick: String(result.settings.resellerPrices?.stick ?? 0),
+        resellerComplete: String(result.settings.resellerPrices?.complete ?? 0),
       })
       setMessage('Configurações de comissões e metas dos Bônus Mensal e Fixo atualizadas para todas as afiliadas.')
       await loadPanel()
@@ -939,6 +953,22 @@ export default function AdminDashboard() {
               <button disabled={savingSettings} className="rounded-xl bg-zinc-950 px-5 py-3 text-sm font-black text-white transition hover:bg-pink-500 disabled:opacity-50">{savingSettings ? 'Atualizando…' : 'Atualizar configurações'}</button>
             </div>
           </form>
+
+          <div className="mt-5 border-t border-zinc-100 pt-5">
+            <div className="flex flex-col gap-1">
+              <p className="text-[10px] font-black uppercase tracking-[.18em] text-pink-500">Revendedora</p>
+              <h3 className="text-xl font-black text-zinc-950">Preços especiais de revenda</h3>
+              <p className="text-sm text-zinc-400">Esses valores alimentam exclusivamente a página /revendedora e não alteram os preços da loja.</p>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {[[['resellerHydrant','Hidratante'],['resellerHydrantBlister','Hidratante + Blister']],[['resellerStick','Stick'],['resellerComplete','Kit Completo']]].flat().map(([key,label]) => (
+                <label key={key} className="rounded-2xl border border-pink-100 bg-pink-50/50 p-4">
+                  <span className="text-[10px] font-black uppercase tracking-[.14em] text-pink-600">{label}</span>
+                  <div className="mt-2 flex items-center gap-2"><span className="font-black text-zinc-500">R$</span><input value={settingsForm[key]} onChange={e => setSettingsForm(v => ({ ...v, [key]: e.target.value }))} inputMode="decimal" className="w-full rounded-xl border border-pink-100 bg-white px-3 py-2.5 text-lg font-black outline-none focus:border-pink-400" /></div>
+                </label>
+              ))}
+            </div>
+          </div>
 
           <div className="mt-5 border-t border-zinc-100 pt-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">

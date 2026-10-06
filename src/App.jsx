@@ -6,6 +6,7 @@ import AffiliateDashboard from './pages/AffiliateDashboard'
 import AdminDashboard from './pages/AdminDashboard'
 import TrabalheConosco from './pages/TrabalheConosco'
 import Representantes from './pages/Representantes'
+import Revendedora from './pages/Revendedora'
 import TermosAfiliadas from './pages/TermosAfiliadas'
 import AffiliatePasswordReset from './pages/AffiliatePasswordReset'
 import AffiliateProgram from './pages/AffiliateProgram'
@@ -82,6 +83,7 @@ export default function App() {
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/trabalhe-conosco" element={<TrabalheConosco />} />
           <Route path="/representantes" element={<Representantes />} />
+          <Route path="/revendedora" element={<Revendedora />} />
           <Route path="/termos-afiliadas" element={<TermosAfiliadas />} />
           <Route path="/afiliadas/*" element={<AffiliateDashboard />} />
           <Route path="/:affiliateSlug/welcome" element={<AffiliateWelcome />} />

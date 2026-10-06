@@ -148,10 +148,10 @@ export default function Welcome({ affiliateSlug = null, affiliate = null }) {
               Afiliadas
             </a>
             <a
-              href="/representantes"
-              className="text-xs font-medium text-zinc-400 transition-colors hover:text-zinc-600"
+              href="/revendedora"
+              className="text-xs font-semibold text-pink-500 transition-colors hover:text-pink-600"
             >
-              Representantes
+              Revendedora
             </a>
           </div>
         </section>

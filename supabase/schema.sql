@@ -613,3 +613,10 @@ alter table public.affiliate_withdrawals
   add column if not exists whatsapp_approved_notified_at timestamptz;
 alter table public.affiliate_withdrawals
   add column if not exists email_approved_notified_at timestamptz;
+
+-- Preços especiais da página de Revendedora. Não alteram os preços da loja/Yampi.
+alter table public.affiliate_settings
+  add column if not exists reseller_hydrant_price numeric(12,2) not null default 0,
+  add column if not exists reseller_hydrant_blister_price numeric(12,2) not null default 0,
+  add column if not exists reseller_stick_price numeric(12,2) not null default 0,
+  add column if not exists reseller_complete_price numeric(12,2) not null default 0;
