@@ -1005,8 +1005,7 @@ export default function AffiliateDashboard() {
       </div>
 
 
-      {videoTermsOpen && (
-        {profileOpen && (
+      {profileOpen && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 px-5 py-8" onMouseDown={event => { if (event.target === event.currentTarget && !profileBusy) setProfileOpen(false) }}>
             <div className="w-full max-w-lg rounded-[2rem] bg-white p-6 shadow-[0_30px_100px_rgba(0,0,0,.25)]">
               <div className="flex items-start justify-between gap-4">
@@ -1050,6 +1049,7 @@ export default function AffiliateDashboard() {
           </div>
         )}
 
+      {videoTermsOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-5 py-8" onMouseDown={event => { if (event.target === event.currentTarget && !videoBusy) setVideoTermsOpen(false) }}>
           <div role="dialog" aria-modal="true" className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] bg-white p-6 shadow-[0_30px_100px_rgba(0,0,0,.3)]">
             <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Termos e Condições · versão 1.0</p><h3 className="mt-1 text-2xl font-black text-zinc-950">Autorização de uso do vídeo</h3></div><button type="button" disabled={videoBusy} onClick={() => setVideoTermsOpen(false)} className="h-9 w-9 rounded-full bg-zinc-100 text-zinc-500">×</button></div>
