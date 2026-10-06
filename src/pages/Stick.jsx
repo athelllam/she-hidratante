@@ -270,78 +270,119 @@ function StickBeforeAfterComparison({ before, after, label }) {
     setDragging(false)
     try {
       event.currentTarget.releasePointerCapture?.(event.pointerId)
-    } catch {
-      // Pointer capture may already have been released by the browser.
-    }
+    } catch {}
   }
 
   return (
-    <section className="bg-white px-6 pt-12 pb-20 md:pt-20 md:pb-28">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-10">
-          <p className="text-[11px] md:text-xs tracking-[0.35em] uppercase text-zinc-400">
-            {label}
-          </p>
+    <div className="mb-14 md:mb-20">
+      <div className="text-center mb-7 md:mb-9">
+        <p className="text-[10px] md:text-xs tracking-[0.35em] uppercase text-zinc-400">
+          {label}
+        </p>
+        <h3 className="mt-3 text-2xl md:text-4xl font-semibold tracking-tight text-black">
+          Veja a diferença.
+        </h3>
+        <p className="mt-3 max-w-xl mx-auto text-sm md:text-base leading-relaxed text-zinc-500">
+          Compare lado a lado a aparência da pele antes e depois e veja como um tom mais uniforme pode transformar a região.
+        </p>
+      </div>
+
+      <div
+        ref={comparisonInViewRef}
+        className="relative mx-auto w-full max-w-3xl aspect-[3/2] overflow-hidden rounded-[2rem] md:rounded-[2.5rem] bg-zinc-100 shadow-[0_30px_90px_rgba(0,0,0,0.10)] select-none"
+        style={{ touchAction: 'pan-y' }}
+        role="slider"
+        aria-label={`Comparador antes e depois — ${label}`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(position)}
+        tabIndex={0}
+      >
+        <img
+          src={after}
+          alt={`Depois — ${label.toLowerCase()}`}
+          draggable="false"
+          className="absolute inset-0 h-full w-full object-cover pointer-events-none"
+        />
+
+        <img
+          src={before}
+          alt={`Antes — ${label.toLowerCase()}`}
+          draggable="false"
+          className="absolute inset-0 h-full w-full object-cover pointer-events-none"
+          style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
+        />
+
+        <div className="pointer-events-none absolute inset-x-0 bottom-4 md:bottom-5 z-10 flex justify-between px-4 md:px-6">
+          <span className="rounded-full bg-white/90 px-4 py-1.5 md:px-5 md:py-2 text-[9px] md:text-xs font-medium tracking-[0.25em] uppercase text-black shadow-sm">
+            Antes
+          </span>
+          <span className="rounded-full bg-white/90 px-4 py-1.5 md:px-5 md:py-2 text-[9px] md:text-xs font-medium tracking-[0.25em] uppercase text-black shadow-sm">
+            Depois
+          </span>
         </div>
 
         <div
-          ref={comparisonInViewRef}
-          className="relative aspect-[3/4] w-full overflow-hidden rounded-[2.5rem] bg-zinc-100 shadow-[0_30px_80px_rgba(0,0,0,0.12)] select-none"
-          style={{ touchAction: 'pan-y' }}
-          role="slider"
-          aria-label={`Comparador antes e depois — ${label}`}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(position)}
-          tabIndex={0}
+          className="absolute inset-y-0 z-20 w-[2px] md:w-[3px] bg-white shadow-[0_0_18px_rgba(0,0,0,0.28)] pointer-events-none"
+          style={{ left: `${position}%`, transform: 'translateX(-50%)' }}
         >
-          {/* DEPOIS — imagem inteira fixa por baixo */}
-          <img
-            src={after}
-            alt="Depois"
-            draggable="false"
-            className="absolute inset-0 h-full w-full object-cover pointer-events-none"
-          />
-
-          {/* ANTES — mesma escala; somente o recorte muda */}
-          <img
-            src={before}
-            alt="Antes"
-            draggable="false"
-            className="absolute inset-0 h-full w-full object-cover pointer-events-none"
-            style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
-          />
-
-          {/* DIVISOR + CONTROLE */}
-          <div
-            className="absolute inset-y-0 z-20 w-[3px] bg-white shadow-[0_0_18px_rgba(0,0,0,0.28)] pointer-events-none"
-            style={{ left: `${position}%`, transform: 'translateX(-50%)' }}
+          <button
+            type="button"
+            aria-label="Arraste para comparar antes e depois"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+            className="pointer-events-auto absolute left-1/2 top-1/2 flex h-12 w-12 md:h-14 md:w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/80 bg-white shadow-[0_8px_30px_rgba(0,0,0,0.22)] cursor-ew-resize"
+            style={{ touchAction: 'none' }}
           >
-            <button
-              type="button"
-              aria-label="Arraste para comparar antes e depois"
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
-              className="pointer-events-auto absolute left-1/2 top-1/2 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/80 bg-white shadow-[0_8px_30px_rgba(0,0,0,0.22)] cursor-ew-resize"
-              style={{ touchAction: 'none' }}
-            >
-              <span className="text-lg font-semibold text-zinc-900" aria-hidden="true">↔</span>
-            </button>
-          </div>
+            <span className="text-lg font-semibold text-zinc-900" aria-hidden="true">↔</span>
+          </button>
+        </div>
+      </div>
+
+      <p
+        className="mt-5 text-center font-medium uppercase tracking-[0.28em]"
+        style={{
+          color: `rgb(${161 + Math.round(83 * comparisonIntensity)}, ${161 - Math.round(84 * comparisonIntensity)}, ${161 + Math.round(4 * comparisonIntensity)})`,
+          fontSize: `calc(${11 + 3 * comparisonIntensity}px)`,
+          transition: 'color 120ms linear, font-size 120ms linear',
+        }}
+      >
+        Arraste para comparar
+      </p>
+    </div>
+  )
+}
+
+function StickComparisonsSection({ axilaBefore, axilaAfter, virilhaBefore, virilhaAfter }) {
+  return (
+    <section className="bg-white px-5 md:px-10 pt-12 pb-12 md:pt-20 md:pb-20">
+      <div className="max-w-5xl mx-auto">
+        <div className="text-center mb-12 md:mb-16">
+          <p className="text-[11px] md:text-xs tracking-[0.35em] uppercase text-zinc-400">
+            UNIFORMIZAÇÃO DO TOM
+          </p>
+          <h2 className="mt-3 text-3xl md:text-5xl font-semibold tracking-tight text-black">
+            Veja a diferença.
+          </h2>
+          <p className="mt-4 max-w-2xl mx-auto text-base md:text-lg leading-relaxed text-zinc-500">
+            O Stick foi pensado para regiões que pedem um cuidado mais direcionado.
+            Deslize para comparar e observe a diferença visual entre os dois momentos.
+          </p>
         </div>
 
-        <p
-          className="mt-5 text-center font-medium uppercase tracking-[0.28em]"
-          style={{
-            color: `rgb(${161 + Math.round(83 * comparisonIntensity)}, ${161 - Math.round(84 * comparisonIntensity)}, ${161 + Math.round(4 * comparisonIntensity)})`,
-            fontSize: `calc(${12 + 3 * comparisonIntensity}px)`,
-            transition: 'color 120ms linear, font-size 120ms linear',
-          }}
-        >
-          Arraste para comparar
-        </p>
+        <StickBeforeAfterComparison
+          before={axilaBefore}
+          after={axilaAfter}
+          label="AXILAS"
+        />
+
+        <StickBeforeAfterComparison
+          before={virilhaBefore}
+          after={virilhaAfter}
+          label="VIRILHAS"
+        />
       </div>
     </section>
   )
@@ -1452,16 +1493,11 @@ export default function Stick({ affiliateId = null, affiliate = null }) {
 </section>
 
 
-      <StickBeforeAfterComparison
-        before={comparativoAxilaAntes}
-        after={comparativoAxilaDepois}
-        label="AXILAS"
-      />
-
-      <StickBeforeAfterComparison
-        before={comparativoVirilhaAntes}
-        after={comparativoVirilhaDepois}
-        label="VIRILHAS"
+      <StickComparisonsSection
+        axilaBefore={comparativoAxilaAntes}
+        axilaAfter={comparativoAxilaDepois}
+        virilhaBefore={comparativoVirilhaAntes}
+        virilhaAfter={comparativoVirilhaDepois}
       />
 
       <div className="mt-16 md:mt-20 w-full overflow-hidden select-none" aria-label="Avaliações de clientes">
