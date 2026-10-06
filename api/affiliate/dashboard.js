@@ -321,10 +321,23 @@ module.exports = async function handler(req, res) {
     const accessEvents = (events || []).filter((e) => e.type === 'access');
     const joinedMonth = affiliate.team_joined_at ? String(affiliate.team_joined_at).slice(0, 7) : null;
     const currentJoinMonthFloor = joinedMonth ? { [joinedMonth]: 10 } : {};
-    const { orders: annotatedPaidOrders, total: totalEarnedCommission, salesByMonth, monthlyStats } = commissionForOrders(effectiveOrders || [], settings, { teamJoinedAt: affiliate.team_joined_at });
+    let { orders: annotatedPaidOrders, total: totalEarnedCommission, salesByMonth, monthlyStats } = commissionForOrders(effectiveOrders || [], settings, { teamJoinedAt: affiliate.team_joined_at });
     const lifetimeSales = annotatedPaidOrders.length;
 
-    const selectedOrders = annotatedPaidOrders;
+    const teamMembers = await supabaseFetch(`/rest/v1/affiliates?team_parent_id=eq.${id}&select=id,name,slug,whatsapp,created_at,team_join_source&order=created_at.asc&limit=1000`);
+    const teamParentRows = affiliate.team_parent_id ? await supabaseFetch(`/rest/v1/affiliates?id=eq.${Number(affiliate.team_parent_id)}&select=id,name,slug,whatsapp&limit=1`) : [];
+    const teamParent = teamParentRows?.[0] || null;
+    const teamIds = (teamMembers || []).map(member => Number(member.id)).filter(Boolean);
+    const teamOrders = teamIds.length
+      ? await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=in.(${teamIds.join(',')})&select=affiliate_id,status,team_commission_snapshot,created_at&order=created_at.asc&limit=20000`)
+      : [];
+    const teamSalesByMonth = (teamOrders || []).filter(isPaidOrder).reduce((map, order) => {
+      const key = monthKeyInSaoPaulo(order.created_at);
+      if (key) map[key] = (map[key] || 0) + 1;
+      return map;
+    }, {});
+
+    let selectedOrders = annotatedPaidOrders;
     const selectedAccesses = accessEvents;
     const selectedWithdrawals = withdrawals || [];
     const selectedSales = selectedOrders.length;
@@ -338,12 +351,12 @@ module.exports = async function handler(req, res) {
     // geradas pelos pedidos pagos dentro do período selecionado.
     // Ela NÃO sofre desconto por saques. O desconto de saques existe apenas
     // em availableCommission, usado exclusivamente no saldo disponível para saque.
-    const selectedCommission = selectedOrders.reduce((sum, o) => sum + Number(o.commission || 0), 0);
+    let selectedCommission = selectedOrders.reduce((sum, o) => sum + Number(o.commission || 0), 0);
     const personalWithdrawals = (withdrawals || []).filter(w => String(w.source || 'personal') === 'personal');
     const teamWithdrawals = (withdrawals || []).filter(w => String(w.source || 'personal') === 'team');
     const reserved = personalWithdrawals.reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const boostSpent = (boostRows || []).filter(row => ['queued', 'active', 'completed'].includes(String(row.status || ''))).reduce((sum, row) => sum + Number(row.price || 0), 0);
-    const availableCommission = Math.max(0, totalEarnedCommission - reserved - boostSpent);
+    let availableCommission = Math.max(0, totalEarnedCommission - reserved - boostSpent);
     // O nível é mensal. Em "Todos os meses", usamos o mês atual,
     // porque o nível reinicia no primeiro dia de cada mês.
 
@@ -353,13 +366,6 @@ module.exports = async function handler(req, res) {
     const openingBalance = 0;
     const closingBalance = availableCommission;
 
-    const teamMembers = await supabaseFetch(`/rest/v1/affiliates?team_parent_id=eq.${id}&select=id,name,slug,whatsapp,created_at,team_join_source&order=created_at.asc&limit=1000`);
-    const teamParentRows = affiliate.team_parent_id ? await supabaseFetch(`/rest/v1/affiliates?id=eq.${Number(affiliate.team_parent_id)}&select=id,name,slug,whatsapp&limit=1`) : [];
-    const teamParent = teamParentRows?.[0] || null;
-    const teamIds = (teamMembers || []).map(member => Number(member.id)).filter(Boolean);
-    const teamOrders = teamIds.length
-      ? await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=in.(${teamIds.join(',')})&select=affiliate_id,status,team_commission_snapshot,created_at&order=created_at.asc&limit=20000`)
-      : [];
     const teamRate = Number(settings.teamCommissionPerSale || 10);
     const levelMonth = defaultMonth;
     const levelMonthRange = monthRange(levelMonth);
@@ -439,6 +445,38 @@ module.exports = async function handler(req, res) {
       progress: Math.min(100, levelProgress),
     };
     const level = monthlyLevel;
+
+    // O card de níveis é a fonte única da verdade para a comissão pessoal.
+    // Depois de determinar o nível exibido (incluindo o Bônus de Equipe),
+    // reconciliamos e recalculamos as comissões usando exatamente essa chave.
+    await reconcileAffiliateOrderCommissions(
+      supabaseFetch,
+      id,
+      settings,
+      { teamJoinedAt: affiliate.team_joined_at, levelKey: currentLevelKey, teamSalesByMonth }
+    ).catch((error) => {
+      console.error('[She Commission] Falha ao reconciliar pelo nível exibido:', error);
+    });
+
+    // Recarrega novamente após a consolidação. Assim, meses encerrados usam
+    // o snapshot calculado no fechamento e o saldo não depende de dados antigos
+    // que estavam em memória antes da reconciliação.
+    const finalizedOrders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${id}&select=yampi_order_id,status,total,commission,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot,created_at,updated_at&order=created_at.desc&limit=5000`);
+    const finalizedEffectiveOrders = Array.isArray(finalizedOrders) ? finalizedOrders : effectiveOrders;
+
+    const cardCommissionData = commissionForOrders(
+      finalizedEffectiveOrders || [],
+      settings,
+      { teamJoinedAt: affiliate.team_joined_at, levelKey: currentLevelKey, teamSalesByMonth }
+    );
+    annotatedPaidOrders = cardCommissionData.orders;
+    totalEarnedCommission = cardCommissionData.total;
+    salesByMonth = cardCommissionData.salesByMonth;
+    monthlyStats = cardCommissionData.monthlyStats;
+    selectedOrders = annotatedPaidOrders;
+    selectedCommission = selectedOrders.reduce((sum, o) => sum + Number(o.commission || 0), 0);
+    availableCommission = Math.max(0, totalEarnedCommission - reserved - boostSpent);
+
     const teamSalesByAffiliate = new Map();
     for (const order of teamOrders || []) {
       if (!isPaidOrder(order)) continue;

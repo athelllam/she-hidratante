@@ -121,6 +121,42 @@ function calculateMonthlyStats(orders, config = DEFAULT_COMMISSION_CONFIG) {
   return byMonth;
 }
 
+function teamBonusActiveAt(dateValue, teamJoinedAt) {
+  const joined = teamJoinedAt ? new Date(teamJoinedAt) : null;
+  const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+  if (!joined || Number.isNaN(joined.getTime()) || Number.isNaN(date.getTime())) return false;
+  return date >= joined && date < new Date(joined.getTime() + 30 * 24 * 60 * 60 * 1000);
+}
+
+function monthEndInstant(month) {
+  if (!month) return null;
+  const [year, monthNumber] = String(month).split('-').map(Number);
+  if (!year || !monthNumber) return null;
+  // São Paulo month-end: the instant immediately before the next local month.
+  const nextYear = monthNumber === 12 ? year + 1 : year;
+  const nextMonth = monthNumber === 12 ? 1 : monthNumber + 1;
+  return new Date(`${nextYear}-${String(nextMonth).padStart(2, '0')}-01T00:00:00-03:00`).getTime() - 1;
+}
+
+function levelForMonthEnd(month, monthlyStats, cumulativeByMonth, config, teamJoinedAt, teamSalesByMonth = {}) {
+  const normalized = normalizeConfig(config);
+  const stats = monthlyStats[month] || { sales: 0 };
+  const teamSales = Number(teamSalesByMonth?.[month] || 0);
+  const fixedLevel = getLevel(cumulativeByMonth[month] || 0, normalized, 'fixed');
+  const monthEnd = monthEndInstant(month);
+  const teamBonusAtClose = monthEnd !== null && teamBonusActiveAt(new Date(monthEnd), teamJoinedAt);
+  let floorLevelKey = fixedLevel.key;
+  if (teamBonusAtClose && LEVEL_ORDER.bronze > LEVEL_ORDER[floorLevelKey]) floorLevelKey = 'bronze';
+  const floorPoints = floorLevelKey === 'gold'
+    ? Number(normalized.monthlyLevels.gold || 101)
+    : floorLevelKey === 'silver'
+      ? Number(normalized.monthlyLevels.silver || 50)
+      : floorLevelKey === 'bronze'
+        ? Number(normalized.monthlyLevels.bronze || 10)
+        : 0;
+  return getLevel(floorPoints + Number(stats.sales || 0) + teamSales, normalized, 'monthly');
+}
+
 function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG, options = {}) {
   const normalized = normalizeConfig(config);
   const paid = (orders || []).filter(order => isPaidOrder(order));
@@ -136,67 +172,66 @@ function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG, options
     cumulativeByMonth[key] = cumulativeSales;
   });
 
+  const currentMonth = monthKey(new Date());
+  const historicalLevelByMonth = {};
+  for (const key of Object.keys(monthlyStats)) {
+    historicalLevelByMonth[key] = levelForMonthEnd(key, monthlyStats, cumulativeByMonth, normalized, options?.teamJoinedAt, options?.teamSalesByMonth || {});
+  }
+
   let total = 0;
   const annotated = paid.map(order => {
     const key = monthKey(order.created_at);
     const stats = monthlyStats[key] || { sales: 0, averageTicket: 0, multiplierActive: false };
     const monthlyLevel = getLevel(stats.sales, normalized, 'monthly');
     const fixedLevel = getLevel(cumulativeByMonth[key] || 0, normalized, 'fixed');
-    const explicitFloor = Number(options?.levelFloorByMonth?.[key] || 0);
-    const teamJoinedAt = options?.teamJoinedAt ? new Date(options.teamJoinedAt) : null;
-    const orderDate = new Date(order.created_at);
-    const teamBonusActiveForOrder = Boolean(teamJoinedAt && !Number.isNaN(teamJoinedAt.getTime()) && !Number.isNaN(orderDate.getTime()) && orderDate >= teamJoinedAt && orderDate < new Date(teamJoinedAt.getTime() + 30 * 24 * 60 * 60 * 1000));
-    const explicitFloorLevel = explicitFloor > 0 ? getLevel(explicitFloor, normalized, 'fixed').key : 'none';
-    // Bônus de Equipe garante diretamente o nível mínimo Bronze por 30 dias.
-    // Não convertemos a meta mensal de Bronze para a escala do Bônus Fixo.
-    let floorLevelKey = fixedLevel.key;
-    if (LEVEL_ORDER[explicitFloorLevel] > LEVEL_ORDER[floorLevelKey]) floorLevelKey = explicitFloorLevel;
-    if (teamBonusActiveForOrder && LEVEL_ORDER.bronze > LEVEL_ORDER[floorLevelKey]) floorLevelKey = 'bronze';
-    const effectiveLevel = LEVEL_ORDER[monthlyLevel.key] >= LEVEL_ORDER[floorLevelKey]
-      ? monthlyLevel
-      : getLevel(normalized.monthlyLevels[floorLevelKey] || 0, normalized, 'monthly');
+    const historicalLevel = historicalLevelByMonth[key] || monthlyLevel;
+    const effectiveLevel = key === currentMonth
+      ? historicalLevel
+      : historicalLevel;
     const multiplier = stats.multiplierActive ? normalized.ticketBonus : 0;
-    const currentMonth = monthKey(new Date());
     const isCurrentMonth = key === currentMonth;
 
-    // O mês atual é sempre recalculável conforme as configurações e o nível
-    // vigente. Meses anteriores ficam congelados no valor já gravado no pedido.
-    let commission;
-    let baseCommission;
-
-    // O Bônus de Equipe é um benefício promocional de 30 dias corridos.
-    // Durante esse período, toda venda própria da afiliada deve receber
-    // obrigatoriamente a comissão do Bronze configurado (ex.: R$100),
-    // mesmo que o pedido tenha sido salvo anteriormente com a comissão
-    // do plano Início ou com outro snapshot.
-    if (teamBonusActiveForOrder) {
-      baseCommission = Number(normalized.commissions.bronze || 0);
-      commission = Number((baseCommission + multiplier).toFixed(2));
-    } else if (isCurrentMonth) {
-      baseCommission = Number(normalized.commissions[effectiveLevel.key] || 0);
-      commission = Number((baseCommission + multiplier).toFixed(2));
-    } else {
-      const persistedCommission = Number(order?.commission);
-      if (Number.isFinite(persistedCommission)) {
-        commission = Number(persistedCommission.toFixed(2));
-        const persistedBase = Number(order?.commission_base_snapshot);
-        baseCommission = Number.isFinite(persistedBase)
-          ? Number(persistedBase.toFixed(2))
-          : Number(persistedCommission.toFixed(2));
+    // O card do mês atual é a fonte da verdade. Para meses encerrados,
+    // usamos o nível consolidado no fechamento daquele mês, preservado pelo snapshot.
+    let cardLevelKey;
+    if (isCurrentMonth) {
+      if (LEVEL_ORDER[options?.levelKey] !== undefined) {
+        cardLevelKey = options.levelKey;
       } else {
-        const persistedBase = Number(order?.commission_base_snapshot);
-        baseCommission = Number.isFinite(persistedBase)
-          ? persistedBase
-          : Number(normalized.commissions[effectiveLevel.key] || 0);
-        commission = Number((baseCommission + multiplier).toFixed(2));
+        const fixedFloor = getLevel(cumulativeByMonth[key] || 0, normalized, 'fixed');
+        const teamFloor = teamBonusActiveAt(new Date(), options?.teamJoinedAt) ? 'bronze' : 'none';
+        const floorKey = LEVEL_ORDER[teamFloor] > LEVEL_ORDER[fixedFloor.key] ? teamFloor : fixedFloor.key;
+        const floorPoints = floorKey === 'gold'
+          ? Number(normalized.monthlyLevels.gold || 101)
+          : floorKey === 'silver'
+            ? Number(normalized.monthlyLevels.silver || 50)
+            : floorKey === 'bronze'
+              ? Number(normalized.monthlyLevels.bronze || 10)
+              : 0;
+        const teamSales = Number(options?.teamSalesByMonth?.[key] || 0);
+        cardLevelKey = getLevel(floorPoints + Number(stats.sales || 0) + teamSales, normalized, 'monthly').key;
       }
+    } else {
+      cardLevelKey = String(order?.commission_level_snapshot || '').toLowerCase();
+      if (LEVEL_ORDER[cardLevelKey] === undefined) cardLevelKey = historicalLevel.key;
+    }
+
+    let baseCommission = Number(normalized.commissions[cardLevelKey] || 0);
+    let commission;
+    if (!isCurrentMonth && Number.isFinite(Number(order?.commission)) && LEVEL_ORDER[String(order?.commission_level_snapshot || '').toLowerCase()] !== undefined) {
+      // Pedido encerrado: o snapshot é a consolidação do último minuto do mês.
+      const snapshotBase = Number(order?.commission_base_snapshot);
+      baseCommission = Number.isFinite(snapshotBase) ? snapshotBase : baseCommission;
+      commission = Number(order.commission);
+    } else {
+      commission = Number((baseCommission + multiplier).toFixed(2));
     }
     total += commission;
     return {
       ...order,
       commission,
       commissionBase: Number(baseCommission.toFixed(2)),
-      level: effectiveLevel.label,
+      level: (LEVEL_DEFINITIONS.find(l => l.key === cardLevelKey)?.label) || historicalLevel.label,
       monthlyLevel: monthlyLevel.label,
       fixedLevel: fixedLevel.label,
       month: key,
@@ -206,7 +241,7 @@ function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG, options
     };
   });
 
-  return { orders: annotated, salesByMonth, monthlyStats, total };
+  return { orders: annotated, salesByMonth, monthlyStats, total, levelByMonth: historicalLevelByMonth };
 }
 
 
@@ -216,7 +251,7 @@ async function reconcileAffiliateOrderCommissions(supabaseFetch, affiliateId, co
   if (!Number.isInteger(id) || id <= 0) return { updated: 0, orders: [] };
 
   const orders = await supabaseFetch(
-    `/rest/v1/affiliate_orders?affiliate_id=eq.${id}&select=id,status,total,commission,created_at,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot&order=created_at.asc&limit=10000`
+    `/rest/v1/affiliate_orders?affiliate_id=eq.${id}&select=id,status,total,commission,created_at,commission_level_snapshot,commission_base_snapshot,commission_locked,team_commission_snapshot&order=created_at.asc&limit=10000`
   );
   const paid = (orders || []).filter(order => isPaidOrder(order));
   if (!paid.length) return { updated: 0, orders: [] };
@@ -235,34 +270,24 @@ async function reconcileAffiliateOrderCommissions(supabaseFetch, affiliateId, co
 
   for (const order of paid) {
     const key = monthKey(order.created_at);
-    const stats = monthlyStats[key] || { sales: 0, revenue: 0, averageTicket: 0, multiplierActive: false };
-    const monthlyLevel = getLevel(stats.sales, normalized, 'monthly');
-    const fixedLevel = getLevel(cumulativeByMonth[key] || 0, normalized, 'fixed');
-    const orderDate = new Date(order.created_at);
-    const teamBonusActiveForOrder = Boolean(
-      teamJoinedAt &&
-      !Number.isNaN(teamJoinedAt.getTime()) &&
-      !Number.isNaN(orderDate.getTime()) &&
-      orderDate >= teamJoinedAt &&
-      orderDate < new Date(teamJoinedAt.getTime() + 30 * 24 * 60 * 60 * 1000)
-    );
-    // Pedidos fora do mês atual continuam congelados, exceto quando
-    // precisam ser corrigidos por terem ocorrido dentro do Bônus de Equipe.
-    if (key !== currentMonth && !teamBonusActiveForOrder) continue;
-    // Bônus de Equipe garante diretamente o nível mínimo Bronze por 30 dias.
-    // O Bônus Fixo também define um piso permanente para o mês.
-    let floorLevelKey = fixedLevel.key;
-    if (teamBonusActiveForOrder && LEVEL_ORDER.bronze > LEVEL_ORDER[floorLevelKey]) floorLevelKey = 'bronze';
-    const effectiveLevel = LEVEL_ORDER[monthlyLevel.key] >= LEVEL_ORDER[floorLevelKey]
-      ? monthlyLevel
-      : getLevel(normalized.monthlyLevels[floorLevelKey] || 0, normalized, 'monthly');
+    if (!key) continue;
 
+    // Depois do fechamento, uma comissão histórica fica congelada.
+    // Só corrigimos um mês encerrado quando ainda não existe snapshot/lock.
+    if (key !== currentMonth && order.commission_locked === true) {
+      continue;
+    }
+
+    const stats = monthlyStats[key] || { sales: 0, revenue: 0, averageTicket: 0, multiplierActive: false };
+    const historicalLevel = levelForMonthEnd(key, monthlyStats, cumulativeByMonth, normalized, teamJoinedAt, options?.teamSalesByMonth || {});
     const multiplier = stats.multiplierActive ? normalized.ticketBonus : 0;
-    // Se a venda aconteceu dentro dos 30 dias do Bônus de Equipe,
-    // o Bronze promocional prevalece sobre qualquer snapshot anterior.
-    const nextBase = teamBonusActiveForOrder
-      ? Number(normalized.commissions.bronze || 0)
-      : Number(normalized.commissions[effectiveLevel.key] || 0);
+
+    // Mês atual: usa exatamente o nível exibido no card.
+    // Mês encerrado: consolida o nível que existia no último instante daquele mês.
+    const cardLevelKey = key === currentMonth && LEVEL_ORDER[options?.levelKey] !== undefined
+      ? options.levelKey
+      : historicalLevel.key;
+    const nextBase = Number(normalized.commissions[cardLevelKey] || 0);
     const nextCommission = Number((nextBase + multiplier).toFixed(2));
     const existingBase = Number(order.commission_base_snapshot);
     const existingCommission = Number(order.commission);
@@ -272,7 +297,7 @@ async function reconcileAffiliateOrderCommissions(supabaseFetch, affiliateId, co
       : Number(normalized.teamCommissionPerSale || 0);
 
     if (
-      existingLevel !== effectiveLevel.key ||
+      existingLevel !== cardLevelKey ||
       !Number.isFinite(existingBase) ||
       Math.abs(existingBase - nextBase) > 0.001 ||
       !Number.isFinite(existingCommission) ||
@@ -283,8 +308,9 @@ async function reconcileAffiliateOrderCommissions(supabaseFetch, affiliateId, co
         id: Number(order.id),
         patch: {
           commission: nextCommission,
-          commission_level_snapshot: effectiveLevel.key,
+          commission_level_snapshot: cardLevelKey,
           commission_base_snapshot: nextBase,
+          commission_locked: key !== currentMonth,
           team_commission_snapshot: nextTeamSnapshot,
         },
       });
