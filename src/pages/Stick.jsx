@@ -974,7 +974,7 @@ export default function Stick({ affiliateId = null, affiliate = null }) {
   useEffect(() => {
     const updateNavbarPriceVisibility = () => {
       const scrollable = Math.max(1, document.documentElement.scrollHeight - window.innerHeight)
-      setNavbarPriceVisible(window.scrollY / scrollable >= 0.20)
+      setNavbarPriceVisible(window.scrollY / scrollable >= 0.30)
     }
 
     updateNavbarPriceVisibility()
