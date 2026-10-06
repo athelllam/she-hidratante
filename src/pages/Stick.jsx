@@ -4,6 +4,7 @@ import Navbar from '../components/Navbar'
 import { buildYampiCheckoutUrl } from '../utils/affiliateTracking'
 import { getCartProductPrice, getCachedCartPrices, syncCartPrices } from '../utils/cartPrices'
 import hero from '../assets/stick/hero.webp'
+import stickModelo from '../assets/stick/stick-modelo.webp'
 import stickCaixa from '../assets/stick/stick-caixa.webp'
 
 import oleoCoco from '../assets/ingredientes/oleo-coco.webp'
@@ -12,6 +13,7 @@ import acidoLatico from '../assets/ingredientes/acido-latico.webp'
 import niacinamida from '../assets/ingredientes/niacinamida.webp'
 import vitaminaE from '../assets/ingredientes/vitamina-e.webp'
 import scrollVideo from '../assets/videos/1001.mp4'
+import stickPraticidadeVideo from '../assets/videos/1006.mp4'
 import scrollVideoPoster from '../assets/videos/1001-poster.webp'
 import logo from '../assets/she-logo.webp'
 import amazonLogo from '../assets/amazon-logo.webp'
@@ -1194,6 +1196,22 @@ export default function Stick({ affiliateId = null, affiliate = null }) {
 
 </section>
 
+<section className="px-6 pb-16 md:pb-24">
+  <motion.div
+    initial={{ opacity: 0, y: 30 }}
+    whileInView={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.8 }}
+    viewport={{ once: true, amount: 0.25 }}
+    className="max-w-5xl mx-auto overflow-hidden rounded-[3rem] shadow-[0_30px_80px_rgba(0,0,0,0.12)]"
+  >
+    <img
+      src={stickModelo}
+      alt="Mulher segurando o Stick Clareador de Pele She"
+      className="w-full h-auto"
+    />
+  </motion.div>
+</section>
+
 <section
   ref={ingredientSectionRef}
   className="pt-14 pb-20 md:pt-20 md:pb-24 bg-white"
@@ -1424,13 +1442,18 @@ export default function Stick({ affiliateId = null, affiliate = null }) {
 
     </h2>
 
-    <motion.img
+    <motion.video
       initial={{ opacity: 0, y: 40 }}
       whileInView={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8 }}
       viewport={{ once: true }}
-      src={hero}
-      alt="Stick Clareador de Pele She"
+      src={stickPraticidadeVideo}
+      autoPlay
+      muted
+      loop
+      playsInline
+      preload="metadata"
+      aria-label="Vídeo do Stick Clareador de Pele She"
       className="w-full max-w-xl mx-auto my-20"
     />
 
