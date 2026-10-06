@@ -240,7 +240,7 @@ async function upsertAffiliateOrder(order, affiliateId, commissionRate) {
 
   const status = getStatus(order) || 'created';
   const total = getTotal(order);
-  const commission = isCancelledStatus(status) ? 0 : total * Number(commissionRate || 0);
+  const commission = 0;
   const createdAt = getCreatedAt(order);
 
   const existingRows = await supabaseFetch(

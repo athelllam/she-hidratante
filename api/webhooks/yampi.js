@@ -1,5 +1,6 @@
 const { supabaseFetch, json } = require('../_lib/supabase');
 const crypto = require('crypto');
+const { reconcileAffiliateOrderCommissions, normalizeConfig, DEFAULT_COMMISSION_CONFIG } = require('../_lib/affiliateCommission');
 
 function header(req, name) {
   return req.headers[name.toLowerCase()] || req.headers[name] || '';
@@ -144,14 +145,24 @@ module.exports = async function handler(req, res) {
       return json(res, 200, { ok: true, ignored: true, reason: 'Evento/status não representa pagamento aprovado.' });
     }
 
-    const affiliates = await supabaseFetch(`/rest/v1/affiliates?id=eq.${affiliateId}&select=id,commission_rate&limit=1`);
+    const affiliates = await supabaseFetch(`/rest/v1/affiliates?id=eq.${affiliateId}&select=id,team_joined_at&limit=1`);
     if (!affiliates?.[0]) {
       return json(res, 200, { ok: true, ignored: true, reason: 'Afiliada inexistente.' });
     }
 
     const status = getStoredStatus(payload);
     const total = getTotal(payload);
-    const commission = total * Number(affiliates[0].commission_rate || 0);
+
+    const settingRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales&limit=1');
+    const row = settingRows?.[0];
+    const commissionConfig = normalizeConfig(row ? {
+      ticketThreshold: row.ticket_threshold,
+      ticketBonus: row.ticket_bonus,
+      teamCommissionPerSale: row.team_commission_per_sale,
+      commissions: { none: row.commission_none, bronze: row.commission_bronze, silver: row.commission_silver, gold: row.commission_gold },
+      monthlyLevels: { bronze: row.monthly_bronze_sales, silver: row.monthly_silver_sales, gold: row.monthly_gold_sales },
+      fixedLevels: { bronze: row.fixed_bronze_sales, silver: row.fixed_silver_sales, gold: row.fixed_gold_sales },
+    } : DEFAULT_COMMISSION_CONFIG);
 
     const existingRows = await supabaseFetch(
       `/rest/v1/affiliate_orders?yampi_order_id=eq.${encodeURIComponent(yampiOrderId)}&select=id,status&limit=1`
@@ -169,13 +180,20 @@ module.exports = async function handler(req, res) {
         affiliate_id: affiliateId,
         status,
         total,
-        commission,
+        commission: 0,
         raw_payload: payload,
         updated_at: new Date().toISOString(),
       }),
     });
 
-    return json(res, 200, { ok: true, orderId: yampiOrderId, affiliateId, status });
+    const reconciliation = await reconcileAffiliateOrderCommissions(
+      supabaseFetch,
+      affiliateId,
+      commissionConfig,
+      { teamJoinedAt: affiliates[0].team_joined_at }
+    );
+
+    return json(res, 200, { ok: true, orderId: yampiOrderId, affiliateId, status, commissionReconciled: reconciliation.updated || 0 });
   } catch (error) {
     return json(res, error.statusCode || 500, { error: error.message || 'Erro no webhook.' });
   }

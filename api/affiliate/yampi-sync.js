@@ -57,7 +57,7 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    const result = await syncAffiliateOrders(affiliate.id, affiliate.commission_rate);
+    const result = await syncAffiliateOrders(affiliate.id);
     return json(res, 200, { ok: true, ...result });
   } catch (error) {
     return json(res, error.statusCode || 500, {
