@@ -900,10 +900,7 @@ function ScrollDrivenIntroVideo() {
 
       if (phaseRef.current === 'done') {
         const sectionBottom = section.offsetTop + section.offsetHeight
-        // Reativa a fase de scroll antes de o vídeo voltar a entrar na viewport.
-        // Mantemos o mesmo gatilho de 25% usado no cálculo de retroação:
-        // assim o currentTime começa a ser recalculado antecipadamente.
-        if (currentY < sectionBottom - window.innerHeight * 0.25) {
+        if (currentY < sectionBottom - window.innerHeight * 0.05) {
           try { video.style.visibility = 'visible' } catch {}
           phaseRef.current = 'scroll'
           requestScrollFrame()
