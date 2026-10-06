@@ -733,23 +733,16 @@ function SheCart({ open, onClose, affiliateId = null, onPricesUpdated = null }) 
     'EFH0YOIDTO', '7B6B7IL4ZM', '6G99ZYJTDE', 'IWK5ZWCEUO', 'ORM1LRMTT5', 'GVVB8UXHJ8'
   ].every((token) => Boolean(priceFor(token)))
 
-
   const hasProducts =
     pricesReady && (hydrantQty > 0 || blisterQty > 0 || Object.values(bumps).some(Boolean))
 
   const hasFreeShipping = total > 200
 
-  const previousBumpsRef = useRef(bumps)
-
   useEffect(() => {
-    const previousBumps = previousBumpsRef.current
-    const bumpWasAdded = Object.keys(bumps).some(
-      (key) => Boolean(bumps[key]) && !Boolean(previousBumps?.[key])
-    )
-
-    previousBumpsRef.current = bumps
-
-    if (!hasFreeShipping || !bumpWasAdded) return
+    if (!hasFreeShipping) {
+      setShowFreeShippingToast(false)
+      return
+    }
 
     setShowFreeShippingToast(true)
     const timeout = window.setTimeout(() => {
@@ -757,7 +750,7 @@ function SheCart({ open, onClose, affiliateId = null, onPricesUpdated = null }) 
     }, 2600)
 
     return () => window.clearTimeout(timeout)
-  }, [hasFreeShipping, bumps])
+  }, [hasFreeShipping])
 
   return (
     <AnimatePresence>
@@ -1104,27 +1097,14 @@ function ScrollDrivenIntroVideo() {
           }
         } catch {}
 
-        phaseRef.current = 'done'
+        phaseRef.current = 'scroll'
         lastScrollY = window.scrollY
 
-        // Ao terminar o vídeo, a viewport deve ficar somente na próxima seção.
-        // Esconde o sticky explicitamente para evitar qualquer frame do vídeo
-        // permanecendo na viewport após a transição automática.
-        try {
-          video.style.visibility = 'hidden'
-        } catch {}
-
-        // Se a pessoa voltar a rolar para cima, o vídeo reaparece e volta a
-        // responder ao scroll normalmente.
+        // Libera o controle de scroll somente depois que o scroll automático
+        // realmente chegou ao destino.
         requestAnimationFrame(() => {
-          if (phaseRef.current === 'done') {
-            const currentY = window.scrollY
-            const sectionBottom = section.offsetTop + section.offsetHeight
-            if (currentY < sectionBottom - 2) {
-              try { video.style.visibility = 'visible' } catch {}
-              phaseRef.current = 'scroll'
-              applyScrollTime()
-            }
+          if (phaseRef.current === 'scroll') {
+            applyScrollTime()
           }
         })
 
@@ -1211,16 +1191,6 @@ function ScrollDrivenIntroVideo() {
       // Durante o auto-scroll, NÃO toca no currentTime.
       // Isso elimina a "balançada" / pequena rebobinada no final.
       if (phaseRef.current === 'autoScrolling') {
-        return
-      }
-
-      if (phaseRef.current === 'done') {
-        const sectionBottom = section.offsetTop + section.offsetHeight
-        if (currentY < sectionBottom - window.innerHeight * 0.05) {
-          try { video.style.visibility = 'visible' } catch {}
-          phaseRef.current = 'scroll'
-          requestScrollFrame()
-        }
         return
       }
 
@@ -1976,7 +1946,7 @@ export default function Hidratante({ affiliateId = null, affiliate = null }) {
                 <Link to="/" className="hover:text-white transition-colors">Home</Link>
                 <a href="https://wa.me/553132784332" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">Contato</a>
                 <a href="#sobre" className="hover:text-white transition-colors">Sobre</a>
-                <Link to="/trabalhe-conosco" className="hover:text-white transition-colors">Trabalhe Conosco</Link>
+                <a href="#trabalhe-conosco" className="hover:text-white transition-colors">Trabalhe Conosco</a>
               </nav>
             </div>
             <div className="col-span-1 md:col-span-1">

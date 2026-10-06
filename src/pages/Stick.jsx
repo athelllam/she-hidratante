@@ -369,20 +369,29 @@ function SheCart({ open, onClose, affiliateId = null, onPricesUpdated = null }) 
 
   const bumpItems = [
     {
+      key: 'stick',
+      token: 'IWK5ZWCEUO',
+      name: 'Stick Clareador de Pele +1',
+      description: 'Uniformiza o tom, reduz manchas, hidrata e protege',
+      ...(() => { const p = priceFor('6G99ZYJTDE'); return { price: p?.effectivePrice ?? null, oldPrice: p?.promotionalPrice ? p.salePrice : null } })(),
+      image: cartStick,
+    },
+    {
       key: 'hydrant',
       token: '6G99ZYJTDE',
       name: 'Hidratante 100ml +1',
       description: 'Hidrata profundamente a região íntima',
-      ...(() => { const p = priceFor('6G99ZYJTDE'); return { price: p?.effectivePrice ?? null, oldPrice: p?.promotionalPrice ? p.salePrice : null } })(),
+      oldPrice: 129.90,
+      price: 97.90,
       image: cartHidratante,
     },
     {
-      key: 'stick',
-      token: 'IWK5ZWCEUO',
-      name: 'Stick Clareador de Pele',
-      description: 'Para escurecimento, manchas, melasma, cicatrizes',
-      ...(() => { const p = priceFor('IWK5ZWCEUO'); return { price: p?.effectivePrice ?? null, oldPrice: p?.promotionalPrice ? p.salePrice : null } })(),
-      image: cartStick,
+      key: 'blister',
+      token: '7B6B7IL4ZM',
+      name: 'Blister She',
+      description: 'Faça seus próprios ovinhos em casa',
+      ...(() => { const p = priceFor('7B6B7IL4ZM'); return { price: p?.effectivePrice ?? null, oldPrice: p?.promotionalPrice ? p.salePrice : null } })(),
+      image: cartBlister,
     },
     {
       key: 'pocket',
@@ -419,32 +428,25 @@ function SheCart({ open, onClose, affiliateId = null, onPricesUpdated = null }) 
   const blisterPrice = priceFor('7B6B7IL4ZM')?.effectivePrice
   const total =
     stickQty * (stickPrice ?? 0) +
-    blisterQty * (blisterPrice ?? 0) +
-    (bumps.hydrant ? (priceFor('6G99ZYJTDE')?.effectivePrice ?? 0) : 0) +
     (bumps.stick ? (priceFor('IWK5ZWCEUO')?.effectivePrice ?? 0) : 0) +
+    (bumps.hydrant ? (priceFor('6G99ZYJTDE')?.effectivePrice ?? 0) : 0) +
+    (bumps.blister ? (priceFor('7B6B7IL4ZM')?.effectivePrice ?? 0) : 0) +
     (bumps.pocket ? (priceFor('ORM1LRMTT5')?.effectivePrice ?? 0) : 0)
 
   const pricesReady = [
     'GVVB8UXHJ8', '7B6B7IL4ZM', '6G99ZYJTDE', 'IWK5ZWCEUO', 'ORM1LRMTT5', 'EFH0YOIDTO'
   ].every((token) => Boolean(priceFor(token)))
 
-
   const hasProducts =
-    stickQty > 0 || Object.values(bumps).some(Boolean)
+    pricesReady && (stickQty > 0 || Object.values(bumps).some(Boolean))
 
   const hasFreeShipping = total > 200
 
-  const previousBumpsRef = useRef(bumps)
-
   useEffect(() => {
-    const previousBumps = previousBumpsRef.current
-    const bumpWasAdded = Object.keys(bumps).some(
-      (key) => Boolean(bumps[key]) && !Boolean(previousBumps?.[key])
-    )
-
-    previousBumpsRef.current = bumps
-
-    if (!hasFreeShipping || !bumpWasAdded) return
+    if (!hasFreeShipping) {
+      setShowFreeShippingToast(false)
+      return
+    }
 
     setShowFreeShippingToast(true)
     const timeout = window.setTimeout(() => {
@@ -452,7 +454,7 @@ function SheCart({ open, onClose, affiliateId = null, onPricesUpdated = null }) 
     }, 2600)
 
     return () => window.clearTimeout(timeout)
-  }, [hasFreeShipping, bumps])
+  }, [hasFreeShipping])
 
   return (
     <AnimatePresence>
@@ -788,27 +790,14 @@ function ScrollDrivenIntroVideo() {
           }
         } catch {}
 
-        phaseRef.current = 'done'
+        phaseRef.current = 'scroll'
         lastScrollY = window.scrollY
 
-        // Ao terminar o vídeo, a viewport deve ficar somente na próxima seção.
-        // Esconde o sticky explicitamente para evitar qualquer frame do vídeo
-        // permanecendo na viewport após a transição automática.
-        try {
-          video.style.visibility = 'hidden'
-        } catch {}
-
-        // Se a pessoa voltar a rolar para cima, o vídeo reaparece e volta a
-        // responder ao scroll normalmente.
+        // Libera o controle de scroll somente depois que o scroll automático
+        // realmente chegou ao destino.
         requestAnimationFrame(() => {
-          if (phaseRef.current === 'done') {
-            const currentY = window.scrollY
-            const sectionBottom = section.offsetTop + section.offsetHeight
-            if (currentY < sectionBottom - 2) {
-              try { video.style.visibility = 'visible' } catch {}
-              phaseRef.current = 'scroll'
-              applyScrollTime()
-            }
+          if (phaseRef.current === 'scroll') {
+            applyScrollTime()
           }
         })
 
@@ -895,16 +884,6 @@ function ScrollDrivenIntroVideo() {
       // Durante o auto-scroll, NÃO toca no currentTime.
       // Isso elimina a "balançada" / pequena rebobinada no final.
       if (phaseRef.current === 'autoScrolling') {
-        return
-      }
-
-      if (phaseRef.current === 'done') {
-        const sectionBottom = section.offsetTop + section.offsetHeight
-        if (currentY < sectionBottom - window.innerHeight * 0.05) {
-          try { video.style.visibility = 'visible' } catch {}
-          phaseRef.current = 'scroll'
-          requestScrollFrame()
-        }
         return
       }
 
@@ -1489,7 +1468,7 @@ export default function Stick({ affiliateId = null, affiliate = null }) {
                 <Link to="/" className="hover:text-white transition-colors">Home</Link>
                 <a href="https://wa.me/553132784332" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">Contato</a>
                 <a href="#sobre" className="hover:text-white transition-colors">Sobre</a>
-                <Link to="/trabalhe-conosco" className="hover:text-white transition-colors">Trabalhe Conosco</Link>
+                <a href="#trabalhe-conosco" className="hover:text-white transition-colors">Trabalhe Conosco</a>
               </nav>
             </div>
             <div className="col-span-1 md:col-span-1">
