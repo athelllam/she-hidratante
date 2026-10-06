@@ -788,14 +788,27 @@ function ScrollDrivenIntroVideo() {
           }
         } catch {}
 
-        phaseRef.current = 'scroll'
+        phaseRef.current = 'done'
         lastScrollY = window.scrollY
 
-        // Libera o controle de scroll somente depois que o scroll automático
-        // realmente chegou ao destino.
+        // Ao terminar o vídeo, a viewport deve ficar somente na próxima seção.
+        // Esconde o sticky explicitamente para evitar qualquer frame do vídeo
+        // permanecendo na viewport após a transição automática.
+        try {
+          video.style.visibility = 'hidden'
+        } catch {}
+
+        // Se a pessoa voltar a rolar para cima, o vídeo reaparece e volta a
+        // responder ao scroll normalmente.
         requestAnimationFrame(() => {
-          if (phaseRef.current === 'scroll') {
-            applyScrollTime()
+          if (phaseRef.current === 'done') {
+            const currentY = window.scrollY
+            const sectionBottom = section.offsetTop + section.offsetHeight
+            if (currentY < sectionBottom - 2) {
+              try { video.style.visibility = 'visible' } catch {}
+              phaseRef.current = 'scroll'
+              applyScrollTime()
+            }
           }
         })
 
@@ -842,7 +855,7 @@ function ScrollDrivenIntroVideo() {
 
       try {
         video.currentTime = 0
-        video.playbackRate = 2.0
+        video.playbackRate = 1.5
       } catch {}
 
       const playPromise = video.play()
@@ -882,6 +895,16 @@ function ScrollDrivenIntroVideo() {
       // Durante o auto-scroll, NÃO toca no currentTime.
       // Isso elimina a "balançada" / pequena rebobinada no final.
       if (phaseRef.current === 'autoScrolling') {
+        return
+      }
+
+      if (phaseRef.current === 'done') {
+        const sectionBottom = section.offsetTop + section.offsetHeight
+        if (currentY < sectionBottom - window.innerHeight * 0.05) {
+          try { video.style.visibility = 'visible' } catch {}
+          phaseRef.current = 'scroll'
+          requestScrollFrame()
+        }
         return
       }
 
