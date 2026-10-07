@@ -376,7 +376,7 @@ module.exports = async function handler(req, res) {
       fixedLevels: { bronze: settingRows[0].fixed_bronze_sales, silver: settingRows[0].fixed_silver_sales, gold: settingRows[0].fixed_gold_sales },
     } : DEFAULT_COMMISSION_CONFIG);
     settings.personalWithdrawalMin = Number(settingRows?.[0]?.personal_withdrawal_min ?? 100);
-    settings.teamWithdrawalMin = Number(settingRows?.[0]?.team_withdrawal_min ?? 100);
+    settings.teamWithdrawalMin = 100;
 
     await reconcileAffiliateOrderCommissions(supabaseFetch, id, settings, { teamJoinedAt: affiliate.team_joined_at }).catch((error) => {
       console.error('[She Commission] Falha ao reconciliar comissões:', error);

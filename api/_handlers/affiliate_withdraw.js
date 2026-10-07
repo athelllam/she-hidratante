@@ -51,7 +51,7 @@ module.exports = async function handler(req, res) {
       commissions: { none: settingRows[0].commission_none, bronze: settingRows[0].commission_bronze, silver: settingRows[0].commission_silver, gold: settingRows[0].commission_gold },
     } : DEFAULT_COMMISSION_CONFIG);
     const minimum = source === 'team'
-      ? Number(settingRows?.[0]?.team_withdrawal_min ?? 100)
+      ? 100
       : Number(settingRows?.[0]?.personal_withdrawal_min ?? 100);
     const safeMinimum = Number.isFinite(minimum) && minimum >= 0 ? minimum : 100;
     if (amount + 0.001 < safeMinimum) {
