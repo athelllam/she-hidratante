@@ -105,8 +105,8 @@ export default function AdminDashboard() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deletePhrase, setDeletePhrase] = useState('')
   const [deletingIds, setDeletingIds] = useState([])
-  const [settings, setSettings] = useState({ ticketThreshold: 170, ticketBonus: 5, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 }, monthlyLevels: { bronze: 10, silver: 50, gold: 101 }, fixedLevels: { bronze: 100, silver: 300, gold: 500 } })
-  const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', ticketBonus: '5', teamCommissionPerSale: '10', none: '30', bronze: '40', silver: '50', gold: '60', monthlyBronze: '10', monthlySilver: '50', monthlyGold: '101', fixedBronze: '100', fixedSilver: '300', fixedGold: '500', smallBoostPrice: '30', smallBoostConnections: '5', largeBoostPrice: '50', largeBoostConnections: '10', maxActiveBoosts: '3', resellerHydrant: '0', resellerHydrantBlister: '0', resellerStick: '0', resellerComplete: '0' })
+  const [settings, setSettings] = useState({ ticketThreshold: 170, ticketBonus: 5, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 }, monthlyLevels: { bronze: 10, silver: 50, gold: 101 }, fixedLevels: { bronze: 100, silver: 300, gold: 500 }, personalWithdrawalMin: 100, teamWithdrawalMin: 100 })
+  const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', ticketBonus: '5', teamCommissionPerSale: '10', none: '30', bronze: '40', silver: '50', gold: '60', monthlyBronze: '10', monthlySilver: '50', monthlyGold: '101', fixedBronze: '100', fixedSilver: '300', fixedGold: '500', smallBoostPrice: '30', smallBoostConnections: '5', largeBoostPrice: '50', largeBoostConnections: '10', maxActiveBoosts: '3', resellerHydrant: '0', resellerHydrantBlister: '0', resellerStick: '0', resellerComplete: '0', personalWithdrawalMin: '100', teamWithdrawalMin: '100' })
   const [savingSettings, setSavingSettings] = useState(false)
   const [savingBonusLevels, setSavingBonusLevels] = useState(false)
   const [globalStatsData, setGlobalStatsData] = useState({ all: { sales: 0, revenue: 0, averageTicket: 0, accesses: 0 }, byMonth: {}, snapshots: {} })
@@ -127,7 +127,7 @@ export default function AdminDashboard() {
     setBoostState(affiliateData.boostState || { activeCount: 0, queueCount: 0, completedCount: 0, active: [] })
     setGlobalStatsData(affiliateData.globalStats || { all: { sales: 0, revenue: 0, averageTicket: 0, accesses: 0 }, byMonth: {}, snapshots: {} })
     setAvailableMonths(affiliateData.availableMonths || [])
-    const nextSettings = affiliateData.settings || { ticketThreshold: 170, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 }, monthlyLevels: { bronze: 10, silver: 50, gold: 101 }, fixedLevels: { bronze: 100, silver: 300, gold: 500 } }
+    const nextSettings = affiliateData.settings || { ticketThreshold: 170, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 }, monthlyLevels: { bronze: 10, silver: 50, gold: 101 }, fixedLevels: { bronze: 100, silver: 300, gold: 500 }, personalWithdrawalMin: 100, teamWithdrawalMin: 100 }
     setSettings(nextSettings)
     setSettingsForm({
       ticketThreshold: String(nextSettings.ticketThreshold),
@@ -143,6 +143,8 @@ export default function AdminDashboard() {
       fixedBronze: String(nextSettings.fixedLevels?.bronze ?? 100),
       fixedSilver: String(nextSettings.fixedLevels?.silver ?? 300),
       fixedGold: String(nextSettings.fixedLevels?.gold ?? 500),
+      personalWithdrawalMin: String(nextSettings.personalWithdrawalMin ?? 100),
+      teamWithdrawalMin: String(nextSettings.teamWithdrawalMin ?? 100),
       smallBoostPrice: String(nextSettings.boostPlans?.small?.price ?? 30),
       smallBoostConnections: String(nextSettings.boostPlans?.small?.connections ?? 5),
       largeBoostPrice: String(nextSettings.boostPlans?.large?.price ?? 50),
@@ -394,6 +396,8 @@ export default function AdminDashboard() {
           silver: Number(settingsForm.fixedSilver),
           gold: Number(settingsForm.fixedGold),
         },
+        personalWithdrawalMin: Number(String(settingsForm.personalWithdrawalMin).replace(',', '.')),
+        teamWithdrawalMin: Number(String(settingsForm.teamWithdrawalMin).replace(',', '.')),
         boostPlans: {
           small: { price: Number(String(settingsForm.smallBoostPrice).replace(',', '.')), connections: Number(settingsForm.smallBoostConnections) },
           large: { price: Number(String(settingsForm.largeBoostPrice).replace(',', '.')), connections: Number(settingsForm.largeBoostConnections) },
@@ -406,7 +410,7 @@ export default function AdminDashboard() {
           complete: Number(String(settingsForm.resellerComplete).replace(',', '.')),
         },
       }
-      if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || !Number.isFinite(payload.ticketBonus) || payload.ticketBonus < 0 || !Number.isFinite(payload.teamCommissionPerSale) || payload.teamCommissionPerSale < 0 || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0) || Object.values(payload.monthlyLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.fixedLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.resellerPrices).some(value => !Number.isFinite(value) || value < 0) || payload.boostPlans.small.price <= 0 || !Number.isInteger(payload.boostPlans.small.connections) || payload.boostPlans.small.connections <= 0 || payload.boostPlans.large.price <= 0 || !Number.isInteger(payload.boostPlans.large.connections) || payload.boostPlans.large.connections <= 0 || !Number.isInteger(payload.boostPlans.maxActive) || payload.boostPlans.maxActive <= 0 || !(payload.monthlyLevels.bronze < payload.monthlyLevels.silver && payload.monthlyLevels.silver < payload.monthlyLevels.gold) || !(payload.fixedLevels.bronze < payload.fixedLevels.silver && payload.fixedLevels.silver < payload.fixedLevels.gold)) {
+      if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || !Number.isFinite(payload.ticketBonus) || payload.ticketBonus < 0 || !Number.isFinite(payload.teamCommissionPerSale) || payload.teamCommissionPerSale < 0 || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0) || Object.values(payload.monthlyLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.fixedLevels).some(value => !Number.isInteger(value) || value <= 0) || !Number.isFinite(payload.personalWithdrawalMin) || payload.personalWithdrawalMin < 0 || !Number.isFinite(payload.teamWithdrawalMin) || payload.teamWithdrawalMin < 0 || Object.values(payload.resellerPrices).some(value => !Number.isFinite(value) || value < 0) || payload.boostPlans.small.price <= 0 || !Number.isInteger(payload.boostPlans.small.connections) || payload.boostPlans.small.connections <= 0 || payload.boostPlans.large.price <= 0 || !Number.isInteger(payload.boostPlans.large.connections) || payload.boostPlans.large.connections <= 0 || !Number.isInteger(payload.boostPlans.maxActive) || payload.boostPlans.maxActive <= 0 || !(payload.monthlyLevels.bronze < payload.monthlyLevels.silver && payload.monthlyLevels.silver < payload.monthlyLevels.gold) || !(payload.fixedLevels.bronze < payload.fixedLevels.silver && payload.fixedLevels.silver < payload.fixedLevels.gold)) {
         throw new Error('Informe valores válidos. As metas devem ser números inteiros e crescentes: Bronze < Prata < Ouro.')
       }
       const result = await api('/api/admin/affiliates', {
@@ -428,6 +432,8 @@ export default function AdminDashboard() {
         fixedBronze: String(result.settings.fixedLevels?.bronze ?? 100),
         fixedSilver: String(result.settings.fixedLevels?.silver ?? 300),
         fixedGold: String(result.settings.fixedLevels?.gold ?? 500),
+        personalWithdrawalMin: String(result.settings.personalWithdrawalMin ?? 100),
+        teamWithdrawalMin: String(result.settings.teamWithdrawalMin ?? 100),
         smallBoostPrice: String(result.settings.boostPlans?.small?.price ?? 30),
         smallBoostConnections: String(result.settings.boostPlans?.small?.connections ?? 5),
         largeBoostPrice: String(result.settings.boostPlans?.large?.price ?? 50),
@@ -926,6 +932,21 @@ export default function AdminDashboard() {
               </div>
               <p className="mt-2 text-[10px] font-semibold text-pink-600">Valor pago por cada venda aprovada de uma afiliada direta da equipe.</p>
             </label>
+
+            <div className="md:col-span-2 xl:col-span-6 rounded-[1.5rem] border border-emerald-200 bg-emerald-50/60 p-4">
+              <p className="text-xs font-black uppercase tracking-[.16em] text-emerald-700">Saques · limites</p>
+              <p className="mt-1 text-[10px] font-semibold text-emerald-700">Os dois saldos são independentes. Defina o mínimo de cada um; depois do mínimo, o saque sempre avança em R$ 100,00. Ex.: mínimo R$ 5 → R$ 5, R$ 105, R$ 205…</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="rounded-2xl border border-emerald-200 bg-white p-4">
+                  <span className="text-[10px] font-black uppercase tracking-[.14em] text-emerald-700">Saque mínimo · Vendas Pessoal</span>
+                  <div className="mt-2 flex items-center gap-2"><span className="font-black text-zinc-500">R$</span><input value={settingsForm.personalWithdrawalMin} onChange={e => setSettingsForm(v => ({ ...v, personalWithdrawalMin: e.target.value }))} inputMode="decimal" className="w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-lg font-black outline-none focus:border-emerald-400" /></div>
+                </label>
+                <label className="rounded-2xl border border-emerald-200 bg-white p-4">
+                  <span className="text-[10px] font-black uppercase tracking-[.14em] text-emerald-700">Saque mínimo · Equipe</span>
+                  <div className="mt-2 flex items-center gap-2"><span className="font-black text-zinc-500">R$</span><input value={settingsForm.teamWithdrawalMin} onChange={e => setSettingsForm(v => ({ ...v, teamWithdrawalMin: e.target.value }))} inputMode="decimal" className="w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-lg font-black outline-none focus:border-emerald-400" /></div>
+                </label>
+              </div>
+            </div>
 
             {[['none', 'Início'], ['bronze', 'Bronze'], ['silver', 'Prata'], ['gold', 'Ouro']].map(([key, label]) => (
               <label key={key} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
