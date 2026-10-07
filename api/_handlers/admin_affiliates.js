@@ -588,20 +588,23 @@ module.exports = async function handler(req, res) {
           }),
         });
 
-        // Os mínimos de saque são persistidos separadamente para não depender
-        // da normalização das demais configurações. Em seguida, lemos os
-        // valores novamente do banco e devolvemos os valores realmente salvos.
-        await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1', {
-          method: 'PATCH',
-          headers: { Prefer: 'return=minimal' },
+        // Os mínimos de saque são gravados por uma RPC específica e atômica.
+        // Assim, o Admin só recebe sucesso depois que o Supabase confirmar
+        // os dois valores persistidos no banco.
+        const savedWithdrawalRows = await supabaseFetch('/rest/v1/rpc/she_update_withdrawal_minimums', {
+          method: 'POST',
           body: JSON.stringify({
-            personal_withdrawal_min: personalWithdrawalMin,
-            team_withdrawal_min: teamWithdrawalMin,
+            p_personal: personalWithdrawalMin,
+            p_team: teamWithdrawalMin,
           }),
         });
-        const savedWithdrawalRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=personal_withdrawal_min,team_withdrawal_min&limit=1');
-        nextSettings.personalWithdrawalMin = Number(savedWithdrawalRows?.[0]?.personal_withdrawal_min ?? personalWithdrawalMin);
-        nextSettings.teamWithdrawalMin = Number(savedWithdrawalRows?.[0]?.team_withdrawal_min ?? teamWithdrawalMin);
+        if (!Array.isArray(savedWithdrawalRows) || !savedWithdrawalRows[0]) {
+          const error = new Error('Não foi possível confirmar os mínimos de saque no banco de dados.');
+          error.statusCode = 500;
+          throw error;
+        }
+        nextSettings.personalWithdrawalMin = Number(savedWithdrawalRows[0].personal_withdrawal_min);
+        nextSettings.teamWithdrawalMin = Number(savedWithdrawalRows[0].team_withdrawal_min);
 
         // A configuração é imediatamente refletida no mês atual.
         // Meses anteriores permanecem congelados.
