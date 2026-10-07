@@ -933,23 +933,6 @@ export default function AdminDashboard() {
               <p className="mt-2 text-[10px] font-semibold text-pink-600">Valor pago por cada venda aprovada de uma afiliada direta da equipe.</p>
             </label>
 
-            <div className="md:col-span-2 xl:col-span-6 rounded-[1.5rem] border border-emerald-200 bg-emerald-50/60 p-4">
-              <p className="text-xs font-black uppercase tracking-[.16em] text-emerald-700">Saques · limites</p>
-              <p className="mt-1 text-[10px] font-semibold text-emerald-700">Os dois saldos são independentes. Defina o mínimo de cada um; depois do mínimo, o saque sempre avança em R$ 100,00. Ex.: mínimo R$ 5 → R$ 5, R$ 105, R$ 205…</p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <label className="rounded-2xl border border-emerald-200 bg-white p-4">
-                  <span className="text-[10px] font-black uppercase tracking-[.14em] text-emerald-700">Saque mínimo · Vendas Pessoal</span>
-                  <div className="mt-2 flex items-center gap-2"><span className="font-black text-zinc-500">R$</span><input value={settingsForm.personalWithdrawalMin} onChange={e => setSettingsForm(v => ({ ...v, personalWithdrawalMin: e.target.value }))} inputMode="decimal" className="w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-lg font-black outline-none focus:border-emerald-400" /></div>
-                  <p className="mt-2 text-[10px] font-semibold text-emerald-700">Configurável pelo Admin. O incremento continua fixo em R$ 100,00.</p>
-                </label>
-                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-                  <span className="text-[10px] font-black uppercase tracking-[.14em] text-zinc-500">Saque · Equipe</span>
-                  <p className="mt-2 text-lg font-black text-zinc-900">R$ 100,00</p>
-                  <p className="mt-2 text-[10px] font-semibold text-zinc-500">O saque de equipe permanece com o mínimo fixo de R$ 100,00.</p>
-                </div>
-              </div>
-            </div>
-
             {[['none', 'Início'], ['bronze', 'Bronze'], ['silver', 'Prata'], ['gold', 'Ouro']].map(([key, label]) => (
               <label key={key} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
                 <span className="text-[10px] font-black uppercase tracking-[.14em] text-zinc-500">{label} · por pedido</span>

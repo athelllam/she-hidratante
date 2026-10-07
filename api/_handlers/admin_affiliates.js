@@ -551,8 +551,8 @@ module.exports = async function handler(req, res) {
         const boost = nextSettings.boostPlans || { small: { price: 30, connections: 5 }, large: { price: 50, connections: 10 }, maxActive: 3 };
         const boostValid = boost.small?.price > 0 && Number.isInteger(Number(boost.small?.connections)) && Number(boost.small.connections) > 0 && boost.large?.price > 0 && Number.isInteger(Number(boost.large?.connections)) && Number(boost.large.connections) > 0 && Number.isInteger(Number(boost.maxActive)) && Number(boost.maxActive) > 0;
         const personalWithdrawalMin = Number(nextSettings.personalWithdrawalMin ?? currentSettings.personalWithdrawalMin ?? 100);
-        const teamWithdrawalMin = 100;
-        const withdrawalMinsValid = Number.isFinite(personalWithdrawalMin) && personalWithdrawalMin > 0;
+        const teamWithdrawalMin = Number(nextSettings.teamWithdrawalMin ?? currentSettings.teamWithdrawalMin ?? 100);
+        const withdrawalMinsValid = Number.isFinite(personalWithdrawalMin) && personalWithdrawalMin > 0 && Number.isFinite(teamWithdrawalMin) && teamWithdrawalMin > 0;
         const thresholdsValid = monthly.bronze < monthly.silver && monthly.silver < monthly.gold && fixed.bronze < fixed.silver && fixed.silver < fixed.gold;
         if (nextSettings.ticketThreshold <= 0 || nextSettings.ticketBonus < 0 || Object.values(nextSettings.commissions).some(value => value < 0) || !thresholdsValid || !boostValid || !withdrawalMinsValid) {
           return json(res, 400, { error: 'Os valores precisam ser válidos. As metas devem ser crescentes (Bronze < Prata < Ouro) e a meta de ticket deve ser maior que zero.' });
@@ -575,7 +575,7 @@ module.exports = async function handler(req, res) {
             fixed_silver_sales: nextSettings.fixedLevels.silver,
             fixed_gold_sales: nextSettings.fixedLevels.gold,
             personal_withdrawal_min: personalWithdrawalMin,
-            team_withdrawal_min: 100,
+            team_withdrawal_min: teamWithdrawalMin,
             team_boost_small_price: Number(boost.small.price),
             team_boost_small_connections: Number(boost.small.connections),
             team_boost_large_price: Number(boost.large.price),
@@ -588,8 +588,23 @@ module.exports = async function handler(req, res) {
           }),
         });
 
-        // O saque de equipe permanece fixo em R$100. Apenas o mínimo pessoal é configurável pelo Admin.
-        nextSettings.teamWithdrawalMin = 100;
+        // Os mínimos de saque são gravados por uma RPC específica e atômica.
+        // Assim, o Admin só recebe sucesso depois que o Supabase confirmar
+        // os dois valores persistidos no banco.
+        const savedWithdrawalRows = await supabaseFetch('/rest/v1/rpc/she_update_withdrawal_minimums', {
+          method: 'POST',
+          body: JSON.stringify({
+            p_personal: personalWithdrawalMin,
+            p_team: teamWithdrawalMin,
+          }),
+        });
+        if (!Array.isArray(savedWithdrawalRows) || !savedWithdrawalRows[0]) {
+          const error = new Error('Não foi possível confirmar os mínimos de saque no banco de dados.');
+          error.statusCode = 500;
+          throw error;
+        }
+        nextSettings.personalWithdrawalMin = Number(savedWithdrawalRows[0].personal_withdrawal_min);
+        nextSettings.teamWithdrawalMin = Number(savedWithdrawalRows[0].team_withdrawal_min);
 
         // A configuração é imediatamente refletida no mês atual.
         // Meses anteriores permanecem congelados.

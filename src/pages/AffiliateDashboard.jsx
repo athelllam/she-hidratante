@@ -891,10 +891,10 @@ export default function AffiliateDashboard() {
 
           <div className="mt-5 rounded-2xl border border-pink-100 bg-white p-4">
             <p className="text-sm font-black text-zinc-900">Sacar comissão de equipe</p>
-            <p className="mt-1 text-xs text-zinc-400">Esse saldo é separado da sua comissão pessoal. Saque mínimo de {brl(100)}. A partir do mínimo, os pedidos avançam em R$ 100,00.</p>
+            <p className="mt-1 text-xs text-zinc-400">Esse saldo é separado da sua comissão pessoal. Saque mínimo de {brl(dashboard?.settings?.teamWithdrawalMin ?? 100)}. A partir do mínimo, os pedidos avançam em R$ 100,00.</p>
             <form onSubmit={requestTeamWithdraw} className="mt-3 flex flex-col gap-2 sm:flex-row">
               <input value={teamWithdrawAmount} onChange={e => setTeamWithdrawAmount(e.target.value)} inputMode="decimal" placeholder="Ex.: 100" className="flex-1 rounded-xl border border-zinc-200 px-4 py-3 font-bold outline-none focus:border-pink-400" />
-              <button disabled={teamWithdrawBusy || team.availableCommission < Number(100)} className="rounded-xl bg-pink-500 px-5 py-3 font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{teamWithdrawBusy ? 'Enviando…' : 'Solicitar saque de equipe'}</button>
+              <button disabled={teamWithdrawBusy || team.availableCommission < Number(dashboard?.settings?.teamWithdrawalMin ?? 100)} className="rounded-xl bg-pink-500 px-5 py-3 font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{teamWithdrawBusy ? 'Enviando…' : 'Solicitar saque de equipe'}</button>
             </form>
             {teamWithdrawMessage && <p className="mt-2 rounded-xl bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-600">{teamWithdrawMessage}</p>}
           </div>
