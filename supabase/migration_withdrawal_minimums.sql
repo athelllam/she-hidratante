@@ -45,3 +45,4 @@ end;
 $$;
 
 revoke all on function public.she_update_withdrawal_minimums(numeric, numeric) from public;
+grant execute on function public.she_update_withdrawal_minimums(numeric, numeric) to service_role;
