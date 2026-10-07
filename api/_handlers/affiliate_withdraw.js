@@ -26,8 +26,11 @@ module.exports = async function handler(req, res) {
     if (req.method !== 'POST') return json(res, 405, { error: 'Método não permitido.' });
 
     const amount = Number(req.body?.amount);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      return json(res, 400, { error: 'Informe um valor de saque válido.' });
+    if (!Number.isFinite(amount) || amount < 100) {
+      return json(res, 400, { error: 'O saque mínimo é de R$ 100,00.' });
+    }
+    if (Math.abs(amount % 100) > 0.001) {
+      return json(res, 400, { error: 'O saque deve ser em múltiplos de R$ 100,00.' });
     }
 
     const pixKey = String(affiliate.pix_key || '').trim();
@@ -43,24 +46,13 @@ module.exports = async function handler(req, res) {
     const source = String(req.body?.source || 'personal').toLowerCase();
     if (!['personal', 'team'].includes(source)) return json(res, 400, { error: 'Tipo de saque inválido.' });
 
-    const settingRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,personal_withdrawal_min,team_withdrawal_min&limit=1');
+    const settingRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold&limit=1');
     const settings = normalizeConfig(settingRows?.[0] ? {
       ticketThreshold: settingRows[0].ticket_threshold,
       ticketBonus: settingRows[0].ticket_bonus,
       teamCommissionPerSale: settingRows[0].team_commission_per_sale,
       commissions: { none: settingRows[0].commission_none, bronze: settingRows[0].commission_bronze, silver: settingRows[0].commission_silver, gold: settingRows[0].commission_gold },
     } : DEFAULT_COMMISSION_CONFIG);
-    // Teste de saque: pessoal fixo em R$5. Equipe permanece fixa em R$100.
-    const minimum = source === 'team' ? 100 : 5;
-    const safeMinimum = minimum;
-    if (amount + 0.001 < safeMinimum) {
-      return json(res, 400, { error: `O saque mínimo é de R$ ${safeMinimum.toFixed(2).replace('.', ',')}.`, minimum: safeMinimum });
-    }
-    // O valor pode ser o mínimo ou o mínimo acrescido de qualquer múltiplo de R$100.
-    // Ex.: mínimo R$5 => R$5, R$105, R$205...
-    if (Math.abs(((amount - safeMinimum) % 100)) > 0.001) {
-      return json(res, 400, { error: `O saque deve ser de R$ ${safeMinimum.toFixed(2).replace('.', ',')} ou em incrementos de R$ 100,00 a partir desse valor.`, minimum: safeMinimum });
-    }
 
     const withdrawals = await supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${affiliate.id}&source=eq.${source}&status=in.(pending,approved,processing,paid)&select=amount`);
     let earned = 0;

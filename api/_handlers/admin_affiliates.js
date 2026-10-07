@@ -20,7 +20,7 @@ module.exports = async function handler(req, res) {
         supabaseFetch('/rest/v1/affiliate_withdrawals?select=affiliate_id,amount,status,source,requested_at&order=requested_at.desc&limit=10000'),
         supabaseFetch('/rest/v1/affiliate_events?select=affiliate_id,type,created_at&order=created_at.desc&limit=20000'),
         supabaseFetch('/rest/v1/affiliate_admin_status_history?select=affiliate_id,admin_active,effective_at&order=effective_at.asc&limit=20000').catch(() => []),
-        supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,personal_withdrawal_min,team_withdrawal_min,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active,reseller_hydrant_price,reseller_hydrant_blister_price,reseller_stick_price,reseller_complete_price&limit=1'),
+        supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active,reseller_hydrant_price,reseller_hydrant_blister_price,reseller_stick_price,reseller_complete_price&limit=1'),
         supabaseFetch('/rest/v1/rpc/she_team_boost_admin_state', { method: 'POST', body: '{}' }).catch(() => ({ activeCount: 0, queueCount: 0, completedCount: 0, active: [] })),
         supabaseFetch('/rest/v1/affiliate_team_boosts?status=neq.cancelled&select=affiliate_id,price&limit=20000').catch(() => []),
       ]);
@@ -48,8 +48,6 @@ module.exports = async function handler(req, res) {
         large: { price: Number(settingRows[0].team_boost_large_price ?? 50), connections: Number(settingRows[0].team_boost_large_connections ?? 10) },
         maxActive: Number(settingRows[0].team_boost_max_active ?? 3),
       } : { small: { price: 30, connections: 5 }, large: { price: 50, connections: 10 }, maxActive: 3 };
-      settings.personalWithdrawalMin = Number(settingRows?.[0]?.personal_withdrawal_min ?? 100);
-      settings.teamWithdrawalMin = Number(settingRows?.[0]?.team_withdrawal_min ?? 100);
       settings.resellerPrices = { hydrant: Number(settingRows?.[0]?.reseller_hydrant_price ?? 0), hydrantBlister: Number(settingRows?.[0]?.reseller_hydrant_blister_price ?? 0), stick: Number(settingRows?.[0]?.reseller_stick_price ?? 0), complete: Number(settingRows?.[0]?.reseller_complete_price ?? 0) };
 
       const detailAffiliateId = Number(req.query?.detail || 0);
@@ -513,7 +511,7 @@ module.exports = async function handler(req, res) {
       }
 
       if (requestedSettings) {
-        const currentRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,personal_withdrawal_min,team_withdrawal_min,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active,reseller_hydrant_price,reseller_hydrant_blister_price,reseller_stick_price,reseller_complete_price&limit=1');
+        const currentRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active,reseller_hydrant_price,reseller_hydrant_blister_price,reseller_stick_price,reseller_complete_price&limit=1');
         const currentSettings = normalizeConfig(currentRows?.[0] ? {
           ticketThreshold: currentRows[0].ticket_threshold,
           ticketBonus: currentRows[0].ticket_bonus,
@@ -527,8 +525,6 @@ module.exports = async function handler(req, res) {
             maxActive: Number(currentRows[0].team_boost_max_active ?? 3),
           },
         } : DEFAULT_COMMISSION_CONFIG);
-        currentSettings.personalWithdrawalMin = Number(currentRows?.[0]?.personal_withdrawal_min ?? 100);
-        currentSettings.teamWithdrawalMin = Number(currentRows?.[0]?.team_withdrawal_min ?? 100);
         currentSettings.boostPlans = currentRows?.[0] ? { small: { price: Number(currentRows[0].team_boost_small_price ?? 30), connections: Number(currentRows[0].team_boost_small_connections ?? 5) }, large: { price: Number(currentRows[0].team_boost_large_price ?? 50), connections: Number(currentRows[0].team_boost_large_connections ?? 10) }, maxActive: Number(currentRows[0].team_boost_max_active ?? 3) } : { small: { price: 30, connections: 5 }, large: { price: 50, connections: 10 }, maxActive: 3 };
         currentSettings.resellerPrices = { hydrant: Number(currentRows?.[0]?.reseller_hydrant_price ?? 0), hydrantBlister: Number(currentRows?.[0]?.reseller_hydrant_blister_price ?? 0), stick: Number(currentRows?.[0]?.reseller_stick_price ?? 0), complete: Number(currentRows?.[0]?.reseller_complete_price ?? 0) };
         const nextSettings = normalizeConfig({
@@ -539,22 +535,15 @@ module.exports = async function handler(req, res) {
           monthlyLevels: requestedSettings.monthlyLevels,
           fixedLevels: requestedSettings.fixedLevels,
           boostPlans: requestedSettings.boostPlans,
-          personalWithdrawalMin: requestedSettings.personalWithdrawalMin,
-          teamWithdrawalMin: requestedSettings.teamWithdrawalMin,
         });
-        nextSettings.personalWithdrawalMin = Number(requestedSettings.personalWithdrawalMin ?? currentSettings.personalWithdrawalMin ?? 100);
-        nextSettings.teamWithdrawalMin = Number(requestedSettings.teamWithdrawalMin ?? currentSettings.teamWithdrawalMin ?? 100);
         nextSettings.resellerPrices = requestedSettings.resellerPrices || currentSettings.resellerPrices;
         nextSettings.boostPlans = requestedSettings.boostPlans || currentSettings.boostPlans;
         const monthly = nextSettings.monthlyLevels;
         const fixed = nextSettings.fixedLevels;
         const boost = nextSettings.boostPlans || { small: { price: 30, connections: 5 }, large: { price: 50, connections: 10 }, maxActive: 3 };
         const boostValid = boost.small?.price > 0 && Number.isInteger(Number(boost.small?.connections)) && Number(boost.small.connections) > 0 && boost.large?.price > 0 && Number.isInteger(Number(boost.large?.connections)) && Number(boost.large.connections) > 0 && Number.isInteger(Number(boost.maxActive)) && Number(boost.maxActive) > 0;
-        const personalWithdrawalMin = Number(nextSettings.personalWithdrawalMin ?? currentSettings.personalWithdrawalMin ?? 100);
-        const teamWithdrawalMin = Number(nextSettings.teamWithdrawalMin ?? currentSettings.teamWithdrawalMin ?? 100);
-        const withdrawalMinsValid = Number.isFinite(personalWithdrawalMin) && personalWithdrawalMin > 0 && Number.isFinite(teamWithdrawalMin) && teamWithdrawalMin > 0;
         const thresholdsValid = monthly.bronze < monthly.silver && monthly.silver < monthly.gold && fixed.bronze < fixed.silver && fixed.silver < fixed.gold;
-        if (nextSettings.ticketThreshold <= 0 || nextSettings.ticketBonus < 0 || Object.values(nextSettings.commissions).some(value => value < 0) || !thresholdsValid || !boostValid || !withdrawalMinsValid) {
+        if (nextSettings.ticketThreshold <= 0 || nextSettings.ticketBonus < 0 || Object.values(nextSettings.commissions).some(value => value < 0) || !thresholdsValid || !boostValid) {
           return json(res, 400, { error: 'Os valores precisam ser válidos. As metas devem ser crescentes (Bronze < Prata < Ouro) e a meta de ticket deve ser maior que zero.' });
         }
         const rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1', {
@@ -574,8 +563,6 @@ module.exports = async function handler(req, res) {
             fixed_bronze_sales: nextSettings.fixedLevels.bronze,
             fixed_silver_sales: nextSettings.fixedLevels.silver,
             fixed_gold_sales: nextSettings.fixedLevels.gold,
-            personal_withdrawal_min: personalWithdrawalMin,
-            team_withdrawal_min: teamWithdrawalMin,
             team_boost_small_price: Number(boost.small.price),
             team_boost_small_connections: Number(boost.small.connections),
             team_boost_large_price: Number(boost.large.price),
@@ -587,24 +574,6 @@ module.exports = async function handler(req, res) {
             reseller_complete_price: Number(nextSettings.resellerPrices?.complete || 0),
           }),
         });
-
-        // Os mínimos de saque são gravados por uma RPC específica e atômica.
-        // Assim, o Admin só recebe sucesso depois que o Supabase confirmar
-        // os dois valores persistidos no banco.
-        const savedWithdrawalRows = await supabaseFetch('/rest/v1/rpc/she_update_withdrawal_minimums', {
-          method: 'POST',
-          body: JSON.stringify({
-            p_personal: personalWithdrawalMin,
-            p_team: teamWithdrawalMin,
-          }),
-        });
-        if (!Array.isArray(savedWithdrawalRows) || !savedWithdrawalRows[0]) {
-          const error = new Error('Não foi possível confirmar os mínimos de saque no banco de dados.');
-          error.statusCode = 500;
-          throw error;
-        }
-        nextSettings.personalWithdrawalMin = Number(savedWithdrawalRows[0].personal_withdrawal_min);
-        nextSettings.teamWithdrawalMin = Number(savedWithdrawalRows[0].team_withdrawal_min);
 
         // A configuração é imediatamente refletida no mês atual.
         // Meses anteriores permanecem congelados.
