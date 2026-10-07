@@ -454,26 +454,6 @@ module.exports = async function handler(req, res) {
     if (req.method === 'PATCH') {
       const { id, active, adminActive, commissionRate, password, settings: requestedSettings } = req.body || {};
 
-      if (String(req.body?.action || '') === 'update_withdrawal_minimums') {
-        const personal = Number(String(req.body?.personalWithdrawalMin ?? '').replace(',', '.'));
-        const team = Number(String(req.body?.teamWithdrawalMin ?? '').replace(',', '.'));
-        if (!Number.isFinite(personal) || personal <= 0 || !Number.isFinite(team) || team <= 0) {
-          return json(res, 400, { error: 'Os mínimos de saque devem ser maiores que zero.' });
-        }
-        const rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1', {
-          method: 'PATCH',
-          headers: { Prefer: 'return=representation' },
-          body: JSON.stringify({ personal_withdrawal_min: personal, team_withdrawal_min: team }),
-        });
-        const saved = rows?.[0];
-        const savedPersonal = Number(saved?.personal_withdrawal_min);
-        const savedTeam = Number(saved?.team_withdrawal_min);
-        if (!saved || savedPersonal !== personal || savedTeam !== team) {
-          return json(res, 500, { error: 'O banco não confirmou os novos mínimos de saque.', actual: { personal: savedPersonal, team: savedTeam } });
-        }
-        return json(res, 200, { personalWithdrawalMin: savedPersonal, teamWithdrawalMin: savedTeam });
-      }
-
       // Metas dos Bônus Mensal/Fixo: tratadas separadamente para que a alteração
       // dessas seis configurações nunca dependa das demais configurações do painel.
       if (String(req.body?.action || '') === 'update_bonus_levels') {
@@ -594,6 +574,8 @@ module.exports = async function handler(req, res) {
             fixed_bronze_sales: nextSettings.fixedLevels.bronze,
             fixed_silver_sales: nextSettings.fixedLevels.silver,
             fixed_gold_sales: nextSettings.fixedLevels.gold,
+            personal_withdrawal_min: personalWithdrawalMin,
+            team_withdrawal_min: teamWithdrawalMin,
             team_boost_small_price: Number(boost.small.price),
             team_boost_small_connections: Number(boost.small.connections),
             team_boost_large_price: Number(boost.large.price),
@@ -605,9 +587,6 @@ module.exports = async function handler(req, res) {
             reseller_complete_price: Number(nextSettings.resellerPrices?.complete || 0),
           }),
         });
-
-        nextSettings.personalWithdrawalMin = Number(currentSettings.personalWithdrawalMin ?? 100);
-        nextSettings.teamWithdrawalMin = Number(currentSettings.teamWithdrawalMin ?? 100);
 
         // A configuração é imediatamente refletida no mês atual.
         // Meses anteriores permanecem congelados.

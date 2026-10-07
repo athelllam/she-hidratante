@@ -413,20 +413,10 @@ export default function AdminDashboard() {
       if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || !Number.isFinite(payload.ticketBonus) || payload.ticketBonus < 0 || !Number.isFinite(payload.teamCommissionPerSale) || payload.teamCommissionPerSale < 0 || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0) || Object.values(payload.monthlyLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.fixedLevels).some(value => !Number.isInteger(value) || value <= 0) || !Number.isFinite(payload.personalWithdrawalMin) || payload.personalWithdrawalMin < 0 || !Number.isFinite(payload.teamWithdrawalMin) || payload.teamWithdrawalMin < 0 || Object.values(payload.resellerPrices).some(value => !Number.isFinite(value) || value < 0) || payload.boostPlans.small.price <= 0 || !Number.isInteger(payload.boostPlans.small.connections) || payload.boostPlans.small.connections <= 0 || payload.boostPlans.large.price <= 0 || !Number.isInteger(payload.boostPlans.large.connections) || payload.boostPlans.large.connections <= 0 || !Number.isInteger(payload.boostPlans.maxActive) || payload.boostPlans.maxActive <= 0 || !(payload.monthlyLevels.bronze < payload.monthlyLevels.silver && payload.monthlyLevels.silver < payload.monthlyLevels.gold) || !(payload.fixedLevels.bronze < payload.fixedLevels.silver && payload.fixedLevels.silver < payload.fixedLevels.gold)) {
         throw new Error('Informe valores válidos. As metas devem ser números inteiros e crescentes: Bronze < Prata < Ouro.')
       }
-      const withdrawalResult = await api('/api/admin/affiliates', {
-        method: 'PATCH',
-        body: JSON.stringify({
-          action: 'update_withdrawal_minimums',
-          personalWithdrawalMin: payload.personalWithdrawalMin,
-          teamWithdrawalMin: payload.teamWithdrawalMin,
-        }),
-      })
       const result = await api('/api/admin/affiliates', {
         method: 'PATCH',
         body: JSON.stringify({ settings: payload }),
       })
-      result.settings.personalWithdrawalMin = withdrawalResult.personalWithdrawalMin
-      result.settings.teamWithdrawalMin = withdrawalResult.teamWithdrawalMin
       setSettings(result.settings)
       setSettingsForm({
         ticketThreshold: String(result.settings.ticketThreshold),
@@ -454,7 +444,8 @@ export default function AdminDashboard() {
         resellerStick: String(result.settings.resellerPrices?.stick ?? 0),
         resellerComplete: String(result.settings.resellerPrices?.complete ?? 0),
       })
-      setMessage('Configurações atualizadas com sucesso.')
+      setMessage('Configurações de comissões e metas dos Bônus Mensal e Fixo atualizadas para todas as afiliadas.')
+      await loadPanel()
     } catch (e) {
       setMessage(e.message || 'Não foi possível atualizar as configurações.')
     } finally {

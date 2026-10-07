@@ -93,7 +93,3 @@ A API foi consolidada em uma única Serverless Function (`api/[...path].js`). Os
 ## Reserva do saldo
 
 O valor do saque é descontado/reservado imediatamente quando a afiliada solicita. Solicitações `pending`, `approved` e `processing` continuam reservando o valor. Se o saque for `rejected`, `failed` ou `cancelled`, o valor deixa de ser reservado e volta automaticamente ao saldo disponível.
-
-
-### Atualização dos mínimos de saque
-Execute a migration `supabase/migration_withdrawal_minimums.sql`. Ela também concede `EXECUTE` da RPC ao `service_role`, usado pelo backend da Vercel. Se a migration já foi executada antes, execute novamente: o `CREATE OR REPLACE FUNCTION` e o `GRANT` são seguros.
