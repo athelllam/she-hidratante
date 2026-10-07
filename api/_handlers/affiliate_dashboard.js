@@ -375,7 +375,7 @@ module.exports = async function handler(req, res) {
       monthlyLevels: { bronze: settingRows[0].monthly_bronze_sales, silver: settingRows[0].monthly_silver_sales, gold: settingRows[0].monthly_gold_sales },
       fixedLevels: { bronze: settingRows[0].fixed_bronze_sales, silver: settingRows[0].fixed_silver_sales, gold: settingRows[0].fixed_gold_sales },
     } : DEFAULT_COMMISSION_CONFIG);
-    // TESTE: saque pessoal mínimo fixo em R$5; equipe permanece fixa em R$100.
+    // Teste de saque: pessoal fixo em R$5. Equipe permanece fixa em R$100.
     settings.personalWithdrawalMin = 5;
     settings.teamWithdrawalMin = 100;
 

@@ -396,8 +396,6 @@ export default function AdminDashboard() {
           silver: Number(settingsForm.fixedSilver),
           gold: Number(settingsForm.fixedGold),
         },
-        personalWithdrawalMin: Number(String(settingsForm.personalWithdrawalMin).replace(',', '.')),
-        teamWithdrawalMin: Number(String(settingsForm.teamWithdrawalMin).replace(',', '.')),
         boostPlans: {
           small: { price: Number(String(settingsForm.smallBoostPrice).replace(',', '.')), connections: Number(settingsForm.smallBoostConnections) },
           large: { price: Number(String(settingsForm.largeBoostPrice).replace(',', '.')), connections: Number(settingsForm.largeBoostConnections) },
@@ -432,8 +430,6 @@ export default function AdminDashboard() {
         fixedBronze: String(result.settings.fixedLevels?.bronze ?? 100),
         fixedSilver: String(result.settings.fixedLevels?.silver ?? 300),
         fixedGold: String(result.settings.fixedLevels?.gold ?? 500),
-        personalWithdrawalMin: String(result.settings.personalWithdrawalMin ?? 100),
-        teamWithdrawalMin: String(result.settings.teamWithdrawalMin ?? 100),
         smallBoostPrice: String(result.settings.boostPlans?.small?.price ?? 30),
         smallBoostConnections: String(result.settings.boostPlans?.small?.connections ?? 5),
         largeBoostPrice: String(result.settings.boostPlans?.large?.price ?? 50),

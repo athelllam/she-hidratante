@@ -50,8 +50,9 @@ module.exports = async function handler(req, res) {
       teamCommissionPerSale: settingRows[0].team_commission_per_sale,
       commissions: { none: settingRows[0].commission_none, bronze: settingRows[0].commission_bronze, silver: settingRows[0].commission_silver, gold: settingRows[0].commission_gold },
     } : DEFAULT_COMMISSION_CONFIG);
-    // TESTE: saque pessoal mínimo fixo em R$5; equipe permanece fixa em R$100.
-    const safeMinimum = source === 'team' ? 100 : 5;
+    // Teste de saque: pessoal fixo em R$5. Equipe permanece fixa em R$100.
+    const minimum = source === 'team' ? 100 : 5;
+    const safeMinimum = minimum;
     if (amount + 0.001 < safeMinimum) {
       return json(res, 400, { error: `O saque mínimo é de R$ ${safeMinimum.toFixed(2).replace('.', ',')}.`, minimum: safeMinimum });
     }
