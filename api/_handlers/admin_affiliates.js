@@ -588,6 +588,21 @@ module.exports = async function handler(req, res) {
           }),
         });
 
+        // Os mínimos de saque são persistidos separadamente para não depender
+        // da normalização das demais configurações. Em seguida, lemos os
+        // valores novamente do banco e devolvemos os valores realmente salvos.
+        await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1', {
+          method: 'PATCH',
+          headers: { Prefer: 'return=minimal' },
+          body: JSON.stringify({
+            personal_withdrawal_min: personalWithdrawalMin,
+            team_withdrawal_min: teamWithdrawalMin,
+          }),
+        });
+        const savedWithdrawalRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=personal_withdrawal_min,team_withdrawal_min&limit=1');
+        nextSettings.personalWithdrawalMin = Number(savedWithdrawalRows?.[0]?.personal_withdrawal_min ?? personalWithdrawalMin);
+        nextSettings.teamWithdrawalMin = Number(savedWithdrawalRows?.[0]?.team_withdrawal_min ?? teamWithdrawalMin);
+
         // A configuração é imediatamente refletida no mês atual.
         // Meses anteriores permanecem congelados.
         try {
