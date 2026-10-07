@@ -28,8 +28,6 @@ function whatsappUrl(value) {
 function withdrawalStatusLabel(status) {
   if (status === 'approved') return 'Aprovado'
   if (status === 'paid') return 'Pago'
-  if (status === 'processing') return 'Processando Pix'
-  if (status === 'failed') return 'Falhou'
   if (status === 'rejected') return 'Recusado'
   if (status === 'cancelled') return 'Cancelado'
   return 'Pendente'
@@ -102,7 +100,6 @@ export default function AffiliateDashboard() {
   const [videoBusy, setVideoBusy] = useState(false)
   const [videoMessage, setVideoMessage] = useState('')
   const [pixKey, setPixKey] = useState('')
-  const [pixKeyType, setPixKeyType] = useState('CPF')
   const [pixOpen, setPixOpen] = useState(false)
   const [pixBusy, setPixBusy] = useState(false)
   const [pixMessage, setPixMessage] = useState('')
@@ -132,7 +129,6 @@ export default function AffiliateDashboard() {
       const data = await api('/api/affiliate/dashboard')
       setAffiliate(data.affiliate)
       setPixKey(data.affiliate?.pix_key || '')
-      setPixKeyType(data.affiliate?.pix_key_type || 'CPF')
       setDashboard(data)
       try {
         const boostData = await api('/api/affiliate/dashboard?boost=1')
@@ -424,11 +420,11 @@ export default function AffiliateDashboard() {
     try {
       const result = await api('/api/affiliate/withdraw', {
         method: 'PATCH',
-        body: JSON.stringify({ pixKey: pixKey.trim(), pixKeyType }),
+        body: JSON.stringify({ pixKey: pixKey.trim() }),
       })
       const saved = result.pixKey || pixKey.trim()
       setPixKey(saved)
-      setAffiliate(current => current ? { ...current, pix_key: saved, pix_key_type: pixKeyType } : current)
+      setAffiliate(current => current ? { ...current, pix_key: saved } : current)
       setPixOpen(false)
       setPixMessage('PIX de recebimento salvo. Se você cadastrar outro, ele substituirá o atual para os próximos saques.')
     } catch (e) {
@@ -754,7 +750,7 @@ export default function AffiliateDashboard() {
                   {withdrawBusy ? 'Enviando…' : 'Solicitar saque'}
                 </button>
               </form>
-              <p className="mt-3 text-xs leading-5 text-zinc-400">Saque mínimo de {brl(dashboard?.settings?.personalWithdrawalMin ?? 100)}. A partir do mínimo, os pedidos avançam em R$ 100,00.</p>
+              <p className="mt-3 text-xs leading-5 text-zinc-400">Saque mínimo de R$ 100,00. Os pedidos devem ser feitos em múltiplos de R$ 100,00.</p>
               {withdrawMessage && <p className="mt-3 rounded-xl bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-600">{withdrawMessage}</p>}
           </div>
 
@@ -780,19 +776,7 @@ export default function AffiliateDashboard() {
               </button>
               {pixOpen && (
                 <form onSubmit={savePix} className="mt-4 border-t border-zinc-100 pt-4">
-                  <label className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Tipo da chave PIX</label>
-                  <select
-                    value={pixKeyType}
-                    onChange={e => setPixKeyType(e.target.value)}
-                    className="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3.5 text-sm font-bold outline-none focus:border-pink-400"
-                  >
-                    <option value="CPF">CPF</option>
-                    <option value="CNPJ">CNPJ</option>
-                    <option value="EMAIL">E-mail</option>
-                    <option value="PHONE">Telefone</option>
-                    <option value="EVP">Chave aleatória</option>
-                  </select>
-                  <label className="mt-3 block text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Nova chave PIX</label>
+                  <label className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Nova chave PIX</label>
                   <input
                     value={pixKey}
                     onChange={e => setPixKey(e.target.value)}
@@ -891,10 +875,10 @@ export default function AffiliateDashboard() {
 
           <div className="mt-5 rounded-2xl border border-pink-100 bg-white p-4">
             <p className="text-sm font-black text-zinc-900">Sacar comissão de equipe</p>
-            <p className="mt-1 text-xs text-zinc-400">Esse saldo é separado da sua comissão pessoal. Saque mínimo de {brl(dashboard?.settings?.teamWithdrawalMin ?? 100)}. A partir do mínimo, os pedidos avançam em R$ 100,00.</p>
+            <p className="mt-1 text-xs text-zinc-400">Esse saldo é separado da sua comissão pessoal. Saque mínimo de R$ 100,00, sempre em múltiplos de R$ 100,00.</p>
             <form onSubmit={requestTeamWithdraw} className="mt-3 flex flex-col gap-2 sm:flex-row">
               <input value={teamWithdrawAmount} onChange={e => setTeamWithdrawAmount(e.target.value)} inputMode="decimal" placeholder="Ex.: 100" className="flex-1 rounded-xl border border-zinc-200 px-4 py-3 font-bold outline-none focus:border-pink-400" />
-              <button disabled={teamWithdrawBusy || team.availableCommission < Number(dashboard?.settings?.teamWithdrawalMin ?? 100)} className="rounded-xl bg-pink-500 px-5 py-3 font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{teamWithdrawBusy ? 'Enviando…' : 'Solicitar saque de equipe'}</button>
+              <button disabled={teamWithdrawBusy || team.availableCommission < 100} className="rounded-xl bg-pink-500 px-5 py-3 font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{teamWithdrawBusy ? 'Enviando…' : 'Solicitar saque de equipe'}</button>
             </form>
             {teamWithdrawMessage && <p className="mt-2 rounded-xl bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-600">{teamWithdrawMessage}</p>}
           </div>
@@ -977,7 +961,7 @@ export default function AffiliateDashboard() {
                 </div>
                 <div className="flex items-center gap-3 sm:justify-end">
                   <span className="text-lg font-black text-zinc-950">{brl(movement.amount)}</span>
-                  <span className={`rounded-full px-3 py-1 text-[11px] font-black ${movement.kind === 'boost' ? (movement.status === 'active' ? 'bg-emerald-100 text-emerald-800' : movement.status === 'cancelled' ? 'bg-zinc-200 text-zinc-700' : movement.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800') : (movement.status === 'pending' ? 'bg-amber-100 text-amber-800' : movement.status === 'processing' ? 'bg-blue-100 text-blue-800' : movement.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : movement.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-zinc-200 text-zinc-700')}`}>
+                  <span className={`rounded-full px-3 py-1 text-[11px] font-black ${movement.kind === 'boost' ? (movement.status === 'active' ? 'bg-emerald-100 text-emerald-800' : movement.status === 'cancelled' ? 'bg-zinc-200 text-zinc-700' : movement.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800') : (movement.status === 'pending' ? 'bg-amber-100 text-amber-800' : movement.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-zinc-200 text-zinc-700')}`}>
                     {movement.kind === 'boost' ? boostStatusLabel(movement.status) : withdrawalStatusLabel(movement.status)}
                   </span>
                 </div>

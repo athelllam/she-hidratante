@@ -17,9 +17,7 @@ function dateTime(value) {
 
 function withdrawalLabel(status) {
   if (status === 'paid') return 'Pago'
-  if (status === 'processing') return 'Processando Pix'
   if (status === 'approved') return 'Aprovado'
-  if (status === 'failed') return 'Falhou'
   if (status === 'rejected') return 'Recusado'
   if (status === 'cancelled') return 'Cancelado'
   return 'Pendente'
@@ -105,8 +103,8 @@ export default function AdminDashboard() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deletePhrase, setDeletePhrase] = useState('')
   const [deletingIds, setDeletingIds] = useState([])
-  const [settings, setSettings] = useState({ ticketThreshold: 170, ticketBonus: 5, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 }, monthlyLevels: { bronze: 10, silver: 50, gold: 101 }, fixedLevels: { bronze: 100, silver: 300, gold: 500 }, personalWithdrawalMin: 100, teamWithdrawalMin: 100 })
-  const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', ticketBonus: '5', teamCommissionPerSale: '10', none: '30', bronze: '40', silver: '50', gold: '60', monthlyBronze: '10', monthlySilver: '50', monthlyGold: '101', fixedBronze: '100', fixedSilver: '300', fixedGold: '500', smallBoostPrice: '30', smallBoostConnections: '5', largeBoostPrice: '50', largeBoostConnections: '10', maxActiveBoosts: '3', resellerHydrant: '0', resellerHydrantBlister: '0', resellerStick: '0', resellerComplete: '0', personalWithdrawalMin: '100', teamWithdrawalMin: '100' })
+  const [settings, setSettings] = useState({ ticketThreshold: 170, ticketBonus: 5, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 }, monthlyLevels: { bronze: 10, silver: 50, gold: 101 }, fixedLevels: { bronze: 100, silver: 300, gold: 500 } })
+  const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', ticketBonus: '5', teamCommissionPerSale: '10', none: '30', bronze: '40', silver: '50', gold: '60', monthlyBronze: '10', monthlySilver: '50', monthlyGold: '101', fixedBronze: '100', fixedSilver: '300', fixedGold: '500', smallBoostPrice: '30', smallBoostConnections: '5', largeBoostPrice: '50', largeBoostConnections: '10', maxActiveBoosts: '3', resellerHydrant: '0', resellerHydrantBlister: '0', resellerStick: '0', resellerComplete: '0' })
   const [savingSettings, setSavingSettings] = useState(false)
   const [savingBonusLevels, setSavingBonusLevels] = useState(false)
   const [globalStatsData, setGlobalStatsData] = useState({ all: { sales: 0, revenue: 0, averageTicket: 0, accesses: 0 }, byMonth: {}, snapshots: {} })
@@ -127,7 +125,7 @@ export default function AdminDashboard() {
     setBoostState(affiliateData.boostState || { activeCount: 0, queueCount: 0, completedCount: 0, active: [] })
     setGlobalStatsData(affiliateData.globalStats || { all: { sales: 0, revenue: 0, averageTicket: 0, accesses: 0 }, byMonth: {}, snapshots: {} })
     setAvailableMonths(affiliateData.availableMonths || [])
-    const nextSettings = affiliateData.settings || { ticketThreshold: 170, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 }, monthlyLevels: { bronze: 10, silver: 50, gold: 101 }, fixedLevels: { bronze: 100, silver: 300, gold: 500 }, personalWithdrawalMin: 100, teamWithdrawalMin: 100 }
+    const nextSettings = affiliateData.settings || { ticketThreshold: 170, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 }, monthlyLevels: { bronze: 10, silver: 50, gold: 101 }, fixedLevels: { bronze: 100, silver: 300, gold: 500 } }
     setSettings(nextSettings)
     setSettingsForm({
       ticketThreshold: String(nextSettings.ticketThreshold),
@@ -143,8 +141,6 @@ export default function AdminDashboard() {
       fixedBronze: String(nextSettings.fixedLevels?.bronze ?? 100),
       fixedSilver: String(nextSettings.fixedLevels?.silver ?? 300),
       fixedGold: String(nextSettings.fixedLevels?.gold ?? 500),
-      personalWithdrawalMin: String(nextSettings.personalWithdrawalMin ?? 100),
-      teamWithdrawalMin: String(nextSettings.teamWithdrawalMin ?? 100),
       smallBoostPrice: String(nextSettings.boostPlans?.small?.price ?? 30),
       smallBoostConnections: String(nextSettings.boostPlans?.small?.connections ?? 5),
       largeBoostPrice: String(nextSettings.boostPlans?.large?.price ?? 50),
@@ -263,19 +259,19 @@ export default function AdminDashboard() {
   }
 
   const markPaid = async (withdrawal) => {
-    if (!window.confirm(`Aprovar o saque de ${brl(withdrawal.amount)} da afiliada ${withdrawal.affiliates?.name || '—'} e enviar o Pix automaticamente para a chave cadastrada?`)) return
+    if (!window.confirm(`Confirmar que o saque de ${brl(withdrawal.amount)} da afiliada ${withdrawal.affiliates?.name || '—'} já foi pago?`)) return
 
     setPayingId(withdrawal.id)
     setMessage('')
     try {
-      const result = await api('/api/admin/withdrawals', {
+      await api('/api/admin/withdrawals', {
         method: 'PATCH',
-        body: JSON.stringify({ id: withdrawal.id, action: 'approve' }),
+        body: JSON.stringify({ id: withdrawal.id }),
       })
       await loadPanel()
-      setMessage(result.message || 'Saque aprovado e enviado para processamento pelo Asaas.')
+      setMessage('Saque marcado como pago. O painel da afiliada já poderá mostrar o novo status.')
     } catch (e) {
-      setMessage(e.message || 'Não foi possível processar o saque.')
+      setMessage(e.message || 'Não foi possível marcar o saque como pago.')
     } finally {
       setPayingId(null)
     }
@@ -396,8 +392,6 @@ export default function AdminDashboard() {
           silver: Number(settingsForm.fixedSilver),
           gold: Number(settingsForm.fixedGold),
         },
-        personalWithdrawalMin: Number(String(settingsForm.personalWithdrawalMin).replace(',', '.')),
-        teamWithdrawalMin: Number(String(settingsForm.teamWithdrawalMin).replace(',', '.')),
         boostPlans: {
           small: { price: Number(String(settingsForm.smallBoostPrice).replace(',', '.')), connections: Number(settingsForm.smallBoostConnections) },
           large: { price: Number(String(settingsForm.largeBoostPrice).replace(',', '.')), connections: Number(settingsForm.largeBoostConnections) },
@@ -410,7 +404,7 @@ export default function AdminDashboard() {
           complete: Number(String(settingsForm.resellerComplete).replace(',', '.')),
         },
       }
-      if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || !Number.isFinite(payload.ticketBonus) || payload.ticketBonus < 0 || !Number.isFinite(payload.teamCommissionPerSale) || payload.teamCommissionPerSale < 0 || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0) || Object.values(payload.monthlyLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.fixedLevels).some(value => !Number.isInteger(value) || value <= 0) || !Number.isFinite(payload.personalWithdrawalMin) || payload.personalWithdrawalMin < 0 || !Number.isFinite(payload.teamWithdrawalMin) || payload.teamWithdrawalMin < 0 || Object.values(payload.resellerPrices).some(value => !Number.isFinite(value) || value < 0) || payload.boostPlans.small.price <= 0 || !Number.isInteger(payload.boostPlans.small.connections) || payload.boostPlans.small.connections <= 0 || payload.boostPlans.large.price <= 0 || !Number.isInteger(payload.boostPlans.large.connections) || payload.boostPlans.large.connections <= 0 || !Number.isInteger(payload.boostPlans.maxActive) || payload.boostPlans.maxActive <= 0 || !(payload.monthlyLevels.bronze < payload.monthlyLevels.silver && payload.monthlyLevels.silver < payload.monthlyLevels.gold) || !(payload.fixedLevels.bronze < payload.fixedLevels.silver && payload.fixedLevels.silver < payload.fixedLevels.gold)) {
+      if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || !Number.isFinite(payload.ticketBonus) || payload.ticketBonus < 0 || !Number.isFinite(payload.teamCommissionPerSale) || payload.teamCommissionPerSale < 0 || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0) || Object.values(payload.monthlyLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.fixedLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.resellerPrices).some(value => !Number.isFinite(value) || value < 0) || payload.boostPlans.small.price <= 0 || !Number.isInteger(payload.boostPlans.small.connections) || payload.boostPlans.small.connections <= 0 || payload.boostPlans.large.price <= 0 || !Number.isInteger(payload.boostPlans.large.connections) || payload.boostPlans.large.connections <= 0 || !Number.isInteger(payload.boostPlans.maxActive) || payload.boostPlans.maxActive <= 0 || !(payload.monthlyLevels.bronze < payload.monthlyLevels.silver && payload.monthlyLevels.silver < payload.monthlyLevels.gold) || !(payload.fixedLevels.bronze < payload.fixedLevels.silver && payload.fixedLevels.silver < payload.fixedLevels.gold)) {
         throw new Error('Informe valores válidos. As metas devem ser números inteiros e crescentes: Bronze < Prata < Ouro.')
       }
       const result = await api('/api/admin/affiliates', {
@@ -432,8 +426,6 @@ export default function AdminDashboard() {
         fixedBronze: String(result.settings.fixedLevels?.bronze ?? 100),
         fixedSilver: String(result.settings.fixedLevels?.silver ?? 300),
         fixedGold: String(result.settings.fixedLevels?.gold ?? 500),
-        personalWithdrawalMin: String(result.settings.personalWithdrawalMin ?? 100),
-        teamWithdrawalMin: String(result.settings.teamWithdrawalMin ?? 100),
         smallBoostPrice: String(result.settings.boostPlans?.small?.price ?? 30),
         smallBoostConnections: String(result.settings.boostPlans?.small?.connections ?? 5),
         largeBoostPrice: String(result.settings.boostPlans?.large?.price ?? 50),
@@ -563,7 +555,7 @@ export default function AdminDashboard() {
   }, [withdrawals, withdrawalFilter])
 
   const orderedWithdrawals = useMemo(() => {
-    const priority = { pending: 0, approved: 1, processing: 2, paid: 3, failed: 4, rejected: 5, cancelled: 6 }
+    const priority = { pending: 0, approved: 1, paid: 2, rejected: 3, cancelled: 4 }
     return [...filteredWithdrawals].sort((a, b) => {
       const pa = priority[a.status] ?? 9
       const pb = priority[b.status] ?? 9
@@ -933,21 +925,6 @@ export default function AdminDashboard() {
               <p className="mt-2 text-[10px] font-semibold text-pink-600">Valor pago por cada venda aprovada de uma afiliada direta da equipe.</p>
             </label>
 
-            <div className="md:col-span-2 xl:col-span-6 rounded-[1.5rem] border border-emerald-200 bg-emerald-50/60 p-4">
-              <p className="text-xs font-black uppercase tracking-[.16em] text-emerald-700">Saques · limites</p>
-              <p className="mt-1 text-[10px] font-semibold text-emerald-700">Os dois saldos são independentes. Defina o mínimo de cada um; depois do mínimo, o saque sempre avança em R$ 100,00. Ex.: mínimo R$ 5 → R$ 5, R$ 105, R$ 205…</p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <label className="rounded-2xl border border-emerald-200 bg-white p-4">
-                  <span className="text-[10px] font-black uppercase tracking-[.14em] text-emerald-700">Saque mínimo · Vendas Pessoal</span>
-                  <div className="mt-2 flex items-center gap-2"><span className="font-black text-zinc-500">R$</span><input value={settingsForm.personalWithdrawalMin} onChange={e => setSettingsForm(v => ({ ...v, personalWithdrawalMin: e.target.value }))} inputMode="decimal" className="w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-lg font-black outline-none focus:border-emerald-400" /></div>
-                </label>
-                <label className="rounded-2xl border border-emerald-200 bg-white p-4">
-                  <span className="text-[10px] font-black uppercase tracking-[.14em] text-emerald-700">Saque mínimo · Equipe</span>
-                  <div className="mt-2 flex items-center gap-2"><span className="font-black text-zinc-500">R$</span><input value={settingsForm.teamWithdrawalMin} onChange={e => setSettingsForm(v => ({ ...v, teamWithdrawalMin: e.target.value }))} inputMode="decimal" className="w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-lg font-black outline-none focus:border-emerald-400" /></div>
-                </label>
-              </div>
-            </div>
-
             {[['none', 'Início'], ['bronze', 'Bronze'], ['silver', 'Prata'], ['gold', 'Ouro']].map(([key, label]) => (
               <label key={key} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
                 <span className="text-[10px] font-black uppercase tracking-[.14em] text-zinc-500">{label} · por pedido</span>
@@ -1042,50 +1019,25 @@ export default function AdminDashboard() {
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-black text-zinc-950">{withdrawal.affiliates?.name || 'Afiliada'}</p>
                       <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-zinc-500">ID {withdrawal.affiliate_id}</span>
-                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${withdrawal.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : withdrawal.status === 'processing' ? 'bg-blue-100 text-blue-700' : withdrawal.status === 'failed' ? 'bg-red-100 text-red-700' : pending ? 'bg-amber-100 text-amber-800' : 'bg-zinc-200 text-zinc-600'}`}>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${withdrawal.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : pending ? 'bg-amber-100 text-amber-800' : 'bg-zinc-200 text-zinc-600'}`}>
                         {withdrawalLabel(withdrawal.status)}
                       </span>
                       <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${withdrawal.source === 'team' ? 'bg-pink-100 text-pink-700' : 'bg-zinc-100 text-zinc-600'}`}>{withdrawal.source === 'team' ? 'Equipe' : 'Pessoal'}</span>
                     </div>
                     <p className="mt-1 text-xs text-zinc-400">Solicitado em {dateTime(withdrawal.requested_at)} · Saque #{withdrawal.id}</p>
-                    <p className="mt-1 text-xs font-semibold text-zinc-600">PIX para recebimento: <span className="break-all font-bold text-zinc-900">{withdrawal.pix_key || 'Não informado (saque antigo)'}</span>{withdrawal.pix_key_type ? <span className="ml-1 text-zinc-400">({withdrawal.pix_key_type})</span> : null}</p>
+                    <p className="mt-1 text-xs font-semibold text-zinc-600">PIX para recebimento: <span className="break-all font-bold text-zinc-900">{withdrawal.pix_key || 'Não informado (saque antigo)'}</span></p>
                   </div>
 
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
                     <span className="text-xl font-black text-zinc-950">{brl(withdrawal.amount)}</span>
                     {pending && (
-                      <>
-                        <button
-                          onClick={async () => {
-                            const note = window.prompt('Motivo da recusa (opcional):', '')
-                            if (note === null) return
-                            setPayingId(withdrawal.id)
-                            try {
-                              const result = await api('/api/admin/withdrawals', {
-                                method: 'PATCH',
-                                body: JSON.stringify({ id: withdrawal.id, action: 'reject', note }),
-                              })
-                              setMessage(result.message || 'Saque recusado. O saldo foi devolvido para a afiliada.')
-                              await loadData()
-                            } catch (e) {
-                              setMessage(e.message || 'Não foi possível recusar o saque.')
-                            } finally {
-                              setPayingId(null)
-                            }
-                          }}
-                          disabled={payingId === withdrawal.id}
-                          className="rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-black text-red-600 transition hover:bg-red-50 disabled:opacity-60"
-                        >
-                          Recusar
-                        </button>
-                        <button
-                          onClick={() => markPaid(withdrawal)}
-                          disabled={payingId === withdrawal.id}
-                          className="rounded-xl bg-zinc-950 px-4 py-3 text-sm font-black text-white transition hover:bg-emerald-600 disabled:opacity-60"
-                        >
-                          {payingId === withdrawal.id ? 'Enviando Pix…' : 'Aprovar e enviar Pix'}
-                        </button>
-                      </>
+                      <button
+                        onClick={() => markPaid(withdrawal)}
+                        disabled={payingId === withdrawal.id}
+                        className="rounded-xl bg-zinc-950 px-4 py-3 text-sm font-black text-white transition hover:bg-emerald-600 disabled:opacity-60"
+                      >
+                        {payingId === withdrawal.id ? 'Salvando…' : 'Marcar como pago'}
+                      </button>
                     )}
                   </div>
                 </div>
