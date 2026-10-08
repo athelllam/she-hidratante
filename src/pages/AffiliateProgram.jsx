@@ -400,7 +400,7 @@ export default function AffiliateProgram() {
             <div className="rounded-[2.6rem] bg-zinc-950 text-white p-8 md:p-12">
               <p className="text-xs font-black uppercase tracking-[.22em] text-pink-300">Conteúdo She</p>
               <h2 className="mt-4 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">Crie seu conteúdo e deixe a She divulgar com seu link.</h2>
-              <p className="mt-5 max-w-3xl text-base md:text-lg leading-8 text-white/65">Receba as bonificações de afiliada sem se preocupar com nada.</p>
+              <p className="mt-5 max-w-3xl text-base md:text-lg leading-8 text-white/65">Crie seu conteúdo e nós cuidamos de todo o resto. Receba as vendas das divulgações direto na sua conta, sem se preocupar com nada.</p>
             </div>
           </div>
         </section>
