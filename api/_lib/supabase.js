@@ -97,7 +97,7 @@ async function requireAffiliate(request) {
   }
 
   const rows = await supabaseFetch(
-    `/rest/v1/affiliates?auth_user_id=eq.${encodeURIComponent(user.id)}&select=id,auth_user_id,slug,name,email,cpf,whatsapp,pix_key,pix_key_type,active,commission_rate,team_parent_id,team_code,team_joined_at,created_at&limit=1`
+    `/rest/v1/affiliates?auth_user_id=eq.${encodeURIComponent(user.id)}&select=id,auth_user_id,slug,name,email,cpf,whatsapp,pix_key,active,commission_rate,team_parent_id,team_code,team_joined_at,created_at&limit=1`
   );
 
   if (!rows?.[0]) {

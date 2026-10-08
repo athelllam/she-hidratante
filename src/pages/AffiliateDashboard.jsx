@@ -28,8 +28,6 @@ function whatsappUrl(value) {
 function withdrawalStatusLabel(status) {
   if (status === 'approved') return 'Aprovado'
   if (status === 'paid') return 'Pago'
-  if (status === 'processing') return 'Processando Pix'
-  if (status === 'failed') return 'Falhou'
   if (status === 'rejected') return 'Recusado'
   if (status === 'cancelled') return 'Cancelado'
   return 'Pendente'
@@ -102,7 +100,6 @@ export default function AffiliateDashboard() {
   const [videoBusy, setVideoBusy] = useState(false)
   const [videoMessage, setVideoMessage] = useState('')
   const [pixKey, setPixKey] = useState('')
-  const [pixKeyType, setPixKeyType] = useState('CPF')
   const [pixOpen, setPixOpen] = useState(false)
   const [pixBusy, setPixBusy] = useState(false)
   const [pixMessage, setPixMessage] = useState('')
@@ -132,7 +129,6 @@ export default function AffiliateDashboard() {
       const data = await api('/api/affiliate/dashboard')
       setAffiliate(data.affiliate)
       setPixKey(data.affiliate?.pix_key || '')
-      setPixKeyType(data.affiliate?.pix_key_type || 'CPF')
       setDashboard(data)
       try {
         const boostData = await api('/api/affiliate/dashboard?boost=1')
@@ -424,11 +420,11 @@ export default function AffiliateDashboard() {
     try {
       const result = await api('/api/affiliate/withdraw', {
         method: 'PATCH',
-        body: JSON.stringify({ pixKey: pixKey.trim(), pixKeyType }),
+        body: JSON.stringify({ pixKey: pixKey.trim() }),
       })
       const saved = result.pixKey || pixKey.trim()
       setPixKey(saved)
-      setAffiliate(current => current ? { ...current, pix_key: saved, pix_key_type: pixKeyType } : current)
+      setAffiliate(current => current ? { ...current, pix_key: saved } : current)
       setPixOpen(false)
       setPixMessage('PIX de recebimento salvo. Se você cadastrar outro, ele substituirá o atual para os próximos saques.')
     } catch (e) {
@@ -780,19 +776,7 @@ export default function AffiliateDashboard() {
               </button>
               {pixOpen && (
                 <form onSubmit={savePix} className="mt-4 border-t border-zinc-100 pt-4">
-                  <label className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Tipo da chave PIX</label>
-                  <select
-                    value={pixKeyType}
-                    onChange={e => setPixKeyType(e.target.value)}
-                    className="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3.5 text-sm font-bold outline-none focus:border-pink-400"
-                  >
-                    <option value="CPF">CPF</option>
-                    <option value="CNPJ">CNPJ</option>
-                    <option value="EMAIL">E-mail</option>
-                    <option value="PHONE">Telefone</option>
-                    <option value="EVP">Chave aleatória</option>
-                  </select>
-                  <label className="mt-3 block text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Nova chave PIX</label>
+                  <label className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Nova chave PIX</label>
                   <input
                     value={pixKey}
                     onChange={e => setPixKey(e.target.value)}
@@ -977,7 +961,7 @@ export default function AffiliateDashboard() {
                 </div>
                 <div className="flex items-center gap-3 sm:justify-end">
                   <span className="text-lg font-black text-zinc-950">{brl(movement.amount)}</span>
-                  <span className={`rounded-full px-3 py-1 text-[11px] font-black ${movement.kind === 'boost' ? (movement.status === 'active' ? 'bg-emerald-100 text-emerald-800' : movement.status === 'cancelled' ? 'bg-zinc-200 text-zinc-700' : movement.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800') : (movement.status === 'pending' ? 'bg-amber-100 text-amber-800' : movement.status === 'processing' ? 'bg-blue-100 text-blue-800' : movement.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : movement.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-zinc-200 text-zinc-700')}`}>
+                  <span className={`rounded-full px-3 py-1 text-[11px] font-black ${movement.kind === 'boost' ? (movement.status === 'active' ? 'bg-emerald-100 text-emerald-800' : movement.status === 'cancelled' ? 'bg-zinc-200 text-zinc-700' : movement.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800') : (movement.status === 'pending' ? 'bg-amber-100 text-amber-800' : movement.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-zinc-200 text-zinc-700')}`}>
                     {movement.kind === 'boost' ? boostStatusLabel(movement.status) : withdrawalStatusLabel(movement.status)}
                   </span>
                 </div>
