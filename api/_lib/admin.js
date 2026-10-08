@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { supabaseFetch } = require('./supabase');
 
-const DEFAULT_ADMIN_LOGIN = 'athelllam';
+const DEFAULT_ADMIN_LOGIN = 'athelllam@gmail.com';
 const DEFAULT_ADMIN_PASSWORD_SHA256 = '88848b5126f436cdbf6ad2036bad5d68f08ab48df111806ab6bf324ebe4613d8';
 const SESSION_COOKIE = 'she_admin_session';
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7;
