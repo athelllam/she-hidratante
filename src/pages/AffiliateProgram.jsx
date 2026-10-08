@@ -56,7 +56,7 @@ function LevelBar({ levels }) {
               <img src={badgeAssets[level.key]} alt={`Nível ${level.name}`} className="h-full w-full object-contain" />
             </div>
             <p className={`mt-2 text-xs font-black uppercase tracking-[.12em] ${level.key === 'bronze' ? 'text-orange-700' : level.key === 'silver' ? 'text-zinc-500' : 'text-amber-600'}`}>{level.name}</p>
-            <p className="mt-1 text-sm font-black text-zinc-950">{brl(level.value)}<span className="ml-1 text-[10px] font-bold text-zinc-400">/pedido</span></p>
+            <p className="mt-1 text-sm font-black text-zinc-950">{integer(level.sales)} <span className="text-[10px] font-bold text-zinc-400">vendas</span></p>
           </div>
         ))}
       </div>
@@ -137,10 +137,10 @@ export default function AffiliateProgram() {
   const maximumPersonal = Number(bonuses.gold || 0) + ticketBonus + teamSaleBonus
 
   const monthlyLevels = [
-    { key: 'none', name: 'Início', value: bonuses.none },
-    { key: 'bronze', name: 'Bronze', value: bonuses.bronze },
-    { key: 'silver', name: 'Prata', value: bonuses.silver },
-    { key: 'gold', name: 'Ouro', value: bonuses.gold },
+    { key: 'none', name: 'Início', value: bonuses.none, sales: 0 },
+    { key: 'bronze', name: 'Bronze', value: bonuses.bronze, sales: monthly.bronze },
+    { key: 'silver', name: 'Prata', value: bonuses.silver, sales: monthly.silver },
+    { key: 'gold', name: 'Ouro', value: bonuses.gold, sales: monthly.gold },
   ]
   const levelBar = monthlyLevels.slice(1)
 
@@ -215,9 +215,9 @@ export default function AffiliateProgram() {
             <div className="mt-10 grid md:grid-cols-2 lg:grid-cols-5 gap-4">
               <BonusCard title="Bônus de Equipe" description={`Bronze garantido por ${integer(cfg.teamBonusDays)} dias ao entrar em uma equipe.`} />
               <BonusCard title="Bônus Fixo" description="Seu histórico de vendas acumuladas pode transformar seu nível em um piso permanente." />
-              <BonusCard title="Bônus Mensal" description="Sua evolução do mês define a bonificação aplicada às vendas daquele mês." />
-              <BonusCard title="Bônus de Valor" description={`Vender melhor pode ativar um adicional de ${brl(ticketBonus)} por pedido.`} />
-              <BonusCard title="Bônus de Venda de Equipe" description={`Vendas de afiliadas diretas podem gerar ${brl(teamSaleBonus)} por venda elegível.`} />
+              <BonusCard title="Bônus Mensal" description="Suas vendas no mês definem seu nível e a bonificação aplicada às vendas do mês" />
+              <BonusCard title="Bônus de Valor" description={`Vender dois ou mais produtos no mesmo pedido pode aumentar a sua bonificação`} />
+              <BonusCard title="Bônus de Venda de Equipe" description={`Treine sua equipe, as vendas dela geram uma bonificação adicional`} />
             </div>
           </div>
         </section>
@@ -227,7 +227,7 @@ export default function AffiliateProgram() {
             <div className="max-w-3xl">
               <p className="text-xs font-black uppercase tracking-[.22em] text-pink-500">Bônus Mensal</p>
               <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">Seu nível deixa de ser abstrato. Ele vira conquista.</h2>
-              <p className="mt-5 text-base md:text-lg leading-8 text-zinc-600">A cada mês, você evolui pelos níveis e a bonificação correspondente ao nível alcançado passa a valer retroativamente para todas as vendas elegíveis realizadas naquele mês.</p>
+              <p className="mt-5 text-base md:text-lg leading-8 text-zinc-600">Suas vendas no mês definem seu nível e a bonificação aplicada às vendas do mês.</p>
             </div>
 
             <div className="mt-10 rounded-[2.5rem] border border-pink-100 bg-white p-6 md:p-9 shadow-sm">
@@ -245,7 +245,7 @@ export default function AffiliateProgram() {
 
               <div className="mt-7 rounded-[1.8rem] bg-zinc-950 p-6 text-white">
                 <p className="text-[10px] font-black uppercase tracking-[.2em] text-white/45">O detalhe que faz diferença</p>
-                <p className="mt-3 text-sm md:text-base leading-7 text-white/70">Ao alcançar um novo nível durante o mês, a bonificação daquele nível é retroativa para todas as vendas elegíveis realizadas no mês — não apenas para as vendas feitas depois da mudança de nível.</p>
+                <p className="mt-3 text-sm md:text-base leading-7 text-white/70">A cada mês, você evolui pelos níveis, e a bonificação correspondente ao nível alcançado passa a valer retroativamente para todas as vendas pessoais realizadas naquele mês. As vendas de sua equipe entram na soma para ajudar a alcançar novos níveis, mas a bonificação é aplicada somente às vendas pessoais.</p>
                 <p className="mt-3 text-sm md:text-base leading-7 text-white/70">No início de cada mês, o progresso do Bônus Mensal reinicia para Início ou para o nível definido pelo seu Bônus Fixo.</p>
               </div>
             </div>
@@ -269,6 +269,7 @@ export default function AffiliateProgram() {
                     <p className="mt-4 text-xs font-black uppercase tracking-[.16em] text-zinc-400">Bonificação</p>
                     <p className="mt-2 text-2xl font-black text-zinc-950">{brl(value)}</p>
                     <p className="text-xs text-zinc-400">por venda</p>
+                    <p className="mt-3 text-sm font-black text-zinc-700">Meta: {integer(fixed[key])} vendas acumuladas</p>
                   </motion.div>
                 ))}
               </div>
@@ -315,14 +316,7 @@ export default function AffiliateProgram() {
               <p className="text-xs font-black uppercase tracking-[.22em] text-pink-500">Potencial de ganhos</p>
               <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">No Ouro, seu potencial pode chegar a {brl(maximumPersonal)} por pedido.</h2>
               <p className="mt-5 text-base md:text-lg leading-8 text-zinc-500">Essa soma considera a bonificação do nível Ouro + o Bônus de Valor + a Venda de Equipe, sempre acompanhando os valores configurados no painel administrativo.</p>
-              <div className="mt-8 rounded-[1.8rem] border border-zinc-100 bg-white p-6 shadow-sm">
-                <p className="text-sm font-black">E ainda existe a equipe</p>
-                <div className="mt-3 flex items-end gap-3">
-                  <span className="text-4xl font-black">+{brl(teamSaleBonus)}</span>
-                  <span className="text-sm text-zinc-400 mb-1">por venda elegível de uma afiliada direta</span>
-                </div>
-                <p className="mt-3 text-sm leading-6 text-zinc-500">A Venda de Equipe é separada da sua bonificação pessoal e segue a configuração vigente do programa.</p>
-              </div>
+
             </div>
           </div>
         </section>
