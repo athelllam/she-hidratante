@@ -10,8 +10,6 @@ import Revendedora from './pages/Revendedora'
 import TermosAfiliadas from './pages/TermosAfiliadas'
 import AffiliatePasswordReset from './pages/AffiliatePasswordReset'
 import AffiliateProgram from './pages/AffiliateProgram'
-import PoliticaPrivacidade from './pages/PoliticaPrivacidade'
-import TermosDeUso from './pages/TermosDeUso'
 
 const Home = lazy(() => import('./pages/Home'))
 const Hidratante = lazy(() => import('./pages/Hidratante'))
@@ -87,8 +85,6 @@ export default function App() {
           <Route path="/representantes" element={<Representantes />} />
           <Route path="/revendedora" element={<Revendedora />} />
           <Route path="/termos-afiliadas" element={<TermosAfiliadas />} />
-          <Route path="/politica-de-privacidade" element={<PoliticaPrivacidade />} />
-          <Route path="/termos-de-uso" element={<TermosDeUso />} />
           <Route path="/afiliadas/*" element={<AffiliateDashboard />} />
           <Route path="/:affiliateSlug/welcome" element={<AffiliateWelcome />} />
           <Route path="/:affiliateSlug/hidratante" element={<AffiliateProduct Product={Hidratante} />} />
