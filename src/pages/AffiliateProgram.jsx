@@ -222,31 +222,37 @@ export default function AffiliateProgram() {
           </div>
         </section>
 
-        <section id="niveis" className="px-5 py-20 md:py-28 bg-[#fff5f8]">
-          <div className="max-w-7xl mx-auto">
-            <div className="max-w-3xl">
-              <p className="text-xs font-black uppercase tracking-[.22em] text-pink-500">Bônus Mensal</p>
-              <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">Seu nível deixa de ser abstrato. Ele vira conquista.</h2>
-              <p className="mt-5 text-base md:text-lg leading-8 text-zinc-600">Suas vendas no mês definem seu nível e a bonificação aplicada às vendas do mês.</p>
-            </div>
-
-            <div className="mt-10 rounded-[2.5rem] border border-pink-100 bg-white p-6 md:p-9 shadow-sm">
-              <LevelBar levels={levelBar} />
-              <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {monthlyLevels.map((level) => (
-                  <div key={level.key} className={`rounded-[1.7rem] border p-5 ${level.key === 'none' ? 'border-zinc-200 bg-zinc-50' : level.key === 'gold' ? 'border-amber-200 bg-amber-50/70' : level.key === 'silver' ? 'border-zinc-200 bg-zinc-50' : 'border-orange-200 bg-orange-50/70'}`}>
-                    <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">Nível</p>
-                    <h3 className="mt-2 text-xl font-black text-zinc-950">{level.name}</h3>
-                    <p className="mt-2 text-2xl font-black text-zinc-950">{brl(level.value)}<span className="ml-1 text-xs font-bold text-zinc-400">/venda</span></p>
-                    <p className="mt-2 text-sm leading-6 text-zinc-500">Bonificação aplicada às vendas elegíveis do mês quando este nível estiver vigente.</p>
-                  </div>
-                ))}
+        <section className="px-5 py-20 md:py-28 bg-white">
+          <div className="max-w-7xl mx-auto grid lg:grid-cols-[.85fr_1.15fr] gap-14 items-center">
+            <div className="rounded-[2.5rem] bg-zinc-950 text-white p-7 md:p-9 shadow-[0_24px_80px_rgba(0,0,0,.14)]">
+              <div className="flex items-start justify-between gap-5">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[.2em] text-pink-300">Bônus de Equipe</p>
+                  <h2 className="mt-4 text-4xl md:text-5xl font-black leading-[.95]">Uma vantagem real para começar acompanhada.</h2>
+                </div>
+                <div className="w-14 h-14 rounded-2xl bg-pink-500/15 text-pink-300 flex items-center justify-center shrink-0"><UsersIcon className="w-7 h-7" /></div>
               </div>
-
-              <div className="mt-7 rounded-[1.8rem] bg-zinc-950 p-6 text-white">
-                <p className="text-[10px] font-black uppercase tracking-[.2em] text-white/45">O detalhe que faz diferença</p>
-                <p className="mt-3 text-sm md:text-base leading-7 text-white/70">A cada mês, você evolui pelos níveis, e a bonificação correspondente ao nível alcançado passa a valer retroativamente para todas as vendas pessoais realizadas naquele mês. As vendas de sua equipe entram na soma para ajudar a alcançar novos níveis, mas a bonificação é aplicada somente às vendas pessoais.</p>
-                <p className="mt-3 text-sm md:text-base leading-7 text-white/70">No início de cada mês, o progresso do Bônus Mensal reinicia para Início ou para o nível definido pelo seu Bônus Fixo.</p>
+              <p className="mt-6 text-base leading-7 text-white/65">Ao entrar em uma equipe, você recebe Bronze garantido por {integer(cfg.teamBonusDays)} dias corridos. O prazo começa na data e hora da entrada e não é reiniciado no primeiro dia do mês.</p>
+              <div className="mt-7 rounded-[1.75rem] bg-white/5 border border-white/10 p-5">
+                <p className="text-sm font-black">Depois do período</p>
+                <p className="mt-2 text-sm leading-6 text-white/55">Quando os {integer(cfg.teamBonusDays)} dias terminam, o Bônus de Equipe deixa de ser o piso e você segue pelo maior nível entre o Bônus Fixo e o Bônus Mensal.</p>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-black uppercase tracking-[.22em] text-pink-500">Bônus de Equipe</p>
+              <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">Comece acompanhada e tenha uma base para sua evolução.</h2>
+              <p className="mt-5 text-base md:text-lg leading-8 text-zinc-500">O Bônus de Equipe garante o nível Bronze durante os primeiros {integer(cfg.teamBonusDays)} dias após sua entrada em uma equipe.</p>
+              <div className="mt-8 grid md:grid-cols-2 gap-4">
+                <div className="rounded-[1.8rem] border border-pink-100 bg-pink-50/60 p-6">
+                  <p className="text-xs font-black uppercase tracking-[.16em] text-pink-500">30 dias de Bronze</p>
+                  <h3 className="mt-3 text-xl font-black">Seu ponto de partida</h3>
+                  <p className="mt-2 text-sm leading-6 text-zinc-500">Ao entrar em uma equipe, você recebe Bronze garantido por {integer(cfg.teamBonusDays)} dias corridos. O prazo começa na data e hora da entrada e não é reiniciado no primeiro dia do mês.</p>
+                </div>
+                <div className="rounded-[1.8rem] border border-zinc-100 bg-zinc-50 p-6">
+                  <p className="text-xs font-black uppercase tracking-[.16em] text-zinc-400">Depois do período</p>
+                  <h3 className="mt-3 text-xl font-black">Sua evolução continua</h3>
+                  <p className="mt-2 text-sm leading-6 text-zinc-500">Quando os {integer(cfg.teamBonusDays)} dias terminam, o Bônus de Equipe deixa de ser o piso e você segue pelo maior nível entre o Bônus Fixo e o Bônus Mensal.</p>
+                </div>
               </div>
             </div>
           </div>
@@ -280,6 +286,36 @@ export default function AffiliateProgram() {
                 <div><p className="text-base font-black">Seu histórico acumula</p><p className="mt-2 text-sm leading-6 text-white/60">As vendas pessoais acumuladas fazem você avançar nos níveis do Bônus Fixo.</p></div>
                 <div><p className="text-base font-black">O nível conquistado permanece</p><p className="mt-2 text-sm leading-6 text-white/60">Ao atingir o marco de um nível, ele passa a ser seu nível-base permanente para os próximos meses.</p></div>
                 <div><p className="text-base font-black">Ele protege sua evolução mensal</p><p className="mt-2 text-sm leading-6 text-white/60">O novo mês começa em Início ou, se você já conquistou um Bônus Fixo, no nível permanente correspondente.</p></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="niveis" className="px-5 py-20 md:py-28 bg-[#fff5f8]">
+          <div className="max-w-7xl mx-auto">
+            <div className="max-w-3xl">
+              <p className="text-xs font-black uppercase tracking-[.22em] text-pink-500">Bônus Mensal</p>
+              <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">Seu nível deixa de ser abstrato. Ele vira conquista.</h2>
+              <p className="mt-5 text-base md:text-lg leading-8 text-zinc-600">Suas vendas no mês definem seu nível e a bonificação aplicada às vendas do mês.</p>
+            </div>
+
+            <div className="mt-10 rounded-[2.5rem] border border-pink-100 bg-white p-6 md:p-9 shadow-sm">
+              <LevelBar levels={levelBar} />
+              <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {monthlyLevels.map((level) => (
+                  <div key={level.key} className={`rounded-[1.7rem] border p-5 ${level.key === 'none' ? 'border-zinc-200 bg-zinc-50' : level.key === 'gold' ? 'border-amber-200 bg-amber-50/70' : level.key === 'silver' ? 'border-zinc-200 bg-zinc-50' : 'border-orange-200 bg-orange-50/70'}`}>
+                    <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">Nível</p>
+                    <h3 className="mt-2 text-xl font-black text-zinc-950">{level.name}</h3>
+                    <p className="mt-2 text-2xl font-black text-zinc-950">{brl(level.value)}<span className="ml-1 text-xs font-bold text-zinc-400">/venda</span></p>
+                    <p className="mt-2 text-sm leading-6 text-zinc-500">Bonificação aplicada às vendas elegíveis do mês quando este nível estiver vigente.</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-7 rounded-[1.8rem] bg-zinc-950 p-6 text-white">
+                <p className="text-[10px] font-black uppercase tracking-[.2em] text-white/45">O detalhe que faz diferença</p>
+                <p className="mt-3 text-sm md:text-base leading-7 text-white/70">A cada mês, você evolui pelos níveis, e a bonificação correspondente ao nível alcançado passa a valer retroativamente para todas as vendas pessoais realizadas naquele mês. As vendas de sua equipe entram na soma para ajudar a alcançar novos níveis, mas a bonificação é aplicada somente às vendas pessoais.</p>
+                <p className="mt-3 text-sm md:text-base leading-7 text-white/70">No início de cada mês, o progresso do Bônus Mensal reinicia para Início ou para o nível definido pelo seu Bônus Fixo.</p>
               </div>
             </div>
           </div>
@@ -321,23 +357,9 @@ export default function AffiliateProgram() {
           </div>
         </section>
 
-        <section className="px-5 py-20 md:py-28 bg-white">
-          <div className="max-w-7xl mx-auto grid lg:grid-cols-[.85fr_1.15fr] gap-14 items-center">
-            <div className="rounded-[2.5rem] bg-zinc-950 text-white p-7 md:p-9 shadow-[0_24px_80px_rgba(0,0,0,.14)]">
-              <div className="flex items-start justify-between gap-5">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[.2em] text-pink-300">Bônus de Equipe</p>
-                  <h2 className="mt-4 text-4xl md:text-5xl font-black leading-[.95]">Uma vantagem real para começar acompanhada.</h2>
-                </div>
-                <div className="w-14 h-14 rounded-2xl bg-pink-500/15 text-pink-300 flex items-center justify-center shrink-0"><UsersIcon className="w-7 h-7" /></div>
-              </div>
-              <p className="mt-6 text-base leading-7 text-white/65">Ao entrar em uma equipe, você recebe Bronze garantido por {integer(cfg.teamBonusDays)} dias corridos. O prazo começa na data e hora da entrada e não é reiniciado no primeiro dia do mês.</p>
-              <div className="mt-7 rounded-[1.75rem] bg-white/5 border border-white/10 p-5">
-                <p className="text-sm font-black">Depois do período</p>
-                <p className="mt-2 text-sm leading-6 text-white/55">Quando os {integer(cfg.teamBonusDays)} dias terminam, o Bônus de Equipe deixa de ser o piso e você segue pelo maior nível entre o Bônus Fixo e o Bônus Mensal.</p>
-              </div>
-            </div>
-            <div>
+        <section className="px-5 py-20 md:py-28 bg-[#fffafc]">
+          <div className="max-w-7xl mx-auto">
+                        <div>
               <p className="text-xs font-black uppercase tracking-[.22em] text-pink-500">Venda de Equipe</p>
               <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">Sua equipe também pode gerar bonificação para você.</h2>
               <p className="mt-5 text-base md:text-lg leading-8 text-zinc-500">Quando uma afiliada diretamente ligada à sua equipe realiza uma venda elegível, você recebe a bonificação de Venda de Equipe configurada no programa.</p>
