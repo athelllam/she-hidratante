@@ -223,42 +223,6 @@ export default function AffiliateProgram() {
         </section>
 
         <section className="px-5 py-20 md:py-28 bg-white">
-          <div className="max-w-7xl mx-auto grid lg:grid-cols-[.85fr_1.15fr] gap-14 items-center">
-            <div className="rounded-[2.5rem] bg-zinc-950 text-white p-7 md:p-9 shadow-[0_24px_80px_rgba(0,0,0,.14)]">
-              <div className="flex items-start justify-between gap-5">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[.2em] text-pink-300">Bônus de Equipe</p>
-                  <h2 className="mt-4 text-4xl md:text-5xl font-black leading-[.95]">Uma vantagem real para começar acompanhada.</h2>
-                </div>
-                <div className="w-14 h-14 rounded-2xl bg-pink-500/15 text-pink-300 flex items-center justify-center shrink-0"><UsersIcon className="w-7 h-7" /></div>
-              </div>
-              <p className="mt-6 text-base leading-7 text-white/65">Ao entrar em uma equipe, você recebe Bronze garantido por {integer(cfg.teamBonusDays)} dias corridos. O prazo começa na data e hora da entrada e não é reiniciado no primeiro dia do mês.</p>
-              <div className="mt-7 rounded-[1.75rem] bg-white/5 border border-white/10 p-5">
-                <p className="text-sm font-black">Depois do período</p>
-                <p className="mt-2 text-sm leading-6 text-white/55">Quando os {integer(cfg.teamBonusDays)} dias terminam, o Bônus de Equipe deixa de ser o piso e você segue pelo maior nível entre o Bônus Fixo e o Bônus Mensal.</p>
-              </div>
-            </div>
-            <div>
-              <p className="text-xs font-black uppercase tracking-[.22em] text-pink-500">Bônus de Equipe</p>
-              <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">Comece acompanhada e tenha uma base para sua evolução.</h2>
-              <p className="mt-5 text-base md:text-lg leading-8 text-zinc-500">O Bônus de Equipe garante o nível Bronze durante os primeiros {integer(cfg.teamBonusDays)} dias após sua entrada em uma equipe.</p>
-              <div className="mt-8 grid md:grid-cols-2 gap-4">
-                <div className="rounded-[1.8rem] border border-pink-100 bg-pink-50/60 p-6">
-                  <p className="text-xs font-black uppercase tracking-[.16em] text-pink-500">30 dias de Bronze</p>
-                  <h3 className="mt-3 text-xl font-black">Seu ponto de partida</h3>
-                  <p className="mt-2 text-sm leading-6 text-zinc-500">Ao entrar em uma equipe, você recebe Bronze garantido por {integer(cfg.teamBonusDays)} dias corridos. O prazo começa na data e hora da entrada e não é reiniciado no primeiro dia do mês.</p>
-                </div>
-                <div className="rounded-[1.8rem] border border-zinc-100 bg-zinc-50 p-6">
-                  <p className="text-xs font-black uppercase tracking-[.16em] text-zinc-400">Depois do período</p>
-                  <h3 className="mt-3 text-xl font-black">Sua evolução continua</h3>
-                  <p className="mt-2 text-sm leading-6 text-zinc-500">Quando os {integer(cfg.teamBonusDays)} dias terminam, o Bônus de Equipe deixa de ser o piso e você segue pelo maior nível entre o Bônus Fixo e o Bônus Mensal.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="px-5 py-20 md:py-28 bg-white">
           <div className="max-w-7xl mx-auto grid lg:grid-cols-[1.1fr_.9fr] gap-14 items-start">
             <div>
               <p className="text-xs font-black uppercase tracking-[.22em] text-zinc-400">Bônus Fixo</p>
@@ -362,11 +326,10 @@ export default function AffiliateProgram() {
                         <div>
               <p className="text-xs font-black uppercase tracking-[.22em] text-pink-500">Venda de Equipe</p>
               <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">Sua equipe também pode gerar bonificação para você.</h2>
-              <p className="mt-5 text-base md:text-lg leading-8 text-zinc-500">Quando uma afiliada diretamente ligada à sua equipe realiza uma venda elegível, você recebe a bonificação de Venda de Equipe configurada no programa.</p>
+              <p className="mt-5 text-base md:text-lg leading-8 text-zinc-500">Quando uma afiliada diretamente ligada à sua equipe realiza uma venda elegível, você recebe a bonificação de Venda de Equipe </p>
               <div className="mt-8 rounded-[1.8rem] border border-pink-100 bg-pink-50/60 p-7">
                 <p className="text-xs font-black uppercase tracking-[.16em] text-pink-500">Valor atual</p>
                 <p className="mt-2 text-4xl font-black text-zinc-950">{brl(teamSaleBonus)} <span className="text-base font-bold text-zinc-400">/ venda elegível</span></p>
-                <p className="mt-3 text-sm leading-6 text-zinc-500">Esse valor acompanha diretamente a configuração do painel administrativo.</p>
               </div>
               <div className="mt-8 grid md:grid-cols-2 gap-4">
                 <div className="rounded-[1.8rem] border border-zinc-100 bg-zinc-50 p-6">
@@ -380,6 +343,64 @@ export default function AffiliateProgram() {
                   <p className="mt-2 text-sm leading-6 text-zinc-500">São as afiliadas que entram diretamente na sua equipe e ajudam a ampliar o resultado da sua rede.</p>
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="px-5 py-20 md:py-28 bg-white">
+          <div className="max-w-7xl mx-auto grid lg:grid-cols-[.85fr_1.15fr] gap-14 items-center">
+            <div className="rounded-[2.5rem] bg-zinc-950 text-white p-7 md:p-9 shadow-[0_24px_80px_rgba(0,0,0,.14)]">
+              <div className="flex items-start justify-between gap-5">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[.2em] text-pink-300">Bônus de Equipe</p>
+                  <h2 className="mt-4 text-4xl md:text-5xl font-black leading-[.95]">Uma vantagem real para começar acompanhada.</h2>
+                </div>
+                <div className="w-14 h-14 rounded-2xl bg-pink-500/15 text-pink-300 flex items-center justify-center shrink-0"><UsersIcon className="w-7 h-7" /></div>
+              </div>
+              <p className="mt-6 text-base leading-7 text-white/65">Ao entrar em uma equipe, você recebe Bronze garantido por {integer(cfg.teamBonusDays)} dias corridos. O prazo começa na data e hora da entrada e não é reiniciado no primeiro dia do mês.</p>
+              <div className="mt-7 rounded-[1.75rem] bg-white/5 border border-white/10 p-5">
+                <p className="text-sm font-black">Depois do período</p>
+                <p className="mt-2 text-sm leading-6 text-white/55">Quando os {integer(cfg.teamBonusDays)} dias terminam, o Bônus de Equipe deixa de ser o piso e você segue pelo maior nível entre o Bônus Fixo e o Bônus Mensal.</p>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-black uppercase tracking-[.22em] text-pink-500">Bônus de Equipe</p>
+              <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">Comece acompanhada e tenha uma base para sua evolução.</h2>
+              <p className="mt-5 text-base md:text-lg leading-8 text-zinc-500">O Bônus de Equipe garante o nível Bronze durante os primeiros {integer(cfg.teamBonusDays)} dias após sua entrada em uma equipe.</p>
+              <div className="mt-8 grid md:grid-cols-2 gap-4">
+                <div className="rounded-[1.8rem] border border-pink-100 bg-pink-50/60 p-6">
+                  <p className="text-xs font-black uppercase tracking-[.16em] text-pink-500">30 dias de Bronze</p>
+                  <h3 className="mt-3 text-xl font-black">Seu ponto de partida</h3>
+                  <p className="mt-2 text-sm leading-6 text-zinc-500">Ao entrar em uma equipe, você recebe Bronze garantido por {integer(cfg.teamBonusDays)} dias corridos. O prazo começa na data e hora da entrada e não é reiniciado no primeiro dia do mês.</p>
+                </div>
+                <div className="rounded-[1.8rem] border border-zinc-100 bg-zinc-50 p-6">
+                  <p className="text-xs font-black uppercase tracking-[.16em] text-zinc-400">Depois do período</p>
+                  <h3 className="mt-3 text-xl font-black">Sua evolução continua</h3>
+                  <p className="mt-2 text-sm leading-6 text-zinc-500">Quando os {integer(cfg.teamBonusDays)} dias terminam, o Bônus de Equipe deixa de ser o piso e você segue pelo maior nível entre o Bônus Fixo e o Bônus Mensal.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="px-5 py-20 md:py-28 bg-[#fff5f8]">
+          <div className="max-w-7xl mx-auto">
+            <div className="rounded-[2.6rem] border border-pink-100 bg-white p-7 md:p-10 shadow-sm">
+              <div className="max-w-3xl">
+                <p className="text-xs font-black uppercase tracking-[.22em] text-pink-500">Impulsionar Equipe</p>
+                <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">Receba novas afiliadas em sua equipe.</h2>
+                <p className="mt-5 text-base md:text-lg leading-8 text-zinc-500">Receba novas afiliadas em sua equipe, direcionadas pela própria She.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="px-5 py-20 md:py-28 bg-white">
+          <div className="max-w-7xl mx-auto">
+            <div className="rounded-[2.6rem] bg-zinc-950 text-white p-8 md:p-12">
+              <p className="text-xs font-black uppercase tracking-[.22em] text-pink-300">Conteúdo She</p>
+              <h2 className="mt-4 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">Crie seu conteúdo e deixe a She divulgar com seu link.</h2>
+              <p className="mt-5 max-w-3xl text-base md:text-lg leading-8 text-white/65">Receba as bonificações de afiliada sem se preocupar com nada.</p>
             </div>
           </div>
         </section>
