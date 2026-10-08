@@ -17,10 +17,6 @@ function integer(value) {
   return Math.round(Number(value) || 0).toLocaleString('pt-BR')
 }
 
-function pluralSales(value) {
-  return Number(value) === 1 ? 'venda' : 'vendas'
-}
-
 function ArrowIcon({ className = 'w-4 h-4' }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -49,51 +45,37 @@ function UsersIcon({ className = 'w-5 h-5' }) {
   )
 }
 
-function Step({ number, title, text }) {
+function LevelBar({ levels }) {
   return (
-    <div className="flex gap-4">
-      <div className="shrink-0 w-11 h-11 rounded-2xl bg-zinc-950 text-white flex items-center justify-center font-black">{number}</div>
-      <div>
-        <h3 className="font-black text-zinc-950 text-base md:text-lg">{title}</h3>
-        <p className="mt-1.5 text-sm leading-6 text-zinc-500">{text}</p>
+    <div className="relative mt-9 px-2 md:px-5">
+      <div className="absolute left-8 right-8 top-[34px] h-2 rounded-full bg-zinc-200 md:left-12 md:right-12" />
+      <div className="relative grid grid-cols-3 gap-3">
+        {levels.map((level) => (
+          <div key={level.key} className="relative flex flex-col items-center text-center">
+            <div className="relative z-10 flex h-[68px] w-[68px] items-center justify-center rounded-full border border-white bg-white p-2 shadow-[0_8px_25px_rgba(0,0,0,.10)] md:h-[76px] md:w-[76px]">
+              <img src={badgeAssets[level.key]} alt={`Nível ${level.name}`} className="h-full w-full object-contain" />
+            </div>
+            <p className={`mt-2 text-xs font-black uppercase tracking-[.12em] ${level.key === 'bronze' ? 'text-orange-700' : level.key === 'silver' ? 'text-zinc-500' : 'text-amber-600'}`}>{level.name}</p>
+            <p className="mt-1 text-sm font-black text-zinc-950">{brl(level.value)}<span className="ml-1 text-[10px] font-bold text-zinc-400">/pedido</span></p>
+          </div>
+        ))}
       </div>
     </div>
   )
 }
 
-function BadgeCard({ level, sales, commission, description }) {
-  const tone = {
-    bronze: 'from-orange-50 via-white to-amber-50 border-orange-200 text-orange-700',
-    silver: 'from-zinc-50 via-white to-slate-50 border-zinc-200 text-zinc-700',
-    gold: 'from-amber-50 via-yellow-50 to-white border-amber-200 text-amber-700',
-  }[level.key]
-
+function BonusCard({ title, value, description, tone = 'white' }) {
+  const toneClass = tone === 'pink'
+    ? 'border-pink-100 bg-pink-50/70'
+    : tone === 'dark'
+      ? 'border-zinc-800 bg-zinc-950 text-white'
+      : 'border-zinc-100 bg-white'
   return (
-    <motion.article whileHover={{ y: -7 }} className={`relative overflow-hidden rounded-[2.25rem] border bg-gradient-to-br ${tone} p-6 md:p-7 shadow-[0_18px_50px_rgba(0,0,0,0.05)]`}>
-      <div className="absolute -right-12 -top-12 h-32 w-32 rounded-full bg-white/60 blur-2xl" />
-      <div className="relative flex items-center gap-4">
-        <div className="w-[82px] h-[82px] rounded-[1.65rem] bg-white/85 border border-white shadow-sm flex items-center justify-center p-3">
-          <img src={badgeAssets[level.key]} alt={`Broche ${level.name}`} className="w-full h-full object-contain" />
-        </div>
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[.2em] text-zinc-400">Nível</p>
-          <h3 className="mt-1 text-3xl font-black tracking-tight">{level.name}</h3>
-        </div>
-      </div>
-      <div className="relative mt-7 grid grid-cols-2 gap-3">
-        <div className="rounded-2xl bg-white/80 border border-white p-4">
-          <p className="text-[10px] font-black uppercase tracking-[.14em] text-zinc-400">Meta mensal</p>
-          <p className="mt-1 text-xl font-black text-zinc-950">{integer(sales)}</p>
-          <p className="text-xs text-zinc-400">{pluralSales(sales)}</p>
-        </div>
-        <div className="rounded-2xl bg-white/80 border border-white p-4">
-          <p className="text-[10px] font-black uppercase tracking-[.14em] text-zinc-400">Comissão</p>
-          <p className="mt-1 text-xl font-black text-zinc-950">{brl(commission)}</p>
-          <p className="text-xs text-zinc-400">por venda</p>
-        </div>
-      </div>
-      <p className="relative mt-5 text-sm leading-6 text-zinc-500">{description}</p>
-    </motion.article>
+    <motion.div whileHover={{ y: -4 }} className={`rounded-[1.7rem] border p-5 shadow-sm ${toneClass}`}>
+      <p className={`text-[10px] font-black uppercase tracking-[.18em] ${tone === 'pink' ? 'text-pink-500' : tone === 'dark' ? 'text-white/45' : 'text-zinc-400'}`}>{title}</p>
+      {value && <p className={`mt-3 text-2xl font-black ${tone === 'pink' ? 'text-pink-600' : tone === 'dark' ? 'text-white' : 'text-zinc-950'}`}>{value}</p>}
+      <p className={`mt-2 text-sm leading-6 ${tone === 'dark' ? 'text-white/60' : 'text-zinc-500'}`}>{description}</p>
+    </motion.div>
   )
 }
 
@@ -115,7 +97,7 @@ export default function AffiliateProgram() {
         setSettings(data)
         setLoadingSettings(false)
       })
-      .catch((error) => {
+      .catch(() => {
         if (!active) return
         setLoadingSettings(false)
       })
@@ -147,35 +129,20 @@ export default function AffiliateProgram() {
   }
 
   const cfg = settings
-  const monthly = cfg.monthlyLevels
-  const fixed = cfg.fixedLevels
-  const commissions = cfg.commissions
-  const boost = cfg.boostPlans
-  const maximumPersonal = Number(commissions.gold || 0) + Number(cfg.ticketBonus || 0)
+  const monthly = cfg.monthlyLevels || {}
+  const fixed = cfg.fixedLevels || {}
+  const bonuses = cfg.commissions || {}
+  const ticketBonus = Number(cfg.ticketBonus || 0)
+  const teamSaleBonus = Number(cfg.teamCommissionPerSale || 0)
+  const maximumPersonal = Number(bonuses.gold || 0) + ticketBonus + teamSaleBonus
 
-  const badgeLevels = [
-    {
-      key: 'bronze',
-      name: 'Bronze',
-      sales: monthly.bronze,
-      commission: commissions.bronze,
-      description: `Você alcança este nível a partir de ${integer(monthly.bronze)} ${pluralSales(monthly.bronze)} suas somadas às da sua equipe no mês.`
-    },
-    {
-      key: 'silver',
-      name: 'Prata',
-      sales: monthly.silver,
-      commission: commissions.silver,
-      description: `A partir de ${integer(monthly.silver)} ${pluralSales(monthly.silver)} suas somadas às da sua equipe no mês, você entra no Prata.`
-    },
-    {
-      key: 'gold',
-      name: 'Ouro',
-      sales: monthly.gold,
-      commission: commissions.gold,
-      description: `A partir de ${integer(monthly.gold)} ${pluralSales(monthly.gold)} suas somadas às da sua equipe no mês, você chega ao nível máximo.`
-    },
+  const monthlyLevels = [
+    { key: 'none', name: 'Início', value: bonuses.none },
+    { key: 'bronze', name: 'Bronze', value: bonuses.bronze },
+    { key: 'silver', name: 'Prata', value: bonuses.silver },
+    { key: 'gold', name: 'Ouro', value: bonuses.gold },
   ]
+  const levelBar = monthlyLevels.slice(1)
 
   return (
     <div className="min-h-screen bg-[#fffafc] text-zinc-950 overflow-x-hidden">
@@ -200,7 +167,7 @@ export default function AffiliateProgram() {
                 <span className="bg-gradient-to-r from-pink-500 via-fuchsia-500 to-rose-500 bg-clip-text text-transparent">pode crescer com você.</span>
               </h1>
               <p className="mt-7 max-w-2xl text-lg md:text-xl leading-8 text-zinc-600">
-                Um programa pensado para transformar conteúdo, relacionamento e vendas em uma trajetória real de crescimento — com metas claras, níveis, equipe e recompensas.
+                Um programa pensado para transformar conteúdo, relacionamento e vendas em uma trajetória real de crescimento — com metas claras, níveis, equipe e cinco formas de bonificação.
               </p>
               <div className="mt-9 flex flex-col sm:flex-row gap-3">
                 <Link to="/afiliado" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-500 px-7 py-4 text-base font-black text-white shadow-[0_16px_45px_rgba(236,72,153,0.26)] transition hover:-translate-y-0.5">
@@ -208,9 +175,9 @@ export default function AffiliateProgram() {
                 </Link>
               </div>
               <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm text-zinc-500">
-                <span className="inline-flex items-center gap-2"><SparkIcon className="w-4 h-4 text-pink-500" /> Metas definidas no painel</span>
+                <span className="inline-flex items-center gap-2"><SparkIcon className="w-4 h-4 text-pink-500" /> Valores definidos no painel</span>
                 <span className="inline-flex items-center gap-2"><UsersIcon className="w-4 h-4 text-pink-500" /> Crescimento com equipe</span>
-                <span className="inline-flex items-center gap-2"><SparkIcon className="w-4 h-4 text-pink-500" /> Benefícios por evolução</span>
+                <span className="inline-flex items-center gap-2"><SparkIcon className="w-4 h-4 text-pink-500" /> Bonificação por evolução</span>
               </div>
             </motion.div>
 
@@ -224,50 +191,62 @@ export default function AffiliateProgram() {
                   </div>
                   <div className="w-12 h-12 rounded-2xl bg-pink-50 border border-pink-100 text-pink-500 flex items-center justify-center"><SparkIcon /></div>
                 </div>
-                <div className="mt-8 grid grid-cols-3 gap-3 items-end">
-                  {badgeLevels.map((level, index) => (
-                    <motion.div key={level.key} initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: .25 + index * .12 }} className={`rounded-[2rem] p-4 border bg-white shadow-sm text-center ${index === 1 ? 'pb-7' : index === 2 ? 'pb-10' : ''}`}>
-                      <img src={badgeAssets[level.key]} alt={`Broche ${level.name}`} className="w-20 md:w-24 mx-auto" />
-                      <p className="mt-2 text-sm font-black">{level.name}</p>
-                      <p className="mt-1 text-[11px] text-zinc-400">{integer(level.sales)} {pluralSales(level.sales)}</p>
-                    </motion.div>
-                  ))}
-                </div>
-                <div className="mt-7 rounded-[1.75rem] bg-zinc-950 text-white p-5 md:p-6">
+                <LevelBar levels={levelBar} />
+                <div className="mt-8 rounded-[1.75rem] bg-zinc-950 text-white p-5 md:p-6">
                   <p className="text-[10px] uppercase tracking-[.2em] text-white/45 font-black">Potencial pessoal</p>
                   <div className="mt-2 flex flex-wrap items-end gap-x-3 gap-y-1">
                     <span className="text-3xl md:text-4xl font-black">{brl(maximumPersonal)}</span>
-                    <span className="text-sm text-white/55 mb-1">/pedido no Ouro + bônus de ticket</span>
+                    <span className="text-sm text-white/55 mb-1">/pedido no Ouro + Bônus de Valor + Venda de Equipe</span>
                   </div>
-                  <p className="mt-2 text-xs leading-5 text-white/45">O bônus de ticket entra quando o ticket médio do mês fica acima da meta configurada.</p>
+                  <p className="mt-2 text-xs leading-5 text-white/45">No Ouro, o potencial soma a bonificação do nível, o Bônus de Valor e a Venda de Equipe, conforme as configurações vigentes.</p>
                 </div>
               </div>
             </motion.div>
           </div>
         </section>
 
-
-        <section id="niveis" className="px-5 py-20 md:py-28 bg-white">
+        <section className="px-5 py-16 md:py-22 bg-white">
           <div className="max-w-7xl mx-auto">
             <div className="max-w-3xl">
-              <p className="text-xs font-black uppercase tracking-[.22em] text-pink-500">Broches She</p>
-              <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">Seu nível deixa de ser abstrato. Ele vira conquista.</h2>
+              <p className="text-xs font-black uppercase tracking-[.22em] text-pink-500">O plano She</p>
+              <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">Cinco formas de construir sua bonificação.</h2>
+              <p className="mt-5 text-base md:text-lg leading-8 text-zinc-500">Na She, oferecemos 5 tipos de bonificação que se combinam de maneiras diferentes para valorizar sua evolução, suas vendas e sua equipe.</p>
             </div>
-            <div className="mt-12 grid lg:grid-cols-3 gap-5">
-              {badgeLevels.map(level => <BadgeCard key={level.key} level={level} sales={level.sales} commission={level.commission} description={level.description} />)}
+            <div className="mt-10 grid md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <BonusCard title="Bônus de Equipe" description={`Bronze garantido por ${integer(cfg.teamBonusDays)} dias ao entrar em uma equipe.`} />
+              <BonusCard title="Bônus Fixo" description="Seu histórico de vendas acumuladas pode transformar seu nível em um piso permanente." />
+              <BonusCard title="Bônus Mensal" description="Sua evolução do mês define a bonificação aplicada às vendas daquele mês." />
+              <BonusCard title="Bônus de Valor" description={`Vender melhor pode ativar um adicional de ${brl(ticketBonus)} por pedido.`} />
+              <BonusCard title="Bônus de Venda de Equipe" description={`Vendas de afiliadas diretas podem gerar ${brl(teamSaleBonus)} por venda elegível.`} />
             </div>
           </div>
         </section>
 
-        <section className="px-5 py-20 md:py-28 bg-[#fff5f8]">
-          <div className="max-w-7xl mx-auto grid lg:grid-cols-[.9fr_1.1fr] gap-14 items-center">
-            <div>
+        <section id="niveis" className="px-5 py-20 md:py-28 bg-[#fff5f8]">
+          <div className="max-w-7xl mx-auto">
+            <div className="max-w-3xl">
               <p className="text-xs font-black uppercase tracking-[.22em] text-pink-500">Bônus Mensal</p>
-              <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">Todo mês começa uma nova corrida.</h2>
-              <p className="mt-5 text-base md:text-lg leading-8 text-zinc-600">No dia 1, o ciclo mensal reinicia. O mês anterior fica congelado, e o novo mês começa considerando o seu Bônus Fixo como nível-base.</p>
-              <div className="mt-7 rounded-[1.8rem] border border-pink-100 bg-white p-6 shadow-sm">
-                <p className="text-sm font-black text-zinc-950">O detalhe que faz diferença</p>
-                <p className="mt-2 text-sm leading-7 text-zinc-500">Ao alcançar um novo nível durante o mês, todas as vendas daquele mês passam a receber a comissão correspondente ao nível alcançado.</p>
+              <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">Seu nível deixa de ser abstrato. Ele vira conquista.</h2>
+              <p className="mt-5 text-base md:text-lg leading-8 text-zinc-600">A cada mês, você evolui pelos níveis e a bonificação correspondente ao nível alcançado passa a valer retroativamente para todas as vendas elegíveis realizadas naquele mês.</p>
+            </div>
+
+            <div className="mt-10 rounded-[2.5rem] border border-pink-100 bg-white p-6 md:p-9 shadow-sm">
+              <LevelBar levels={levelBar} />
+              <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {monthlyLevels.map((level) => (
+                  <div key={level.key} className={`rounded-[1.7rem] border p-5 ${level.key === 'none' ? 'border-zinc-200 bg-zinc-50' : level.key === 'gold' ? 'border-amber-200 bg-amber-50/70' : level.key === 'silver' ? 'border-zinc-200 bg-zinc-50' : 'border-orange-200 bg-orange-50/70'}`}>
+                    <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">Nível</p>
+                    <h3 className="mt-2 text-xl font-black text-zinc-950">{level.name}</h3>
+                    <p className="mt-2 text-2xl font-black text-zinc-950">{brl(level.value)}<span className="ml-1 text-xs font-bold text-zinc-400">/venda</span></p>
+                    <p className="mt-2 text-sm leading-6 text-zinc-500">Bonificação aplicada às vendas elegíveis do mês quando este nível estiver vigente.</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-7 rounded-[1.8rem] bg-zinc-950 p-6 text-white">
+                <p className="text-[10px] font-black uppercase tracking-[.2em] text-white/45">O detalhe que faz diferença</p>
+                <p className="mt-3 text-sm md:text-base leading-7 text-white/70">Ao alcançar um novo nível durante o mês, a bonificação daquele nível é retroativa para todas as vendas elegíveis realizadas no mês — não apenas para as vendas feitas depois da mudança de nível.</p>
+                <p className="mt-3 text-sm md:text-base leading-7 text-white/70">No início de cada mês, o progresso do Bônus Mensal reinicia para Início ou para o nível definido pelo seu Bônus Fixo.</p>
               </div>
             </div>
           </div>
@@ -278,28 +257,28 @@ export default function AffiliateProgram() {
             <div>
               <p className="text-xs font-black uppercase tracking-[.22em] text-zinc-400">Bônus Fixo</p>
               <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">O seu histórico continua trabalhando por você.</h2>
-              <p className="mt-5 max-w-2xl text-base md:text-lg leading-8 text-zinc-500">O Bônus Fixo acompanha as suas vendas pessoais acumuladas e cria um piso permanente para sua evolução mensal.</p>
+              <p className="mt-5 max-w-2xl text-base md:text-lg leading-8 text-zinc-500">O Bônus Fixo acompanha suas vendas pessoais acumuladas. Quando você atinge o marco definido para um nível, ele se torna seu nível-base permanente.</p>
               <div className="mt-10 grid md:grid-cols-3 gap-4">
                 {[
-                  ['bronze', fixed.bronze],
-                  ['silver', fixed.silver],
-                  ['gold', fixed.gold],
-                ].map(([key, sales]) => (
+                  ['bronze', bonuses.bronze],
+                  ['silver', bonuses.silver],
+                  ['gold', bonuses.gold],
+                ].map(([key, value]) => (
                   <motion.div key={key} whileHover={{ y: -4 }} className="rounded-[1.8rem] border border-zinc-100 bg-gradient-to-br from-white to-zinc-50 p-6 shadow-sm">
-                    <img src={badgeAssets[key]} alt={`Broche ${key}`} className="w-14" />
-                    <p className="mt-4 text-xs font-black uppercase tracking-[.16em] text-zinc-400">Meta acumulada</p>
-                    <p className="mt-2 text-2xl font-black text-zinc-950">{integer(sales)}</p>
-                    <p className="text-xs text-zinc-400">{pluralSales(sales)}</p>
+                    <img src={badgeAssets[key]} alt={`Nível ${key}`} className="w-14" />
+                    <p className="mt-4 text-xs font-black uppercase tracking-[.16em] text-zinc-400">Bonificação</p>
+                    <p className="mt-2 text-2xl font-black text-zinc-950">{brl(value)}</p>
+                    <p className="text-xs text-zinc-400">por venda</p>
                   </motion.div>
                 ))}
               </div>
             </div>
             <div className="rounded-[2.4rem] bg-zinc-950 text-white p-7 md:p-9 shadow-[0_24px_80px_rgba(0,0,0,.14)]">
-              <p className="text-[10px] uppercase tracking-[.2em] text-white/45 font-black">Como tudo se combina</p>
+              <p className="text-[10px] uppercase tracking-[.2em] text-white/45 font-black">Como funciona</p>
               <div className="mt-7 space-y-6">
-                <Step number="1" title="Bônus Fixo" text={`Atingindo ${integer(fixed.bronze)}, ${integer(fixed.silver)} e ${integer(fixed.gold)} vendas acumuladas, você cria seu nível-base permanente.`} />
-                <Step number="2" title="Bônus Mensal" text={`No mês atual, a sua evolução acompanha as metas de ${integer(monthly.bronze)}, ${integer(monthly.silver)} e ${integer(monthly.gold)} ${pluralSales(monthly.gold)}.`} />
-                <Step number="3" title="O melhor nível prevalece" text="Sua evolução mensal pode subir acima do piso, mas o Bônus Mensal nunca reduz o nível permanente já conquistado pelo Bônus Fixo." />
+                <div><p className="text-base font-black">Seu histórico acumula</p><p className="mt-2 text-sm leading-6 text-white/60">As vendas pessoais acumuladas fazem você avançar nos níveis do Bônus Fixo.</p></div>
+                <div><p className="text-base font-black">O nível conquistado permanece</p><p className="mt-2 text-sm leading-6 text-white/60">Ao atingir o marco de um nível, ele passa a ser seu nível-base permanente para os próximos meses.</p></div>
+                <div><p className="text-base font-black">Ele protege sua evolução mensal</p><p className="mt-2 text-sm leading-6 text-white/60">O novo mês começa em Início ou, se você já conquistou um Bônus Fixo, no nível permanente correspondente.</p></div>
               </div>
             </div>
           </div>
@@ -312,37 +291,37 @@ export default function AffiliateProgram() {
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 rounded-2xl bg-pink-50 border border-pink-100 text-pink-500 flex items-center justify-center"><SparkIcon className="w-7 h-7" /></div>
                   <div>
-                    <p className="text-[10px] uppercase tracking-[.2em] text-pink-500 font-black">Meta de Ticket Médio</p>
+                    <p className="text-[10px] uppercase tracking-[.2em] text-pink-500 font-black">Bônus de Valor</p>
                     <h2 className="mt-1 text-3xl md:text-4xl font-black">Venda melhor, não só mais.</h2>
                   </div>
                 </div>
                 <div className="mt-8 grid sm:grid-cols-2 gap-4">
                   <div className="rounded-[1.7rem] bg-zinc-50 border border-zinc-100 p-6">
-                    <p className="text-xs font-black uppercase tracking-[.15em] text-zinc-400">Meta atual</p>
+                    <p className="text-xs font-black uppercase tracking-[.15em] text-zinc-400">Meta de valor do pedido</p>
                     <p className="mt-2 text-3xl font-black">{brl(cfg.ticketThreshold)}</p>
-                    <p className="mt-1 text-xs text-zinc-400">ticket médio</p>
+                    <p className="mt-1 text-xs text-zinc-400">média dos seus pedidos</p>
                   </div>
                   <div className="rounded-[1.7rem] bg-pink-50 border border-pink-100 p-6">
-                    <p className="text-xs font-black uppercase tracking-[.15em] text-pink-500">Bônus</p>
-                    <p className="mt-2 text-3xl font-black text-pink-600">+{brl(cfg.ticketBonus)}</p>
+                    <p className="text-xs font-black uppercase tracking-[.15em] text-pink-500">Bônus de Valor</p>
+                    <p className="mt-2 text-3xl font-black text-pink-600">+{brl(ticketBonus)}</p>
                     <p className="mt-1 text-xs text-pink-500">por pedido elegível</p>
                   </div>
                 </div>
-                <p className="mt-6 text-sm leading-7 text-zinc-500">Quando o ticket médio do mês supera a meta configurada, entra o bônus adicional por pedido elegível. É uma recompensa para quem aprende a vender kits, combinações e soluções de maior valor.</p>
+                <p className="mt-6 text-sm leading-7 text-zinc-500">Vendas de 2 unidades ou mais ajudam a elevar o valor médio dos seus pedidos. A meta é manter sua média acima de {brl(cfg.ticketThreshold)}. O Bônus de Valor considera o acumulado de todas as suas vendas no período e, quando a meta é superada, acrescenta {brl(ticketBonus)} por pedido elegível.</p>
               </div>
             </div>
 
             <div>
               <p className="text-xs font-black uppercase tracking-[.22em] text-pink-500">Potencial de ganhos</p>
-              <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">No Ouro, sua comissão pessoal pode chegar a {brl(maximumPersonal)} por venda.</h2>
-              <p className="mt-5 text-base md:text-lg leading-8 text-zinc-500">Essa soma considera a comissão do nível Ouro mais o bônus de ticket configurado. O valor exibido acompanha o painel administrativo.</p>
+              <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">No Ouro, seu potencial pode chegar a {brl(maximumPersonal)} por pedido.</h2>
+              <p className="mt-5 text-base md:text-lg leading-8 text-zinc-500">Essa soma considera a bonificação do nível Ouro + o Bônus de Valor + a Venda de Equipe, sempre acompanhando os valores configurados no painel administrativo.</p>
               <div className="mt-8 rounded-[1.8rem] border border-zinc-100 bg-white p-6 shadow-sm">
                 <p className="text-sm font-black">E ainda existe a equipe</p>
                 <div className="mt-3 flex items-end gap-3">
-                  <span className="text-4xl font-black">+{brl(cfg.teamCommissionPerSale)}</span>
+                  <span className="text-4xl font-black">+{brl(teamSaleBonus)}</span>
                   <span className="text-sm text-zinc-400 mb-1">por venda elegível de uma afiliada direta</span>
                 </div>
-                <p className="mt-3 text-sm leading-6 text-zinc-500">A comissão de equipe é separada da sua comissão pessoal e segue a configuração vigente do programa.</p>
+                <p className="mt-3 text-sm leading-6 text-zinc-500">A Venda de Equipe é separada da sua bonificação pessoal e segue a configuração vigente do programa.</p>
               </div>
             </div>
           </div>
@@ -365,76 +344,24 @@ export default function AffiliateProgram() {
               </div>
             </div>
             <div>
-              <p className="text-xs font-black uppercase tracking-[.22em] text-pink-500">Sistema de equipes</p>
-              <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">Você pode construir uma rede de mulheres ao seu lado.</h2>
-              <p className="mt-5 text-base md:text-lg leading-8 text-zinc-500">Na She, cada afiliada pode ter uma afiliada mãe e também desenvolver sua própria equipe de afiliadas filhas.</p>
+              <p className="text-xs font-black uppercase tracking-[.22em] text-pink-500">Venda de Equipe</p>
+              <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">Sua equipe também pode gerar bonificação para você.</h2>
+              <p className="mt-5 text-base md:text-lg leading-8 text-zinc-500">Quando uma afiliada diretamente ligada à sua equipe realiza uma venda elegível, você recebe a bonificação de Venda de Equipe configurada no programa.</p>
+              <div className="mt-8 rounded-[1.8rem] border border-pink-100 bg-pink-50/60 p-7">
+                <p className="text-xs font-black uppercase tracking-[.16em] text-pink-500">Valor atual</p>
+                <p className="mt-2 text-4xl font-black text-zinc-950">{brl(teamSaleBonus)} <span className="text-base font-bold text-zinc-400">/ venda elegível</span></p>
+                <p className="mt-3 text-sm leading-6 text-zinc-500">Esse valor acompanha diretamente a configuração do painel administrativo.</p>
+              </div>
               <div className="mt-8 grid md:grid-cols-2 gap-4">
                 <div className="rounded-[1.8rem] border border-zinc-100 bg-zinc-50 p-6">
                   <p className="text-xs font-black uppercase tracking-[.16em] text-zinc-400">Afiliada mãe</p>
                   <h3 className="mt-3 text-xl font-black">Quem lidera sua entrada</h3>
-                  <p className="mt-2 text-sm leading-6 text-zinc-500">É a afiliada diretamente acima de você na estrutura. Quando sua entrada é impulsionada, o sistema define essa conexão.</p>
+                  <p className="mt-2 text-sm leading-6 text-zinc-500">É a afiliada diretamente acima de você na estrutura.</p>
                 </div>
                 <div className="rounded-[1.8rem] border border-pink-100 bg-pink-50 p-6">
                   <p className="text-xs font-black uppercase tracking-[.16em] text-pink-500">Afiliadas filhas</p>
                   <h3 className="mt-3 text-xl font-black">Sua rede direta</h3>
-                  <p className="mt-2 text-sm leading-6 text-zinc-500">São as afiliadas que entram diretamente na sua equipe e ajudam você a ampliar o resultado da sua rede.</p>
-                </div>
-              </div>
-              <div className="mt-6 rounded-[1.8rem] border border-zinc-100 bg-white p-6 shadow-sm">
-                <div className="flex items-start gap-4">
-                  <div className="w-11 h-11 rounded-2xl bg-zinc-950 text-white flex items-center justify-center shrink-0"><UsersIcon /></div>
-                  <div>
-                    <h3 className="text-xl font-black">Orgânico ou Impulsionado</h3>
-                    <p className="mt-2 text-sm leading-7 text-zinc-500"><strong className="text-zinc-900">Orgânico:</strong> você indica diretamente e não consome conexão. <strong className="text-zinc-900">Impulsionado:</strong> a She distribui novas afiliadas para os impulsos ativos e a conexão só é consumida quando a entrada é efetivamente confirmada.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="px-5 py-20 md:py-28 bg-[#fff5f8]">
-          <div className="max-w-7xl mx-auto grid lg:grid-cols-[.9fr_1.1fr] gap-14 items-start">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[.22em] text-pink-500">Impulsionar Equipe</p>
-              <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">Quer crescer sua equipe mais rápido?</h2>
-              <p className="mt-5 text-base md:text-lg leading-8 text-zinc-600">Você pode comprar conexões e entrar em uma fila única. O sistema distribui novas afiliadas entre os impulsos ativos de forma contínua.</p>
-              <div className="mt-8 rounded-[1.8rem] bg-zinc-950 text-white p-6 md:p-7">
-                <p className="text-[10px] uppercase tracking-[.2em] text-white/45 font-black">A jornada do impulso</p>
-                <div className="mt-5 space-y-4 text-sm text-white/75">
-                  <p><strong className="text-white">1.</strong> Escolha um plano de {brl(boost.small.price)} ou {brl(boost.large.price)}.</p>
-                  <p><strong className="text-white">2.</strong> O valor é reservado e você entra na fila.</p>
-                  <p><strong className="text-white">3.</strong> Quando houver capacidade, o impulso é ativado.</p>
-                  <p><strong className="text-white">4.</strong> Cada nova entrada confirmada consome uma conexão.</p>
-                  <p><strong className="text-white">5.</strong> Ao terminar as conexões, o impulso é concluído automaticamente.</p>
-                </div>
-              </div>
-            </div>
-            <div className="grid md:grid-cols-2 gap-5">
-              <motion.div whileHover={{ y: -5 }} className="rounded-[2.25rem] border border-pink-100 bg-white p-7 shadow-sm">
-                <p className="text-xs font-black uppercase tracking-[.18em] text-pink-500">Plano</p>
-                <h3 className="mt-4 text-4xl font-black">{brl(boost.small.price)}</h3>
-                <p className="mt-2 text-sm text-zinc-500">{integer(boost.small.connections)} {pluralSales(boost.small.connections)} de conexão</p>
-                <div className="mt-6 flex items-center gap-2">
-                  {Array.from({ length: Math.min(6, Number(boost.small.connections) || 0) }).map((_, i) => <span key={i} className="h-2 flex-1 rounded-full bg-pink-200" />)}
-                </div>
-              </motion.div>
-              <motion.div whileHover={{ y: -5 }} className="rounded-[2.25rem] border border-fuchsia-100 bg-gradient-to-br from-white via-pink-50 to-fuchsia-50 p-7 shadow-sm">
-                <p className="text-xs font-black uppercase tracking-[.18em] text-fuchsia-500">Plano</p>
-                <h3 className="mt-4 text-4xl font-black">{brl(boost.large.price)}</h3>
-                <p className="mt-2 text-sm text-zinc-500">{integer(boost.large.connections)} {pluralSales(boost.large.connections)} de conexão</p>
-                <div className="mt-6 flex items-center gap-2">
-                  {Array.from({ length: Math.min(6, Number(boost.large.connections) || 0) }).map((_, i) => <span key={i} className="h-2 flex-1 rounded-full bg-fuchsia-200" />)}
-                </div>
-              </motion.div>
-              <div className="md:col-span-2 rounded-[2.25rem] border border-zinc-100 bg-white p-7 shadow-sm">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-5">
-                  <div className="w-14 h-14 rounded-2xl bg-zinc-950 text-white flex items-center justify-center shrink-0"><UsersIcon className="w-7 h-7" /></div>
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[.16em] text-zinc-400">Capacidade do sistema</p>
-                    <h3 className="mt-2 text-2xl font-black">Até {integer(boost.maxActive)} impulsos ativos ao mesmo tempo</h3>
-                    <p className="mt-2 text-sm leading-7 text-zinc-500">Os dois planos compartilham a mesma fila. A posição depende de quando você entrou e a distribuição segue o ciclo entre os impulsos ativos.</p>
-                  </div>
+                  <p className="mt-2 text-sm leading-6 text-zinc-500">São as afiliadas que entram diretamente na sua equipe e ajudam a ampliar o resultado da sua rede.</p>
                 </div>
               </div>
             </div>

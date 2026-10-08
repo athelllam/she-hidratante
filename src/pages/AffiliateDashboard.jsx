@@ -113,6 +113,7 @@ export default function AffiliateDashboard() {
   const [levelHelpOpen, setLevelHelpOpen] = useState(false)
   const [fixedHelpOpen, setFixedHelpOpen] = useState(false)
   const [videoHelpOpen, setVideoHelpOpen] = useState(false)
+  const [boostHelpOpen, setBoostHelpOpen] = useState(false)
   const [registerTermsCardOpen, setRegisterTermsCardOpen] = useState(false)
   const [registerTermsOpen, setRegisterTermsOpen] = useState(false)
   const [linkSlug, setLinkSlug] = useState('')
@@ -864,7 +865,10 @@ export default function AffiliateDashboard() {
           <section className="mt-5 rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm md:p-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">🚀 Impulsionar Equipe</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">🚀 Impulsionar Equipe</p>
+                  <button type="button" onClick={() => setBoostHelpOpen(true)} aria-label="Como funciona o Impulsionar Equipe" className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-300 text-[11px] font-black text-zinc-500 transition hover:border-pink-300 hover:text-pink-500">?</button>
+                </div>
                 <h2 className="mt-1 text-xl font-black text-zinc-950">Receba novas afiliadas na sua equipe</h2>
                 <p className="mt-1 text-xs leading-5 text-zinc-400">O sistema direciona novas afiliadas para você. Depois que o impulso for ativado, não há cancelamento nem reembolso. Enquanto estiver na fila, você pode sair e receber o saldo de volta.</p>
               </div>
@@ -1103,6 +1107,33 @@ export default function AffiliateDashboard() {
       )}
 
         </div>
+
+      {boostHelpOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-5 py-8 backdrop-blur-[2px]" onMouseDown={() => setBoostHelpOpen(false)}>
+          <div role="dialog" aria-modal="true" aria-labelledby="boost-help-title" className="w-full max-w-lg rounded-[1.7rem] bg-white p-6 shadow-[0_30px_100px_rgba(0,0,0,.22)]" onMouseDown={event => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Impulsionar Equipe</p>
+                <h3 id="boost-help-title" className="mt-1 text-xl font-black text-zinc-950">Como funciona</h3>
+              </div>
+              <button type="button" aria-label="Fechar" onClick={() => setBoostHelpOpen(false)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-sm font-black text-zinc-500 transition hover:bg-pink-50 hover:text-pink-500">×</button>
+            </div>
+            <div className="mt-5 rounded-[1.5rem] bg-zinc-950 p-5 text-sm leading-6 text-white/75">
+              <p><strong className="text-white">1.</strong> Escolha um plano de impulsionamento.</p>
+              <p className="mt-3"><strong className="text-white">2.</strong> O valor é reservado do seu saldo e você entra em uma fila única.</p>
+              <p className="mt-3"><strong className="text-white">3.</strong> Quando houver capacidade, o impulso é ativado.</p>
+              <p className="mt-3"><strong className="text-white">4.</strong> Cada nova entrada confirmada consome uma conexão.</p>
+              <p className="mt-3"><strong className="text-white">5.</strong> Ao terminar as conexões, o impulso é concluído automaticamente.</p>
+            </div>
+            <div className="mt-5 space-y-3 text-sm leading-6 text-zinc-600">
+              <p><strong className="text-zinc-900">Enquanto estiver na fila:</strong> você pode sair e receber o saldo reservado de volta.</p>
+              <p><strong className="text-zinc-900">Depois que o impulso é ativado:</strong> não há cancelamento nem reembolso.</p>
+              <p>As novas afiliadas são distribuídas entre os impulsos ativos conforme a capacidade do sistema.</p>
+            </div>
+            <button type="button" onClick={() => setBoostHelpOpen(false)} className="mt-6 w-full rounded-xl bg-zinc-950 py-3 font-black text-white transition hover:bg-pink-500">Entendi</button>
+          </div>
+        </div>
+      )}
 
       {fixedHelpOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-5 py-8 backdrop-blur-[2px]" onMouseDown={() => setFixedHelpOpen(false)}>
