@@ -17,7 +17,9 @@ function dateTime(value) {
 
 function withdrawalLabel(status) {
   if (status === 'paid') return 'Pago'
+  if (status === 'processing') return 'Processando Pix'
   if (status === 'approved') return 'Aprovado'
+  if (status === 'failed') return 'Falhou'
   if (status === 'rejected') return 'Recusado'
   if (status === 'cancelled') return 'Cancelado'
   return 'Pendente'
@@ -259,19 +261,19 @@ export default function AdminDashboard() {
   }
 
   const markPaid = async (withdrawal) => {
-    if (!window.confirm(`Confirmar que o saque de ${brl(withdrawal.amount)} da afiliada ${withdrawal.affiliates?.name || '—'} já foi pago?`)) return
+    if (!window.confirm(`Aprovar o saque de ${brl(withdrawal.amount)} da afiliada ${withdrawal.affiliates?.name || '—'} e enviar o Pix automaticamente para a chave cadastrada?`)) return
 
     setPayingId(withdrawal.id)
     setMessage('')
     try {
-      await api('/api/admin/withdrawals', {
+      const result = await api('/api/admin/withdrawals', {
         method: 'PATCH',
-        body: JSON.stringify({ id: withdrawal.id }),
+        body: JSON.stringify({ id: withdrawal.id, action: 'approve' }),
       })
       await loadPanel()
-      setMessage('Saque marcado como pago. O painel da afiliada já poderá mostrar o novo status.')
+      setMessage(result.message || 'Saque aprovado e enviado para processamento pelo Asaas.')
     } catch (e) {
-      setMessage(e.message || 'Não foi possível marcar o saque como pago.')
+      setMessage(e.message || 'Não foi possível processar o saque.')
     } finally {
       setPayingId(null)
     }
@@ -555,7 +557,7 @@ export default function AdminDashboard() {
   }, [withdrawals, withdrawalFilter])
 
   const orderedWithdrawals = useMemo(() => {
-    const priority = { pending: 0, approved: 1, paid: 2, rejected: 3, cancelled: 4 }
+    const priority = { pending: 0, approved: 1, processing: 2, paid: 3, failed: 4, rejected: 5, cancelled: 6 }
     return [...filteredWithdrawals].sort((a, b) => {
       const pa = priority[a.status] ?? 9
       const pb = priority[b.status] ?? 9
@@ -1019,25 +1021,50 @@ export default function AdminDashboard() {
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-black text-zinc-950">{withdrawal.affiliates?.name || 'Afiliada'}</p>
                       <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-zinc-500">ID {withdrawal.affiliate_id}</span>
-                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${withdrawal.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : pending ? 'bg-amber-100 text-amber-800' : 'bg-zinc-200 text-zinc-600'}`}>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${withdrawal.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : withdrawal.status === 'processing' ? 'bg-blue-100 text-blue-700' : withdrawal.status === 'failed' ? 'bg-red-100 text-red-700' : pending ? 'bg-amber-100 text-amber-800' : 'bg-zinc-200 text-zinc-600'}`}>
                         {withdrawalLabel(withdrawal.status)}
                       </span>
                       <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${withdrawal.source === 'team' ? 'bg-pink-100 text-pink-700' : 'bg-zinc-100 text-zinc-600'}`}>{withdrawal.source === 'team' ? 'Equipe' : 'Pessoal'}</span>
                     </div>
                     <p className="mt-1 text-xs text-zinc-400">Solicitado em {dateTime(withdrawal.requested_at)} · Saque #{withdrawal.id}</p>
-                    <p className="mt-1 text-xs font-semibold text-zinc-600">PIX para recebimento: <span className="break-all font-bold text-zinc-900">{withdrawal.pix_key || 'Não informado (saque antigo)'}</span></p>
+                    <p className="mt-1 text-xs font-semibold text-zinc-600">PIX para recebimento: <span className="break-all font-bold text-zinc-900">{withdrawal.pix_key || 'Não informado (saque antigo)'}</span>{withdrawal.pix_key_type ? <span className="ml-1 text-zinc-400">({withdrawal.pix_key_type})</span> : null}</p>
                   </div>
 
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
                     <span className="text-xl font-black text-zinc-950">{brl(withdrawal.amount)}</span>
                     {pending && (
-                      <button
-                        onClick={() => markPaid(withdrawal)}
-                        disabled={payingId === withdrawal.id}
-                        className="rounded-xl bg-zinc-950 px-4 py-3 text-sm font-black text-white transition hover:bg-emerald-600 disabled:opacity-60"
-                      >
-                        {payingId === withdrawal.id ? 'Salvando…' : 'Marcar como pago'}
-                      </button>
+                      <>
+                        <button
+                          onClick={async () => {
+                            const note = window.prompt('Motivo da recusa (opcional):', '')
+                            if (note === null) return
+                            setPayingId(withdrawal.id)
+                            try {
+                              const result = await api('/api/admin/withdrawals', {
+                                method: 'PATCH',
+                                body: JSON.stringify({ id: withdrawal.id, action: 'reject', note }),
+                              })
+                              setMessage(result.message || 'Saque recusado. O saldo foi devolvido para a afiliada.')
+                              await loadData()
+                            } catch (e) {
+                              setMessage(e.message || 'Não foi possível recusar o saque.')
+                            } finally {
+                              setPayingId(null)
+                            }
+                          }}
+                          disabled={payingId === withdrawal.id}
+                          className="rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-black text-red-600 transition hover:bg-red-50 disabled:opacity-60"
+                        >
+                          Recusar
+                        </button>
+                        <button
+                          onClick={() => markPaid(withdrawal)}
+                          disabled={payingId === withdrawal.id}
+                          className="rounded-xl bg-zinc-950 px-4 py-3 text-sm font-black text-white transition hover:bg-emerald-600 disabled:opacity-60"
+                        >
+                          {payingId === withdrawal.id ? 'Enviando Pix…' : 'Aprovar e enviar Pix'}
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
