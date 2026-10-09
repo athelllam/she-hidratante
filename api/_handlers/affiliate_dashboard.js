@@ -412,8 +412,8 @@ module.exports = async function handler(req, res) {
     const selectedAverageTicket = selectedSales ? selectedRevenue / selectedSales : 0;
     const currentMonthOrders = annotatedPaidOrders.filter(o => { const date = new Date(o.created_at); return date >= startOfCurrentMonth && date < endOfCurrentMonth; });
     const currentMonthRevenue = currentMonthOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
-    const currentMonthAverageTicket = currentMonthOrders.length ? currentMonthRevenue / currentMonthOrders.length : 0;
-    const ticketMultiplierActive = currentMonthAverageTicket > settings.ticketThreshold;
+    const lifetimeAverageTicket = selectedAverageTicket;
+    const ticketMultiplierActive = lifetimeAverageTicket > settings.ticketThreshold;
     // Comissão do período é sempre histórica/bruta: soma das comissões
     // geradas pelos pedidos pagos dentro do período selecionado.
     // Ela NÃO sofre desconto por saques. O desconto de saques existe apenas

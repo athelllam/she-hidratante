@@ -477,29 +477,6 @@ module.exports = async function handler(req, res) {
           body: JSON.stringify(values),
         });
 
-        // Alterações de metas também recalculam imediatamente o mês atual.
-        // Meses anteriores continuam congelados pelo valor persistido em cada pedido.
-        try {
-          const affiliatesForReconciliation = await supabaseFetch('/rest/v1/affiliates?select=id,team_joined_at&limit=20000');
-          const settingRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales&limit=1');
-          const setting = settingRows?.[0];
-          const currentSettings = normalizeConfig(setting ? {
-            ticketThreshold: setting.ticket_threshold,
-            ticketBonus: setting.ticket_bonus,
-            teamCommissionPerSale: setting.team_commission_per_sale,
-            commissions: { none: setting.commission_none, bronze: setting.commission_bronze, silver: setting.commission_silver, gold: setting.commission_gold },
-            monthlyLevels: { bronze: setting.monthly_bronze_sales, silver: setting.monthly_silver_sales, gold: setting.monthly_gold_sales },
-            fixedLevels: { bronze: setting.fixed_bronze_sales, silver: setting.fixed_silver_sales, gold: setting.fixed_gold_sales },
-          } : DEFAULT_COMMISSION_CONFIG);
-          await Promise.all((affiliatesForReconciliation || []).map(item =>
-            reconcileAffiliateOrderCommissions(supabaseFetch, item.id, currentSettings, { teamJoinedAt: item.team_joined_at }).catch(error => {
-              console.error(`[She Commission] Falha ao recalcular afiliada ${item.id} após atualização de metas:`, error);
-              return null;
-            })
-          ));
-        } catch (error) {
-          console.error('[She Commission] Falha na reconciliação global após atualização de metas:', error);
-        }
 
         const row = rows?.[0] || {};
         return json(res, 200, {
@@ -575,24 +552,6 @@ module.exports = async function handler(req, res) {
           }),
         });
 
-        // A configuração é imediatamente refletida no mês atual.
-        // Meses anteriores permanecem congelados.
-        try {
-          const affiliatesForReconciliation = await supabaseFetch('/rest/v1/affiliates?select=id,team_joined_at&limit=20000');
-          await Promise.all((affiliatesForReconciliation || []).map(item =>
-            reconcileAffiliateOrderCommissions(
-              supabaseFetch,
-              item.id,
-              nextSettings,
-              { teamJoinedAt: item.team_joined_at }
-            ).catch(error => {
-              console.error(`[She Commission] Falha ao recalcular afiliada ${item.id}:`, error);
-              return null;
-            })
-          ));
-        } catch (error) {
-          console.error('[She Commission] Falha na reconciliação global do mês atual:', error);
-        }
 
         await supabaseFetch('/rest/v1/rpc/she_team_boost_activate_waiting', { method: 'POST', body: '{}' }).catch(() => null);
         return json(res, 200, { settings: nextSettings, row: rows?.[0] || null });

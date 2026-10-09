@@ -161,6 +161,10 @@ function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG, options
   const normalized = normalizeConfig(config);
   const paid = (orders || []).filter(order => isPaidOrder(order));
   const monthlyStats = calculateMonthlyStats(paid, normalized);
+  const lifetimeRevenue = paid.reduce((sum, order) => sum + Number(order.total || 0), 0);
+  const lifetimeAverageTicket = paid.length ? lifetimeRevenue / paid.length : 0;
+  const lifetimeTicketMultiplierActive = lifetimeAverageTicket > normalized.ticketThreshold;
+  const lifetimeTicketMultiplier = lifetimeTicketMultiplierActive ? normalized.ticketBonus : 0;
   const salesByMonth = Object.fromEntries(
     Object.entries(monthlyStats).map(([key, stats]) => [key, stats.sales])
   );
@@ -188,7 +192,7 @@ function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG, options
     const effectiveLevel = key === currentMonth
       ? historicalLevel
       : historicalLevel;
-    const multiplier = stats.multiplierActive ? normalized.ticketBonus : 0;
+    const multiplier = lifetimeTicketMultiplier;
     const isCurrentMonth = key === currentMonth;
 
     // O card do mês atual é a fonte da verdade. Para meses encerrados,
@@ -218,12 +222,21 @@ function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG, options
 
     let baseCommission = Number(normalized.commissions[cardLevelKey] || 0);
     let commission;
-    if (!isCurrentMonth && Number.isFinite(Number(order?.commission)) && LEVEL_ORDER[String(order?.commission_level_snapshot || '').toLowerCase()] !== undefined) {
-      // Pedido encerrado: o snapshot é a consolidação do último minuto do mês.
+    const snapshotLevelKey = String(order?.commission_level_snapshot || '').toLowerCase();
+    const hasPersistedCommission = Number.isFinite(Number(order?.commission)) && Number(order?.commission) > 0
+      && LEVEL_ORDER[snapshotLevelKey] !== undefined;
+
+    // A comissão de uma venda é congelada no momento em que a venda é
+    // contabilizada. Alterações posteriores nas configurações do Admin
+    // nunca podem recalcular vendas já existentes, inclusive as do mês atual.
+    if (hasPersistedCommission) {
       const snapshotBase = Number(order?.commission_base_snapshot);
       baseCommission = Number.isFinite(snapshotBase) ? snapshotBase : baseCommission;
+      cardLevelKey = snapshotLevelKey;
       commission = Number(order.commission);
     } else {
+      // Fallback apenas para registros antigos/incompletos. O webhook/reconciliação
+      // persiste o snapshot e, a partir daí, o valor fica imutável.
       commission = Number((baseCommission + multiplier).toFixed(2));
     }
     total += commission;
@@ -235,9 +248,9 @@ function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG, options
       monthlyLevel: monthlyLevel.label,
       fixedLevel: fixedLevel.label,
       month: key,
-      ticketAverage: Number(stats.averageTicket.toFixed(2)),
+      ticketAverage: Number(lifetimeAverageTicket.toFixed(2)),
       ticketMultiplier: multiplier,
-      ticketMultiplierActive: stats.multiplierActive,
+      ticketMultiplierActive: lifetimeTicketMultiplierActive,
     };
   });
 
@@ -257,6 +270,11 @@ async function reconcileAffiliateOrderCommissions(supabaseFetch, affiliateId, co
   if (!paid.length) return { updated: 0, orders: [] };
 
   const monthlyStats = calculateMonthlyStats(paid, normalized);
+  const lifetimeRevenue = paid.reduce((sum, order) => sum + Number(order.total || 0), 0);
+  const lifetimeAverageTicket = paid.length ? lifetimeRevenue / paid.length : 0;
+  const lifetimeTicketMultiplierActive = lifetimeAverageTicket > normalized.ticketThreshold;
+  const lifetimeTicketMultiplier = lifetimeTicketMultiplierActive ? normalized.ticketBonus : 0;
+
   const cumulativeByMonth = {};
   let cumulativeSales = 0;
   Object.keys(monthlyStats).sort().forEach(key => {
@@ -272,43 +290,74 @@ async function reconcileAffiliateOrderCommissions(supabaseFetch, affiliateId, co
     const key = monthKey(order.created_at);
     if (!key) continue;
 
-    // Depois do fechamento, uma comissão histórica fica congelada.
-    // Só corrigimos um mês encerrado quando ainda não existe snapshot/lock.
-    if (key !== currentMonth && order.commission_locked === true) {
-      continue;
-    }
+    const existingLevel = String(order.commission_level_snapshot || '').toLowerCase();
+    const hasPersistedSnapshot = Number.isFinite(Number(order.commission))
+      && Number(order.commission) > 0
+      && LEVEL_ORDER[existingLevel] !== undefined
+      && Number.isFinite(Number(order.commission_base_snapshot));
 
     const stats = monthlyStats[key] || { sales: 0, revenue: 0, averageTicket: 0, multiplierActive: false };
-    const historicalLevel = levelForMonthEnd(key, monthlyStats, cumulativeByMonth, normalized, teamJoinedAt, options?.teamSalesByMonth || {});
-    const multiplier = stats.multiplierActive ? normalized.ticketBonus : 0;
+    const historicalLevel = levelForMonthEnd(
+      key,
+      monthlyStats,
+      cumulativeByMonth,
+      normalized,
+      teamJoinedAt,
+      options?.teamSalesByMonth || {}
+    );
 
-    // Mês atual: usa exatamente o nível exibido no card.
-    // Mês encerrado: consolida o nível que existia no último instante daquele mês.
-    const cardLevelKey = key === currentMonth && LEVEL_ORDER[options?.levelKey] !== undefined
+    // REGRA DOS NÍVEIS:
+    // - Somente o mês atual pode ser recalculado em tempo real quando as
+    //   metas de Bônus Mensal ou Bônus Fixo mudam no Admin.
+    // - Isso inclui vendas já realizadas no mês: se a afiliada passa a
+    //   atingir Bronze/Prata/Ouro, todas as vendas daquele mês recebem o
+    //   nível retroativamente.
+    // - Meses encerrados preservam o nível que já foi adquirido no fechamento.
+    const computedLevelKey = key === currentMonth && LEVEL_ORDER[options?.levelKey] !== undefined
       ? options.levelKey
       : historicalLevel.key;
-    const nextBase = Number(normalized.commissions[cardLevelKey] || 0);
-    const nextCommission = Number((nextBase + multiplier).toFixed(2));
+
+    const currentLevelChanged = key === currentMonth && existingLevel !== computedLevelKey;
+    const currentLevelNeedsInitialSnapshot = key === currentMonth && !hasPersistedSnapshot;
+
+    // O valor-base do pedido é congelado quando ele entra em determinado
+    // nível. Se o nível do mês atual mudar por uma nova meta, usamos o valor
+    // atualmente configurado para o novo nível; depois disso ele fica
+    // congelado até que o nível do mês mude novamente.
+    let nextLevel = hasPersistedSnapshot ? existingLevel : computedLevelKey;
+    let nextBase = hasPersistedSnapshot ? Number(order.commission_base_snapshot) : Number(normalized.commissions[nextLevel] || 0);
+
+    if (currentLevelChanged || currentLevelNeedsInitialSnapshot) {
+      nextLevel = computedLevelKey;
+      nextBase = Number(normalized.commissions[nextLevel] || 0);
+    }
+
+    // Bônus de Valor é a única bonificação deliberadamente dinâmica:
+    // depende da média de todas as vendas e das configurações atuais de
+    // Meta Ticket Médio/Bônus de Valor. Por isso o adicional pode mudar
+    // imediatamente até mesmo em vendas antigas.
+    const nextCommission = Number((nextBase + lifetimeTicketMultiplier).toFixed(2));
     const existingBase = Number(order.commission_base_snapshot);
     const existingCommission = Number(order.commission);
-    const existingLevel = String(order.commission_level_snapshot || '').toLowerCase();
-    const nextTeamSnapshot = Number.isFinite(Number(order.team_commission_snapshot))
-      ? Number(order.team_commission_snapshot)
+    const existingTeamSnapshot = Number(order.team_commission_snapshot);
+    const nextTeamSnapshot = Number.isFinite(existingTeamSnapshot)
+      ? existingTeamSnapshot
       : Number(normalized.teamCommissionPerSale || 0);
 
-    if (
-      existingLevel !== cardLevelKey ||
-      !Number.isFinite(existingBase) ||
-      Math.abs(existingBase - nextBase) > 0.001 ||
-      !Number.isFinite(existingCommission) ||
-      Math.abs(existingCommission - nextCommission) > 0.001 ||
-      !Number.isFinite(Number(order.team_commission_snapshot))
-    ) {
+    const needsUpdate = !hasPersistedSnapshot
+      || currentLevelChanged
+      || !Number.isFinite(existingCommission)
+      || Math.abs(existingCommission - nextCommission) > 0.001
+      || !Number.isFinite(existingBase)
+      || Math.abs(existingBase - nextBase) > 0.001
+      || !Number.isFinite(existingTeamSnapshot);
+
+    if (needsUpdate) {
       updates.push({
         id: Number(order.id),
         patch: {
           commission: nextCommission,
-          commission_level_snapshot: cardLevelKey,
+          commission_level_snapshot: nextLevel,
           commission_base_snapshot: nextBase,
           commission_locked: key !== currentMonth,
           team_commission_snapshot: nextTeamSnapshot,
