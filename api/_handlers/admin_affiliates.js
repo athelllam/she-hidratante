@@ -138,8 +138,30 @@ module.exports = async function handler(req, res) {
         boostSpentByAffiliate.set(aid, (boostSpentByAffiliate.get(aid) || 0) + Number(boost.price || 0));
       }
 
+      // Saldo de equipe: soma das comissões de equipe registradas nos pedidos
+      // das afiliadas ligadas a cada líder, menos saques de equipe já reservados/pagos.
+      const affiliateByIdForTeam = new Map((affiliates || []).map(item => [Number(item.id), item]));
+      const teamEarnedByParent = new Map();
+      for (const order of orders || []) {
+        if (!isPaidOrder(order)) continue;
+        const seller = affiliateByIdForTeam.get(Number(order.affiliate_id));
+        const parentId = Number(seller?.team_parent_id || 0);
+        if (!parentId) continue;
+        const amount = Number(order.team_commission_snapshot || 0);
+        if (Number.isFinite(amount)) teamEarnedByParent.set(parentId, (teamEarnedByParent.get(parentId) || 0) + amount);
+      }
+      const teamWithdrawnByParent = new Map();
+      for (const withdrawal of withdrawals || []) {
+        if (String(withdrawal.source || 'personal') !== 'team') continue;
+        if (!['pending', 'approved', 'processing', 'paid'].includes(String(withdrawal.status || '').toLowerCase())) continue;
+        const aid = Number(withdrawal.affiliate_id);
+        teamWithdrawnByParent.set(aid, (teamWithdrawnByParent.get(aid) || 0) + Number(withdrawal.amount || 0));
+      }
+
       const result = (affiliates || []).map(affiliate => {
         const bucket = stats.get(Number(affiliate.id)) || { sales: 0, revenue: 0, commission: 0, withdrawals: 0 };
+        const personalBalance = Math.max(0, bucket.commission - bucket.withdrawals - (boostSpentByAffiliate.get(Number(affiliate.id)) || 0));
+        const teamBalance = Math.max(0, (teamEarnedByParent.get(Number(affiliate.id)) || 0) - (teamWithdrawnByParent.get(Number(affiliate.id)) || 0));
         return {
           ...affiliate,
           sales: bucket.sales,
@@ -147,7 +169,8 @@ module.exports = async function handler(req, res) {
           averageTicket: money(bucket.sales ? bucket.revenue / bucket.sales : 0),
           earnedCommission: money(bucket.commission),
           accesses: Number(bucket.accesses || 0),
-          balance: money(Math.max(0, bucket.commission - bucket.withdrawals - (boostSpentByAffiliate.get(Number(affiliate.id)) || 0))),
+          balance: money(personalBalance),
+          teamBalance: money(teamBalance),
           adminActive: Boolean(affiliate.admin_active),
           lastSaleAt: bucket.lastSaleAt,
           daysWithoutSales: bucket.lastSaleAt

@@ -490,7 +490,7 @@ export default function AdminDashboard() {
         teamCommission: Number(globalStatsData.all?.teamCommission || 0),
         totalCommission: Number(globalStatsData.all?.totalCommission || 0),
         averageCommissionPerSale: Number(globalStatsData.all?.averageCommissionPerSale || 0),
-        totalBalance: affiliates.reduce((sum, affiliate) => sum + Number(affiliate.balance || 0), 0),
+        totalBalance: affiliates.reduce((sum, affiliate) => sum + Number(affiliate.balance || 0) + Number(affiliate.teamBalance || 0), 0),
         pendingCount: pending.length,
         pendingAmount: pending.reduce((sum, item) => sum + Number(item.amount || 0), 0),
       }
