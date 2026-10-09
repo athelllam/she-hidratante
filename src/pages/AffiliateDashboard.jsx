@@ -580,14 +580,6 @@ export default function AffiliateDashboard() {
             <h1 className="mt-1 text-3xl md:text-4xl font-black text-zinc-950">Olá, {affiliate.name}.</h1>
             <p className="mt-2 text-sm text-zinc-500">{selectedMonth === 'all' ? 'Indicadores acumulados de todo o período' : `Indicadores de ${monthLabel(selectedMonth)}`}</p>
           </div>
-          <div className="w-full lg:w-64">
-            <label htmlFor="affiliate-month-filter" className="mb-2 block text-[10px] font-black uppercase tracking-[.16em] text-zinc-400">Filtrar indicadores por mês</label>
-            <select id="affiliate-month-filter" value={selectedMonth} onChange={event => changeSelectedMonth(event.target.value)} className="w-full rounded-xl border border-pink-100 bg-white px-4 py-3 text-sm font-bold text-zinc-800 outline-none focus:border-pink-400">
-              <option value="all">Todos os meses</option>
-              {[...months].sort((a, b) => b.localeCompare(a)).map(month => <option key={month} value={month}>{monthLabel(month)}</option>)}
-            </select>
-          </div>
-
           <div className="flex flex-wrap items-center gap-2">
             {syncMessage && <span className="text-xs font-semibold text-zinc-400">{syncMessage}</span>}
             <button type="button" onClick={openProfile} className="rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-xs font-black text-zinc-700 shadow-sm transition hover:border-pink-300 hover:text-pink-600">
@@ -740,6 +732,16 @@ export default function AffiliateDashboard() {
           </div>
           <button type="button" aria-label="Como funciona a Qualificação Permanente" onClick={() => setFixedHelpOpen(true)} className="absolute bottom-4 right-5 flex h-6 w-6 items-center justify-center rounded-full border border-zinc-200 bg-white/90 text-xs font-black text-zinc-500 shadow-sm transition hover:border-pink-300 hover:text-pink-500">?</button>
         </section>
+
+        <div className="mt-7 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+          <div className="w-full sm:w-64">
+            <label htmlFor="affiliate-month-filter" className="mb-2 block text-[10px] font-black uppercase tracking-[.16em] text-zinc-400">Filtrar indicadores por mês</label>
+            <select id="affiliate-month-filter" value={selectedMonth} onChange={event => changeSelectedMonth(event.target.value)} className="w-full rounded-xl border border-pink-100 bg-white px-4 py-3 text-sm font-bold text-zinc-800 outline-none focus:border-pink-400">
+              <option value="all">Todos os meses</option>
+              {[...months].sort((a, b) => b.localeCompare(a)).map(month => <option key={month} value={month}>{monthLabel(month)}</option>)}
+            </select>
+          </div>
+        </div>
 
         <section className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {cards.map(([label, value]) => {

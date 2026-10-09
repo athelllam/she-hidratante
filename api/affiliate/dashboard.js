@@ -619,7 +619,9 @@ module.exports = async function handler(req, res) {
       ['queued', 'active', 'completed'].includes(String(row.status || '')) &&
       (requestedMonth === 'all' || monthKeyInSaoPaulo(row.created_at || row.queue_created_at) === requestedMonth)
     ).reduce((sum, row) => sum + Number(row.price || 0), 0);
-    const displayAvailableBalance = Math.max(0, displayCommission - displayWithdrawals - displayBoostSpent);
+    // Saldo sacável é sempre acumulado de todo o histórico, independente do filtro mensal.
+    // displayCommission/Withdrawals/BoostSpent são apenas indicadores do período selecionado.
+    const displayAvailableBalance = availableCommission;
     const isClosedMonthSelected = requestedMonth !== 'all' && requestedMonth !== defaultMonth;
     // O valor exibido para o Bônus de Valor vem da configuração oficial,
     // nunca da diferença commission - commission_base_snapshot. Essa diferença
@@ -682,7 +684,7 @@ module.exports = async function handler(req, res) {
         sales: displaySales,
         revenue: money(displayRevenue),
         averageTicket: money(displayAverageTicket),
-        // Comissão do período escolhido; o saldo desconta saques e impulsos do mesmo período.
+        // Comissão segue o filtro mensal; saldo sacável é sempre o acumulado de todos os meses.
         commission: money(displayCommission),
         earnedCommission: money(displayCommission),
         availableCommission: money(displayAvailableBalance),
