@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { supabaseFetch } = require('./supabase');
 
 const DEFAULT_ADMIN_LOGIN = 'athelllam@gmail.com';
+const DEFAULT_ADMIN_USERNAME = 'athelllam';
 const DEFAULT_ADMIN_PASSWORD_SHA256 = '88848b5126f436cdbf6ad2036bad5d68f08ab48df111806ab6bf324ebe4613d8';
 const SESSION_COOKIE = 'she_admin_session';
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7;
@@ -79,10 +80,49 @@ async function requireAdmin(req) {
   return session;
 }
 
-function getAdminCredentials() {
+function envAdminCredentials() {
+  const configuredLogin = String(process.env.ADMIN_LOGIN || DEFAULT_ADMIN_LOGIN).trim();
+  const loginEmail = String(process.env.ADMIN_EMAIL || (configuredLogin.includes('@') ? configuredLogin : DEFAULT_ADMIN_LOGIN)).trim().toLowerCase();
+  const loginUsername = String(process.env.ADMIN_USERNAME || (!configuredLogin.includes('@') ? configuredLogin : DEFAULT_ADMIN_USERNAME)).trim();
   return {
-    login: String(process.env.ADMIN_LOGIN || DEFAULT_ADMIN_LOGIN).trim(),
+    login: configuredLogin,
+    loginUsername,
+    loginEmail,
     passwordSha256: String(process.env.ADMIN_PASSWORD_SHA256 || DEFAULT_ADMIN_PASSWORD_SHA256).trim().toLowerCase(),
+    databaseConfigured: false,
+    notificationEmails: String(process.env.ADMIN_EMAILS || '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean),
+  };
+}
+
+function isMissingAdminProfileTable(error) {
+  const message = String(error?.message || '').toLowerCase();
+  const code = String(error?.data?.code || '').toUpperCase();
+  return error?.statusCode === 404 || code === 'PGRST205' || message.includes('admin_profile_settings') && (message.includes('not find') || message.includes('does not exist') || message.includes('schema cache'));
+}
+
+async function readAdminProfileRow() {
+  try {
+    const rows = await supabaseFetch('/rest/v1/admin_profile_settings?id=eq.1&select=id,login_username,login_email,password_sha256,notification_emails,updated_at&limit=1');
+    return rows?.[0] || null;
+  } catch (error) {
+    if (isMissingAdminProfileTable(error)) return null;
+    throw error;
+  }
+}
+
+async function getAdminCredentials() {
+  const defaults = envAdminCredentials();
+  const row = await readAdminProfileRow();
+  if (!row) return defaults;
+  return {
+    login: String(row.login_email || defaults.loginEmail).trim().toLowerCase(),
+    loginUsername: String(row.login_username || defaults.loginUsername).trim(),
+    loginEmail: String(row.login_email || defaults.loginEmail).trim().toLowerCase(),
+    passwordSha256: String(row.password_sha256 || defaults.passwordSha256).trim().toLowerCase(),
+    databaseConfigured: true,
+    notificationEmails: Array.isArray(row.notification_emails)
+      ? row.notification_emails.map(value => String(value || '').trim().toLowerCase()).filter(Boolean)
+      : defaults.notificationEmails,
   };
 }
 
@@ -93,4 +133,5 @@ module.exports = {
   setAdminCookie,
   clearAdminCookie,
   getAdminCredentials,
+  readAdminProfileRow,
 };

@@ -1,12 +1,22 @@
+const { supabaseFetch } = require('./supabase');
+
 const RESEND_API_KEY = String(process.env.RESEND_API_KEY || '').trim();
 const EMAIL_FROM = String(process.env.EMAIL_FROM || '').trim();
 const APP_BASE_URL = String(process.env.SITE_URL || process.env.APP_BASE_URL || '').replace(/\/$/, '');
 
-function adminRecipients() {
-  return String(process.env.ADMIN_EMAILS || '')
-    .split(',')
-    .map(value => value.trim().toLowerCase())
-    .filter(Boolean);
+async function adminRecipients() {
+  // Prefer the notification list editable from the admin panel. Keep the env var
+  // as a fallback until the admin profile settings migration has been applied.
+  try {
+    const rows = await supabaseFetch('/rest/v1/admin_profile_settings?id=eq.1&select=notification_emails&limit=1');
+    if (rows?.[0] && Array.isArray(rows[0].notification_emails)) {
+      return [...new Set(rows[0].notification_emails.map(value => String(value || '').trim().toLowerCase()).filter(Boolean))];
+    }
+  } catch {
+    // The existing env-based notification configuration remains available if the
+    // settings table is absent or temporarily unavailable.
+  }
+  return [...new Set(String(process.env.ADMIN_EMAILS || '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean))];
 }
 
 function escapeHtml(value) {

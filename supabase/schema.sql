@@ -145,6 +145,19 @@ alter table public.affiliates
 alter table public.affiliate_withdrawals
   add column if not exists pix_key text;
 
+-- Configurações privadas do administrador. A interface nunca recebe o hash da senha.
+create table if not exists public.admin_profile_settings (
+  id integer primary key check (id = 1),
+  login_username text not null,
+  login_email text not null,
+  password_sha256 text not null,
+  notification_emails text[] not null default '{}',
+  updated_at timestamptz not null default now()
+);
+alter table public.admin_profile_settings enable row level security;
+revoke all on table public.admin_profile_settings from anon, authenticated;
+grant all on table public.admin_profile_settings to service_role;
+
 -- Configurações globais das comissões e da meta de ticket médio.
 -- O registro id=1 é único e é alterado somente pelo painel administrativo.
 create table if not exists public.affiliate_settings (

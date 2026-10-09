@@ -1,5 +1,6 @@
 const adminAffiliates = require('./_handlers/admin_affiliates');
 const adminLogin = require('./_handlers/admin_login');
+const adminData = require('./_handlers/admin_data');
 const adminWithdrawals = require('./_handlers/admin_withdrawals');
 const affiliateAuth = require('./_handlers/affiliate_auth');
 const affiliateDashboard = require('./_handlers/affiliate_dashboard');
@@ -43,6 +44,7 @@ module.exports = async function router(req, res) {
 
   if (path === '/api/admin/affiliates') handler = adminAffiliates;
   else if (path === '/api/admin/login') handler = adminLogin;
+  else if (path === '/api/admin/data') handler = adminData;
   else if (path === '/api/admin/withdrawals') handler = adminWithdrawals;
   else if (path === '/api/affiliate/auth') handler = affiliateAuth;
   else if (path === '/api/affiliate/login') { req.query.action = 'login'; handler = affiliateAuth; }

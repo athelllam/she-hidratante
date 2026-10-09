@@ -62,3 +62,6 @@ A rota `/programa-afiliadas` carrega os valores públicos diretamente de `GET /a
 Os valores públicos são os mesmos do painel administrativo: metas do Bônus Mensal, metas do Bônus Fixo, comissões por nível, meta e bônus de ticket, comissão de equipe e planos/capacidade do Impulsionar Equipe.
 
 O campo `Bônus de ticket · por pedido` foi disponibilizado no bloco de configurações administrativas e grava em `affiliate_settings.ticket_bonus`.
+
+## Dados do administrador
+O painel possui a seção **Dados** para login, e-mail de login, troca de senha e múltiplos destinatários de notificações. Antes de usar, execute `supabase/migration_admin_profile_settings.sql` no SQL Editor do Supabase. Consulte `ADMIN-DADOS-SETUP.md`.

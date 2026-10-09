@@ -127,8 +127,8 @@ O token expira em 30 minutos e é invalidado após a alteração da senha.
 
 ### Notificações administrativas
 
-- Nova solicitação de saque → e-mail para todos os endereços de `ADMIN_EMAILS`.
-- Novo vídeo enviado → e-mail para todos os endereços de `ADMIN_EMAILS`.
+- Nova solicitação de saque → e-mail para todos os endereços configurados em Painel administrativo → Dados (com `ADMIN_EMAILS` como fallback antes de salvar a configuração).
+- Novo vídeo enviado → e-mail para todos os endereços configurados em Painel administrativo → Dados.
 
 ### Notificações para afiliada
 
@@ -142,3 +142,6 @@ Não existem notificações por e-mail de venda própria ou venda da equipe.
 A tabela `affiliate_password_reset_tokens` já está no `supabase/schema.sql`. Como o banco deste projeto já recebeu a migration de recuperação de senha executada anteriormente, não é necessário executar outra migration para a tabela de tokens.
 
 Execute também `supabase/migration_email_notifications.sql` no banco atual. Ela cria `email_approved_notified_at`, usado exclusivamente para impedir duplicidade do aviso de saque aprovado por e-mail. Essa coluna é separada das colunas legadas da etapa de WhatsApp.
+
+## Dados do administrador
+O painel possui a seção **Dados** para login, e-mail de login, troca de senha e múltiplos destinatários de notificações. Antes de usar, execute `supabase/migration_admin_profile_settings.sql` no SQL Editor do Supabase. Consulte `ADMIN-DADOS-SETUP.md`.

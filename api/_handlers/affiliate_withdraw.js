@@ -150,7 +150,7 @@ module.exports = async function handler(req, res) {
     const withdrawal = rows?.[0] || null;
     if (withdrawal) {
       await sendEmail({
-        to: adminRecipients(),
+        to: await adminRecipients(),
         subject: `Nova solicitação de saque — ${affiliate.name}`,
         html: adminWithdrawalEmail({
           name: affiliate.name,

@@ -296,7 +296,7 @@ module.exports = async function handler(req, res) {
       const video = rows?.[0] || null;
       if (video) {
         await sendEmail({
-          to: adminRecipients(),
+          to: await adminRecipients(),
           subject: `Novo vídeo para análise — ${affiliate.name}`,
           html: adminVideoEmail({ name: affiliate.name, id: video.id, url: video.video_url }),
           tags: [{ name: 'category', value: 'video-submission' }],

@@ -120,6 +120,16 @@ export default function AdminDashboard() {
   const [monthFilterOpen, setMonthFilterOpen] = useState(false)
   const [averageSaleCost, setAverageSaleCost] = useState('0')
   const [boostState, setBoostState] = useState({ activeCount: 0, queueCount: 0, completedCount: 0, active: [] })
+  const [adminDataOpen, setAdminDataOpen] = useState(false)
+  const [adminDataLoading, setAdminDataLoading] = useState(false)
+  const [adminDataSaving, setAdminDataSaving] = useState(false)
+  const [adminDataError, setAdminDataError] = useState('')
+  const [adminDataNotice, setAdminDataNotice] = useState('')
+  const [adminDataForm, setAdminDataForm] = useState({ loginUsername: '', loginEmail: '', notificationEmails: [''] })
+  const [adminDataInitial, setAdminDataInitial] = useState({ loginUsername: '', loginEmail: '', notificationEmails: [] })
+  const [adminCurrentPassword, setAdminCurrentPassword] = useState('')
+  const [adminNewPassword, setAdminNewPassword] = useState('')
+  const [adminConfirmPassword, setAdminConfirmPassword] = useState('')
 
   const loadPanel = async () => {
     const [affiliateData, withdrawalData, videoData] = await Promise.all([
@@ -225,6 +235,89 @@ export default function AdminDashboard() {
     setAffiliates([])
     setWithdrawals([])
     setSelectedAffiliateIds(new Set())
+  }
+
+  const openAdminData = async () => {
+    setAdminDataOpen(true)
+    setAdminDataLoading(true)
+    setAdminDataError('')
+    setAdminDataNotice('')
+    setAdminCurrentPassword('')
+    setAdminNewPassword('')
+    setAdminConfirmPassword('')
+    try {
+      const data = await api('/api/admin/data')
+      const emails = Array.isArray(data.notificationEmails) && data.notificationEmails.length
+        ? data.notificationEmails
+        : ['']
+      const form = {
+        loginUsername: String(data.loginUsername || ''),
+        loginEmail: String(data.loginEmail || ''),
+        notificationEmails: emails,
+      }
+      setAdminDataForm(form)
+      setAdminDataInitial({
+        loginUsername: form.loginUsername,
+        loginEmail: form.loginEmail,
+        notificationEmails: Array.isArray(data.notificationEmails) ? data.notificationEmails.filter(Boolean) : [],
+      })
+    } catch (e) {
+      setAdminDataError(e.message || 'Não foi possível carregar os dados do administrador.')
+    } finally {
+      setAdminDataLoading(false)
+    }
+  }
+
+  const saveAdminData = async (event) => {
+    event.preventDefault()
+    setAdminDataSaving(true)
+    setAdminDataError('')
+    setAdminDataNotice('')
+    try {
+      const notificationEmails = [...new Set(adminDataForm.notificationEmails.map(value => String(value || '').trim().toLowerCase()).filter(Boolean))]
+      if (!adminDataForm.loginUsername.trim() || !adminDataForm.loginEmail.trim()) {
+        throw new Error('Preencha o login e o e-mail de login.')
+      }
+      if (!notificationEmails.length) throw new Error('Adicione pelo menos um e-mail de notificação.')
+      if (notificationEmails.length > 20) throw new Error('Você pode cadastrar até 20 e-mails de notificação.')
+      if (adminNewPassword && adminNewPassword.length < 10) throw new Error('A nova senha deve ter pelo menos 10 caracteres.')
+      if (adminNewPassword !== adminConfirmPassword) throw new Error('A confirmação da nova senha não confere.')
+      const profileChanged = adminDataForm.loginUsername.trim() !== adminDataInitial.loginUsername
+        || adminDataForm.loginEmail.trim().toLowerCase() !== adminDataInitial.loginEmail.toLowerCase()
+        || Boolean(adminNewPassword)
+      if (profileChanged && !adminCurrentPassword) throw new Error('Informe a senha atual para alterar o login, o e-mail de login ou a senha.')
+
+      const data = await api('/api/admin/data', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          loginUsername: adminDataForm.loginUsername.trim(),
+          loginEmail: adminDataForm.loginEmail.trim().toLowerCase(),
+          notificationEmails,
+          currentPassword: adminCurrentPassword,
+          newPassword: adminNewPassword,
+        }),
+      })
+      const form = {
+        loginUsername: data.loginUsername,
+        loginEmail: data.loginEmail,
+        notificationEmails: data.notificationEmails?.length ? data.notificationEmails : [''],
+      }
+      setAdminDataForm(form)
+      setAdminDataInitial({
+        loginUsername: data.loginUsername,
+        loginEmail: data.loginEmail,
+        notificationEmails: data.notificationEmails || [],
+      })
+      setAdminCurrentPassword('')
+      setAdminNewPassword('')
+      setAdminConfirmPassword('')
+      setAdminDataNotice(data.passwordChanged ? 'Dados salvos. A senha do administrador também foi alterada; use a nova senha no próximo login.' : 'Dados do administrador salvos com sucesso.')
+      setMessage('Dados do administrador atualizados.')
+    } catch (e) {
+      setAdminDataError(e.message || 'Não foi possível salvar os dados do administrador.')
+    } finally {
+      setAdminDataSaving(false)
+    }
   }
 
   const toggleAdminStatus = async (affiliate) => {
@@ -733,6 +826,7 @@ export default function AdminDashboard() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {message && <span className="text-xs font-semibold text-zinc-500">{message}</span>}
+            <button onClick={openAdminData} className="rounded-xl border border-pink-200 bg-white px-4 py-2.5 text-sm font-black text-pink-600 transition hover:bg-pink-50">Dados</button>
             <button onClick={refresh} disabled={refreshing} className="rounded-xl bg-pink-500 px-4 py-2.5 text-sm font-black text-white disabled:opacity-60">
               {refreshing ? 'Atualizando…' : 'Atualizar'}
             </button>
@@ -1496,6 +1590,88 @@ export default function AdminDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {adminDataOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 px-3 py-5 sm:px-6" onMouseDown={(event) => { if (event.target === event.currentTarget && !adminDataSaving) setAdminDataOpen(false) }}>
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] bg-white p-5 shadow-[0_30px_100px_rgba(0,0,0,.3)] sm:p-7">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[.22em] text-pink-500">Configurações privadas</p>
+                <h3 className="mt-1 text-2xl font-black text-zinc-950">Dados do administrador</h3>
+                <p className="mt-1 text-sm text-zinc-500">Gerencie o acesso ao painel e os destinatários das notificações.</p>
+              </div>
+              <button type="button" disabled={adminDataSaving} onClick={() => setAdminDataOpen(false)} className="h-9 w-9 rounded-full bg-zinc-100 text-xl text-zinc-500 disabled:opacity-50">×</button>
+            </div>
+
+            {adminDataLoading ? (
+              <div className="py-16 text-center text-sm font-semibold text-zinc-400">Carregando dados seguros…</div>
+            ) : (
+              <form onSubmit={saveAdminData} className="mt-6 space-y-5">
+                <section className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <h4 className="text-sm font-black text-zinc-900">Credenciais de acesso</h4>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-500">Login</span>
+                      <input value={adminDataForm.loginUsername} onChange={event => setAdminDataForm(current => ({ ...current, loginUsername: event.target.value }))} autoComplete="username" required minLength={3} maxLength={80} className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none focus:border-pink-400" />
+                    </label>
+                    <label className="block">
+                      <span className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-500">E-mail de login</span>
+                      <input value={adminDataForm.loginEmail} onChange={event => setAdminDataForm(current => ({ ...current, loginEmail: event.target.value }))} type="email" autoComplete="email" required className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none focus:border-pink-400" />
+                    </label>
+                  </div>
+                  <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
+                    <p className="text-[10px] font-black uppercase tracking-[.15em] text-amber-700">Senha atual</p>
+                    <p className="mt-1 font-mono text-sm font-black tracking-[.2em] text-amber-900">••••••••••••</p>
+                    <p className="mt-1 text-xs leading-5 text-amber-800">Por segurança, a senha existente não pode ser visualizada. Você pode alterá-la abaixo. Para mudar o login, o e-mail de login ou a senha, será necessário confirmar a senha atual.</p>
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-500">Senha atual (para alterações de acesso)</span>
+                      <input value={adminCurrentPassword} onChange={event => setAdminCurrentPassword(event.target.value)} type="password" autoComplete="current-password" placeholder="Digite a senha atual" className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none focus:border-pink-400" />
+                    </label>
+                    <label className="block">
+                      <span className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-500">Nova senha (opcional)</span>
+                      <input value={adminNewPassword} onChange={event => { setAdminNewPassword(event.target.value); if (!event.target.value) setAdminConfirmPassword('') }} type="password" autoComplete="new-password" minLength={10} placeholder="Mínimo de 10 caracteres" className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none focus:border-pink-400" />
+                    </label>
+                  </div>
+                  {adminNewPassword && (
+                    <label className="mt-3 block">
+                      <span className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-500">Confirmar nova senha</span>
+                      <input value={adminConfirmPassword} onChange={event => setAdminConfirmPassword(event.target.value)} type="password" autoComplete="new-password" required minLength={10} placeholder="Digite a nova senha novamente" className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none focus:border-pink-400" />
+                    </label>
+                  )}
+                </section>
+
+                <section className="rounded-2xl border border-pink-100 bg-white p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-sm font-black text-zinc-900">E-mails de notificação</h4>
+                      <p className="mt-1 text-xs leading-5 text-zinc-500">Todos os endereços cadastrados receberão os avisos administrativos, como novos saques e vídeos para análise.</p>
+                    </div>
+                    <button type="button" onClick={() => setAdminDataForm(current => ({ ...current, notificationEmails: [...current.notificationEmails, ''] }))} disabled={adminDataForm.notificationEmails.length >= 20} className="rounded-xl border border-pink-200 bg-pink-50 px-3 py-2 text-xs font-black text-pink-700 disabled:opacity-50">+ Adicionar e-mail</button>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {adminDataForm.notificationEmails.map((email, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <input value={email} onChange={event => setAdminDataForm(current => ({ ...current, notificationEmails: current.notificationEmails.map((value, itemIndex) => itemIndex === index ? event.target.value : value) }))} type="email" placeholder={`notificacoes${index ? `+${index + 1}` : ''}@exemplo.com`} className="min-w-0 flex-1 rounded-xl border border-zinc-200 px-3 py-3 text-sm outline-none focus:border-pink-400" />
+                        <button type="button" title="Remover e-mail" aria-label={`Remover e-mail ${index + 1}`} onClick={() => setAdminDataForm(current => ({ ...current, notificationEmails: current.notificationEmails.filter((_, itemIndex) => itemIndex !== index) }))} disabled={adminDataForm.notificationEmails.length <= 1} className="h-10 w-10 shrink-0 rounded-xl border border-zinc-200 text-lg font-bold text-zinc-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-30">×</button>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                {adminDataError && <p role="alert" className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{adminDataError}</p>}
+                {adminDataNotice && <p role="status" className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{adminDataNotice}</p>}
+
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <button type="button" disabled={adminDataSaving} onClick={() => setAdminDataOpen(false)} className="rounded-xl border border-zinc-200 px-5 py-3 text-sm font-black text-zinc-600 disabled:opacity-50">Fechar</button>
+                  <button type="submit" disabled={adminDataSaving || adminDataLoading} className="rounded-xl bg-pink-500 px-5 py-3 text-sm font-black text-white transition hover:bg-pink-600 disabled:opacity-50">{adminDataSaving ? 'Salvando…' : 'Salvar dados'}</button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
