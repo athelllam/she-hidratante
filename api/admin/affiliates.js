@@ -1,4 +1,5 @@
 const { requireAdmin, supabaseFetch } = require('../_lib/admin');
+const { wooviFetch } = require('../_lib/woovi');
 const { sendEmail, affiliateVideoReviewEmail } = require('../_lib/email');
 const { commissionForOrders, reconcileAffiliateOrderCommissions, isPaidOrder, DEFAULT_COMMISSION_CONFIG, normalizeConfig } = require('../_lib/affiliateCommission');
 
@@ -15,6 +16,26 @@ module.exports = async function handler(req, res) {
 
   try {
     await requireAdmin(req);
+
+    // Read-only Woovi balance for the admin dashboard. Reuses this function to
+    // stay within Vercel's serverless-function limit; the AppID remains server-side.
+    if (req.method === 'GET' && String(req.query?.wooviBalance || '') === '1') {
+      const result = await wooviFetch('/api/v1/account');
+      const accounts = Array.isArray(result?.accounts) ? result.accounts : [];
+      const account = accounts.find(item => item?.isDefault) || accounts[0];
+      if (!account?.balance || !Number.isFinite(Number(account.balance.available))) {
+        return json(res, 502, { error: 'A Woovi não retornou o saldo disponível da conta.' });
+      }
+      return json(res, 200, {
+        balance: {
+          total: Number(account.balance.total || 0) / 100,
+          blocked: Number(account.balance.blocked || 0) / 100,
+          available: Number(account.balance.available) / 100,
+        },
+        accountId: account.accountId || null,
+        updatedAt: new Date().toISOString(),
+      });
+    }
 
     if (req.method === 'GET' && String(req.query?.videos || '') === '1') {
       const rows = await supabaseFetch('/rest/v1/affiliate_video_submissions?select=id,affiliate_id,video_url,status,note,terms_version,terms_accepted_at,created_at,reviewed_at,affiliates(id,name,slug,email,cpf,whatsapp)&order=created_at.desc&limit=1000');

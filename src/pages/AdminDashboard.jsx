@@ -93,6 +93,9 @@ export default function AdminDashboard() {
   const [login, setLogin] = useState({ username: '', password: '' })
   const [error, setError] = useState('')
   const [affiliates, setAffiliates] = useState([])
+  const [wooviBalance, setWooviBalance] = useState(null)
+  const [wooviBalanceError, setWooviBalanceError] = useState('')
+  const [wooviBalanceLoading, setWooviBalanceLoading] = useState(false)
   const [withdrawals, setWithdrawals] = useState([])
   const [videoSubmissions, setVideoSubmissions] = useState([])
   const [videoFilter, setVideoFilter] = useState('pending')
@@ -144,6 +147,11 @@ export default function AdminDashboard() {
   const [adminConfirmPassword, setAdminConfirmPassword] = useState('')
 
   const loadPanel = async () => {
+    setWooviBalanceLoading(true)
+    const balanceRequest = api('/api/admin/affiliates?wooviBalance=1')
+      .then(data => { setWooviBalance(data.balance); setWooviBalanceError('') })
+      .catch(error => { setWooviBalance(null); setWooviBalanceError(error.message || 'Não foi possível consultar o saldo Woovi.') })
+      .finally(() => setWooviBalanceLoading(false))
     const [affiliateData, withdrawalData, videoData] = await Promise.all([
       api('/api/admin/affiliates'),
       api('/api/admin/withdrawals'),
@@ -153,6 +161,7 @@ export default function AdminDashboard() {
     setWithdrawals(withdrawalData.withdrawals || [])
     setSelectedWithdrawalIds(new Set())
     setVideoSubmissions(videoData.videos || [])
+    await balanceRequest
     setBoostState(affiliateData.boostState || { activeCount: 0, queueCount: 0, completedCount: 0, active: [] })
     setGlobalStatsData(affiliateData.globalStats || { all: { sales: 0, revenue: 0, averageTicket: 0, accesses: 0 }, byMonth: {}, snapshots: {} })
     setAvailableMonths(affiliateData.availableMonths || [])
@@ -938,7 +947,7 @@ export default function AdminDashboard() {
 
           <div className="my-5 h-px w-full bg-zinc-200/70" aria-hidden="true" />
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {[
               ['Afiliadas', stats.affiliates],
               ['Ativas', stats.active],
@@ -956,6 +965,15 @@ export default function AdminDashboard() {
                 )}
               </div>
             ))}
+            <div className={`rounded-[1.5rem] border p-5 shadow-sm ${!wooviBalance ? 'border-zinc-200 bg-zinc-50/70' : wooviBalance.available < stats.totalBalance ? 'border-red-200 bg-red-50/70' : 'border-emerald-200 bg-emerald-50/70'}`}>
+              <p className={`text-[10px] font-black uppercase tracking-[.18em] ${!wooviBalance ? 'text-zinc-500' : wooviBalance.available < stats.totalBalance ? 'text-red-700' : 'text-emerald-700'}`}>Saldo Woovi</p>
+              <p className="mt-2 text-2xl font-black text-zinc-950">
+                {wooviBalanceLoading ? 'Consultando…' : wooviBalance ? brl(wooviBalance.available) : 'Indisponível'}
+              </p>
+              <p className={`mt-1 text-xs font-medium ${!wooviBalance ? 'text-zinc-500' : wooviBalance.available < stats.totalBalance ? 'text-red-800/80' : 'text-emerald-800/80'}`}>
+                {wooviBalance ? `Disponível para pagamentos · Total: ${brl(wooviBalance.total)}${wooviBalance.blocked > 0 ? ` · Bloqueado: ${brl(wooviBalance.blocked)}` : ''}` : (wooviBalanceError || 'Não foi possível consultar o saldo.')}
+              </p>
+            </div>
           </div>
         </section>
 
