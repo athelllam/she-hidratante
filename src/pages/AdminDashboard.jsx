@@ -705,12 +705,8 @@ export default function AdminDashboard() {
               <p className="mt-1 text-xs text-zinc-400">Comissões pessoais + equipe ÷ vendas pagas</p>
             </div>
             <div className="rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
-              <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">Comissões pessoais do sistema</p>
-              <p className="mt-2 text-2xl font-black text-zinc-950">{brl(stats.personalCommission)}</p>
-            </div>
-            <div className="rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
-              <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">Comissões de equipe do sistema</p>
-              <p className="mt-2 text-2xl font-black text-zinc-950">{brl(stats.teamCommission)}</p>
+              <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">Comissão total</p>
+              <p className="mt-2 text-2xl font-black text-zinc-950">{brl(stats.totalCommission)}</p>
             </div>
             <div className="rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
               <label htmlFor="average-sale-cost" className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">Custo médio por venda (R$)</label>
