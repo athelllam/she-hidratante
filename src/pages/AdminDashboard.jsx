@@ -524,7 +524,7 @@ export default function AdminDashboard() {
       teamCommission: selected.teamCommission,
       totalCommission: selected.personalCommission + selected.teamCommission,
       averageCommissionPerSale: selected.sales ? (selected.personalCommission + selected.teamCommission) / selected.sales : 0,
-      totalBalance: Number(snapshot.totalBalance || 0),
+      totalBalance: affiliates.reduce((sum, affiliate) => sum + Number(affiliate.balance || 0) + Number(affiliate.teamBalance || 0), 0),
       pendingCount: pending.length,
       pendingAmount: pending.reduce((sum, item) => sum + Number(item.amount || 0), 0),
     }
@@ -843,7 +843,8 @@ export default function AdminDashboard() {
                   <th className="pb-3 pr-4">Vendas</th>
                   <th className="pb-3 pr-4">Faturamento</th>
                   <th className="pb-3 pr-4">Ticket médio</th>
-                  <th className="pb-3 pr-4">Saldo</th>
+                  <th className="pb-3 pr-4">Saldo pessoal</th>
+                  <th className="pb-3 pr-4">Saldo de equipe</th>
                   <th className="pb-3 pr-4">ID</th>
                   <th className="pb-3 pr-4">Data de entrada</th>
                   <th className="pb-3 pr-4">Ativa/Inativa</th>
@@ -869,7 +870,8 @@ export default function AdminDashboard() {
                     <td className="py-4 pr-4 font-black text-zinc-950">{affiliate.sales}</td>
                     <td className="py-4 pr-4 font-black text-zinc-950">{brl(affiliate.revenue)}</td>
                     <td className="py-4 pr-4 font-black text-zinc-950">{brl(affiliate.averageTicket)}</td>
-                    <td className="py-4 pr-4 font-black text-emerald-600">{brl(Number(affiliate.totalBalance ?? (Number(affiliate.balance || 0) + Number(affiliate.teamBalance || 0))))}</td>
+                    <td className="py-4 pr-4 font-black text-emerald-600">{brl(Number(affiliate.balance || 0))}</td>
+                    <td className="py-4 pr-4 font-black text-violet-600">{brl(Number(affiliate.teamBalance || 0))}</td>
                     <td className="py-4 pr-4 font-bold text-zinc-600">{affiliate.id}</td>
                     <td className="py-4 pr-4 font-bold text-zinc-700">{affiliate.created_at ? new Date(affiliate.created_at).toLocaleDateString('pt-BR') : '—'}</td>
                     <td className="py-4 pr-4">
