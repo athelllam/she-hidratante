@@ -183,7 +183,7 @@ module.exports = async function handler(req, res) {
       const orders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=status,total,created_at&order=created_at.asc&limit=5000`);
       const earned = commissionForOrders(orders || [], settings, { teamJoinedAt: affiliate.team_joined_at }).total;
       const withdrawals = await supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${affiliate.id}&source=eq.personal&status=in.(pending,approved,processing,paid)&select=amount&limit=1000`);
-      const baseAvailable = earned - (withdrawals || []).reduce((sum, w) => sum + Number(w.amount || 0), 0);
+      const baseAvailable = earned - (withdrawals || []).filter(w => !['rejected', 'failed'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
       const result = await supabaseFetch('/rest/v1/rpc/she_team_boost_purchase', {
         method: 'POST',
         body: JSON.stringify({ p_affiliate_id: Number(affiliate.id), p_price: selected.price, p_connections: selected.connections, p_earned_balance: baseAvailable }),
@@ -421,7 +421,7 @@ module.exports = async function handler(req, res) {
     let selectedCommission = selectedOrders.reduce((sum, o) => sum + Number(o.commission || 0), 0);
     const personalWithdrawals = (withdrawals || []).filter(w => String(w.source || 'personal') === 'personal');
     const teamWithdrawals = (withdrawals || []).filter(w => String(w.source || 'personal') === 'team');
-    const reserved = personalWithdrawals.reduce((sum, w) => sum + Number(w.amount || 0), 0);
+    const reserved = personalWithdrawals.filter(w => !['rejected', 'failed'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const boostSpent = (boostRows || []).filter(row => ['queued', 'active', 'completed'].includes(String(row.status || ''))).reduce((sum, row) => sum + Number(row.price || 0), 0);
     let availableCommission = Math.max(0, totalEarnedCommission - reserved - boostSpent);
     // O nível é mensal. Em "Todos os meses", usamos o mês atual,
@@ -429,7 +429,7 @@ module.exports = async function handler(req, res) {
 
     // Saldo acumulado: o saldo de abertura do mês é o saldo final do mês anterior.
     // Saques pending/approved/paid já reduzem o saldo disponível imediatamente.
-    const selectedWithdrawalsTotal = selectedWithdrawals.filter(w => String(w.source || 'personal') === 'personal').reduce((sum, w) => sum + Number(w.amount || 0), 0);
+    const selectedWithdrawalsTotal = selectedWithdrawals.filter(w => String(w.source || 'personal') === 'personal' && !['rejected', 'failed'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const openingBalance = 0;
     const closingBalance = availableCommission;
 
@@ -556,7 +556,7 @@ module.exports = async function handler(req, res) {
         const snapshot = Number(order.team_commission_snapshot);
         return sum + (Number.isFinite(snapshot) && snapshot > 0 ? snapshot : teamRate);
       }, 0);
-    const teamReserved = teamWithdrawals.reduce((sum, w) => sum + Number(w.amount || 0), 0);
+    const teamReserved = teamWithdrawals.filter(w => !['rejected', 'failed'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const teamAvailableCommission = Math.max(0, teamEarnedCommission - teamReserved);
     const team = {
       code: String(affiliate.team_code || ''),

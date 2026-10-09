@@ -77,7 +77,7 @@ module.exports = async function handler(req, res) {
       }, 0);
     }
 
-    const reserved = (withdrawals || []).reduce((sum, w) => sum + Number(w.amount || 0), 0);
+    const reserved = (withdrawals || []).filter(w => !['rejected', 'failed'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const available = Math.max(0, earned - reserved);
 
     if (amount > available + 0.001) {

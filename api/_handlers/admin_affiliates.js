@@ -268,7 +268,7 @@ module.exports = async function handler(req, res) {
           const affiliateOrdersUntilEnd = monthOrders.filter(order => Number(order.affiliate_id) === Number(affiliate.id));
           const commissionUntilEnd = commissionForOrders(affiliateOrdersUntilEnd, settings).total;
           const withdrawalsUntilEnd = (withdrawals || []).filter(w => String(w.source || 'personal') === 'personal' && Number(w.affiliate_id) === Number(affiliate.id) && new Date(w.requested_at).getTime() < endExclusive.getTime() && ['pending','approved','paid'].includes(String(w.status || '').toLowerCase()))
-            .reduce((sum, w) => sum + Number(w.amount || 0), 0);
+            .filter(w => !['rejected', 'failed'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
           balance += Math.max(0, commissionUntilEnd - withdrawalsUntilEnd);
         }
 
