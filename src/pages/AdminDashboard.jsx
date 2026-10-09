@@ -853,9 +853,15 @@ export default function AdminDashboard() {
               ['Inativas', stats.inactive],
               ['Saldo das afiliadas', brl(stats.totalBalance)],
             ].map(([label, value]) => (
-              <div key={label} className="rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
+              <div
+                key={label}
+                className={`rounded-[1.5rem] border p-5 shadow-sm ${label === 'Saldo das afiliadas' ? 'border-pink-200 bg-pink-50/80' : 'border-pink-100 bg-white'}`}
+              >
                 <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">{label}</p>
                 <p className="mt-2 text-2xl font-black text-zinc-950">{value}</p>
+                {label === 'Saldo das afiliadas' && (
+                  <p className="mt-1 text-xs font-medium text-pink-700/80">Saldo total Afiliadas + Equipes</p>
+                )}
               </div>
             ))}
           </div>
