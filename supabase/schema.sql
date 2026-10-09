@@ -42,6 +42,28 @@ create table if not exists public.affiliate_orders (
 
 create index if not exists affiliate_events_affiliate_idx on public.affiliate_events(affiliate_id, created_at desc);
 create index if not exists affiliate_orders_affiliate_idx on public.affiliate_orders(affiliate_id, created_at desc);
+
+-- Backfill legacy orders with Yampi's actual order-creation date when it is
+-- present in the stored payload. This prevents the webhook ingestion timestamp
+-- from assigning an old sale to the wrong month.
+update public.affiliate_orders ao
+set created_at = (coalesce(
+  ao.raw_payload #>> '{data,order,created_at,date}',
+  case when jsonb_typeof(ao.raw_payload #> '{data,order,created_at}') = 'string' then ao.raw_payload #>> '{data,order,created_at}' end,
+  ao.raw_payload #>> '{order,created_at,date}',
+  case when jsonb_typeof(ao.raw_payload #> '{order,created_at}') = 'string' then ao.raw_payload #>> '{order,created_at}' end,
+  ao.raw_payload #>> '{data,created_at,date}',
+  case when jsonb_typeof(ao.raw_payload #> '{data,created_at}') = 'string' then ao.raw_payload #>> '{data,created_at}' end
+))::timestamptz
+where ao.raw_payload is not null
+  and coalesce(
+    ao.raw_payload #>> '{data,order,created_at,date}',
+    case when jsonb_typeof(ao.raw_payload #> '{data,order,created_at}') = 'string' then ao.raw_payload #>> '{data,order,created_at}' end,
+    ao.raw_payload #>> '{order,created_at,date}',
+    case when jsonb_typeof(ao.raw_payload #> '{order,created_at}') = 'string' then ao.raw_payload #>> '{order,created_at}' end,
+    ao.raw_payload #>> '{data,created_at,date}',
+    case when jsonb_typeof(ao.raw_payload #> '{data,created_at}') = 'string' then ao.raw_payload #>> '{data,created_at}' end
+  ) ~ '^\d{4}-\d{2}-\d{2}';
 create index if not exists affiliate_orders_status_idx on public.affiliate_orders(status);
 
 -- Snapshot da comissão aplicada à venda.

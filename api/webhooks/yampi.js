@@ -1,6 +1,7 @@
 const { supabaseFetch, json } = require('../_lib/supabase');
 const crypto = require('crypto');
 const { reconcileAffiliateOrderCommissions, normalizeConfig, DEFAULT_COMMISSION_CONFIG } = require('../_lib/affiliateCommission');
+const { getCreatedAt } = require('../_lib/yampi');
 
 function header(req, name) {
   return req.headers[name.toLowerCase()] || req.headers[name] || '';
@@ -152,6 +153,8 @@ module.exports = async function handler(req, res) {
 
     const status = getStoredStatus(payload);
     const total = getTotal(payload);
+    // Preserve Yampi's actual order date rather than the webhook arrival time.
+    const saleCreatedAt = getCreatedAt(getOrder(payload));
 
     const settingRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales&limit=1');
     const row = settingRows?.[0];
@@ -180,6 +183,7 @@ module.exports = async function handler(req, res) {
         affiliate_id: affiliateId,
         status,
         total,
+        ...(saleCreatedAt ? { created_at: saleCreatedAt } : {}),
         commission: 0,
         team_commission_snapshot: affiliates[0].team_parent_id ? Number(commissionConfig.teamCommissionPerSale || 0) : 0,
         raw_payload: payload,

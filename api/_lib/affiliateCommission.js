@@ -125,7 +125,9 @@ function teamBonusActiveAt(dateValue, teamJoinedAt) {
   const joined = teamJoinedAt ? new Date(teamJoinedAt) : null;
   const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
   if (!joined || Number.isNaN(joined.getTime()) || Number.isNaN(date.getTime())) return false;
-  return date >= joined && date < new Date(joined.getTime() + 30 * 24 * 60 * 60 * 1000);
+  // 30 consecutive 24-hour periods from the recorded team-entry timestamp.
+  const expiresAt = joined.getTime() + 30 * 24 * 60 * 60 * 1000;
+  return date.getTime() >= joined.getTime() && date.getTime() < expiresAt;
 }
 
 function monthEndInstant(month) {
