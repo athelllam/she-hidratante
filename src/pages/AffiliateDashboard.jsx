@@ -855,9 +855,9 @@ export default function AffiliateDashboard() {
             <div className="rounded-2xl border border-pink-100 bg-pink-50/60 p-4"><p className="text-[10px] font-black uppercase tracking-[.15em] text-pink-500">Saldo de Equipe</p><p className="mt-1 text-2xl font-black text-zinc-950">{brl(team.availableCommission)}</p></div>
           </div>
 
-          <div className="mt-5 overflow-x-auto">
+          <div className="mt-5 max-h-[320px] overflow-auto rounded-xl border border-zinc-100">
             <table className="w-full min-w-[520px] text-sm">
-              <thead><tr className="border-b border-zinc-100 text-left text-[10px] font-black uppercase tracking-[.14em] text-zinc-400"><th className="pb-3">Afiliada</th><th className="pb-3">ID</th><th className="pb-3">Vendas</th><th className="pb-3">Comissão gerada</th></tr></thead>
+              <thead className="sticky top-0 z-10 bg-white"><tr className="border-b border-zinc-100 text-left text-[10px] font-black uppercase tracking-[.14em] text-zinc-400"><th className="pb-3">Afiliada</th><th className="pb-3">ID</th><th className="pb-3">Vendas</th><th className="pb-3">Comissão gerada</th></tr></thead>
               <tbody>{(team.members || []).map(member => <tr key={member.id} className="border-b border-zinc-100 last:border-0"><td className="py-3 font-black"><div className="flex items-center gap-2"><a href={whatsappUrl(member.whatsapp) || '#'} target={member.whatsapp ? '_blank' : undefined} rel={member.whatsapp ? 'noreferrer' : undefined} aria-label={member.whatsapp ? `Falar com ${member.name} pelo WhatsApp` : undefined} className={member.whatsapp ? 'text-[#25D366] transition-opacity hover:opacity-70' : 'pointer-events-none text-zinc-200'}><svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M20.52 3.48A11.82 11.82 0 0 0 12.08 0C5.55 0 .24 5.31.24 11.84c0 2.09.55 4.13 1.59 5.93L.13 24l6.38-1.67a11.8 11.8 0 0 0 5.57 1.42h.01c6.53 0 11.84-5.31 11.84-11.84 0-3.16-1.23-6.13-3.41-8.43ZM12.09 21.8h-.01a9.91 9.91 0 0 1-5.05-1.39l-.36-.21-3.79.99 1.01-3.69-.23-.38a9.9 9.9 0 0 1-1.52-5.28C2.14 6.37 6.6 1.91 12.08 1.91c2.65 0 5.14 1.03 7.01 2.9a9.86 9.86 0 0 1 2.91 7.02c0 5.48-4.46 9.94-9.91 9.97Zm5.44-7.45c-.3-.15-1.78-.88-2.05-.98-.27-.1-.47-.15-.67.15-.2.3-.77.98-.94 1.18-.17.2-.35.22-.65.07-.3-.15-1.27-.47-2.42-1.49-.9-.8-1.51-1.78-1.69-2.08-.18-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.61-.92-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.49s1.07 2.89 1.22 3.09c.15.2 2.11 3.22 5.12 4.52.72.31 1.28.5 1.72.64.72.23 1.37.2 1.89.12.58-.09 1.78-.73 2.03-1.44.25-.71.25-1.32.18-1.44-.07-.12-.27-.2-.57-.35Z"/></svg></a><div className="min-w-0"><span className="block">{member.name}</span><span className="mt-0.5 block text-[9px] font-black uppercase tracking-[.12em] text-zinc-400">{member.teamJoinSource === 'boost' ? 'Impulsionado' : 'Orgânico'}</span></div></div></td><td className="py-3 text-zinc-500">{member.id}</td><td className="py-3 font-bold">{member.sales}</td><td className="py-3 font-black text-pink-600">{brl(member.commission)}</td></tr>)}</tbody>
             </table>
             {!team.members?.length && <div className="py-6 text-center text-sm text-zinc-400">Nenhuma afiliada entrou na sua equipe ainda.</div>}
@@ -973,7 +973,7 @@ export default function AffiliateDashboard() {
             <span className="rounded-full bg-zinc-50 px-3 py-1 text-xs font-black text-zinc-500">{(dashboard?.movements || []).length} movimentação(ões)</span>
           </div>
 
-          <div className="mt-5 space-y-3">
+          <div className="mt-5 max-h-[500px] space-y-3 overflow-y-auto pr-1">
             {(dashboard?.movements || []).map(movement => (
               <div key={movement.id} className="flex flex-col gap-3 rounded-2xl border border-zinc-100 bg-zinc-50/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
@@ -988,7 +988,7 @@ export default function AffiliateDashboard() {
                 </div>
                 <div className="flex items-center gap-3 sm:justify-end">
                   <span className="text-lg font-black text-zinc-950">{brl(movement.amount)}</span>
-                  <span className={`rounded-full px-3 py-1 text-[11px] font-black ${movement.kind === 'boost' ? (movement.status === 'active' ? 'bg-emerald-100 text-emerald-800' : movement.status === 'cancelled' ? 'bg-zinc-200 text-zinc-700' : movement.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800') : (movement.status === 'pending' ? 'bg-amber-100 text-amber-800' : movement.status === 'processing' ? 'bg-blue-100 text-blue-800' : movement.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : movement.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-zinc-200 text-zinc-700')}`}>
+                  <span className={`rounded-full px-3 py-1 text-[11px] font-black ${movement.kind === 'boost' ? (movement.status === 'active' ? 'bg-emerald-100 text-emerald-800' : movement.status === 'cancelled' ? 'bg-zinc-200 text-zinc-700' : movement.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800') : (movement.status === 'pending' ? 'bg-amber-100 text-amber-800' : movement.status === 'processing' ? 'bg-blue-100 text-blue-800' : movement.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : movement.status === 'failed' || movement.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-zinc-200 text-zinc-700')}`}>
                     {movement.kind === 'boost' ? boostStatusLabel(movement.status) : withdrawalStatusLabel(movement.status)}
                   </span>
                 </div>
