@@ -88,6 +88,9 @@ export default function AdminDashboard() {
   const [videoBusyId, setVideoBusyId] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
   const [payingId, setPayingId] = useState(null)
+  const [bulkPayingWithdrawals, setBulkPayingWithdrawals] = useState(false)
+  const [bulkProgress, setBulkProgress] = useState(null)
+  const [selectedWithdrawalIds, setSelectedWithdrawalIds] = useState(new Set())
   const [togglingId, setTogglingId] = useState(null)
   const [message, setMessage] = useState('')
   const [affiliateFilter, setAffiliateFilter] = useState('all')
@@ -126,6 +129,7 @@ export default function AdminDashboard() {
     ])
     setAffiliates(affiliateData.affiliates || [])
     setWithdrawals(withdrawalData.withdrawals || [])
+    setSelectedWithdrawalIds(new Set())
     setVideoSubmissions(videoData.videos || [])
     setBoostState(affiliateData.boostState || { activeCount: 0, queueCount: 0, completedCount: 0, active: [] })
     setGlobalStatsData(affiliateData.globalStats || { all: { sales: 0, revenue: 0, averageTicket: 0, accesses: 0 }, byMonth: {}, snapshots: {} })
@@ -281,6 +285,82 @@ export default function AdminDashboard() {
       setMessage(e.message || 'Não foi possível processar o saque.')
     } finally {
       setPayingId(null)
+    }
+  }
+
+  const toggleWithdrawalSelection = (withdrawalId) => {
+    const key = String(withdrawalId)
+    setSelectedWithdrawalIds(current => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const toggleSelectAllVisibleWithdrawals = () => {
+    setSelectedWithdrawalIds(current => {
+      const next = new Set(current)
+      const visibleIds = selectableWithdrawals.map(withdrawal => String(withdrawal.id))
+      const allSelected = visibleIds.length > 0 && visibleIds.every(id => next.has(id))
+      visibleIds.forEach(id => allSelected ? next.delete(id) : next.add(id))
+      return next
+    })
+  }
+
+  const approveSelectedWithdrawals = async () => {
+    const selected = selectableWithdrawals.filter(withdrawal => selectedWithdrawalIds.has(String(withdrawal.id)))
+    if (!selected.length || bulkPayingWithdrawals) return
+
+    const total = selected.reduce((sum, withdrawal) => sum + Number(withdrawal.amount || 0), 0)
+    const preview = selected.slice(0, 8).map(withdrawal => `• ${withdrawal.affiliates?.name || 'Afiliada'} — ${brl(withdrawal.amount)} (saque #${withdrawal.id})`).join('\n')
+    const more = selected.length > 8 ? `\n… e mais ${selected.length - 8} solicitação(ões).` : ''
+    const confirmed = window.confirm(
+      `Você selecionou ${selected.length} solicitação(ões), totalizando ${brl(total)}.\n\n${preview}${more}\n\nA operação enviará cada solicitação à Woovi uma por vez, para transferir Pix reais às chaves cadastradas. Se alguma falhar ou ficar em processamento, não será reenviada automaticamente. Deseja continuar?`
+    )
+    if (!confirmed) return
+
+    setBulkPayingWithdrawals(true)
+    setBulkProgress({ current: 0, total: selected.length })
+    setMessage('')
+    const succeeded = []
+    const failed = []
+    try {
+      for (let index = 0; index < selected.length; index += 1) {
+        const withdrawal = selected[index]
+        setBulkProgress({ current: index + 1, total: selected.length })
+        setMessage(`Processando solicitação ${index + 1} de ${selected.length} — saque #${withdrawal.id}…`)
+        try {
+          const result = await api('/api/admin/withdrawals', {
+            method: 'PATCH',
+            body: JSON.stringify({ id: withdrawal.id, action: 'approve' }),
+          })
+          const resultStatus = String(result.withdrawal?.status || 'processing').toLowerCase()
+          if (resultStatus === 'failed') {
+            failed.push({ withdrawal, message: result.message || result.withdrawal?.woovi_fail_reason || 'A Woovi recusou o pagamento.' })
+          } else {
+            succeeded.push({ withdrawal, status: resultStatus, message: result.message || '' })
+          }
+        } catch (error) {
+          failed.push({ withdrawal, message: error.message || 'Erro desconhecido.' })
+        }
+      }
+
+      await loadPanel()
+      setSelectedWithdrawalIds(new Set())
+
+      const paidCount = succeeded.filter(item => item.status === 'paid').length
+      const waitingCount = succeeded.length - paidCount
+      const succeededValue = succeeded.reduce((sum, item) => sum + Number(item.withdrawal.amount || 0), 0)
+      const failedDetails = failed.slice(0, 4).map(item => `#${item.withdrawal.id}: ${item.message}`).join(' | ')
+      let summary = `Lote concluído: ${paidCount} pago(s) confirmado(s), ${waitingCount} solicitação(ões) enviada(s)/aguardando confirmação (${brl(succeededValue)} no total) e ${failed.length} falha(s). Confira os status finais no painel e na Woovi.`
+      if (failedDetails) summary += ` Detalhes: ${failedDetails}${failed.length > 4 ? ` | e mais ${failed.length - 4} falha(s)` : ''}`
+      setMessage(summary)
+    } catch (error) {
+      setMessage(error.message || 'O processamento em lote terminou, mas não foi possível atualizar o painel. Atualize a página e confira cada saque antes de tentar novamente.')
+    } finally {
+      setBulkPayingWithdrawals(false)
+      setBulkProgress(null)
     }
   }
 
@@ -596,6 +676,11 @@ export default function AdminDashboard() {
       return new Date(b.requested_at || 0) - new Date(a.requested_at || 0)
     })
   }, [filteredWithdrawals])
+
+  const selectableWithdrawals = orderedWithdrawals.filter(item => item.status === 'pending' || item.status === 'approved')
+  const selectedVisibleWithdrawals = selectableWithdrawals.filter(item => selectedWithdrawalIds.has(String(item.id)))
+  const allSelectableWithdrawalsSelected = selectableWithdrawals.length > 0 && selectedVisibleWithdrawals.length === selectableWithdrawals.length
+  const selectedWithdrawalTotal = selectedVisibleWithdrawals.reduce((sum, item) => sum + Number(item.amount || 0), 0)
 
   if (loading) return <main className="min-h-screen bg-[#fffafc]" />
 
@@ -1097,16 +1182,16 @@ export default function AdminDashboard() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-xl font-black text-zinc-950">Solicitações de saque</h2>
-              <p className="mt-1 text-sm text-zinc-400">Pague a afiliada primeiro. Depois clique em “Marcar como pago”.</p>
+              <p className="mt-1 text-sm text-zinc-400">Selecione uma ou várias solicitações pendentes para enviar os Pix pela Woovi.</p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <label className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2">
               <span className="text-[10px] font-black uppercase tracking-[.14em] text-zinc-400">Buscar por ID</span>
-              <input value={withdrawalSearch} onChange={e => setWithdrawalSearch(e.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder="ID da afiliada" className="w-32 bg-transparent text-sm font-black text-zinc-800 outline-none" />
+              <input value={withdrawalSearch} onChange={e => { setWithdrawalSearch(e.target.value.replace(/\D/g, '')); setSelectedWithdrawalIds(new Set()) }} inputMode="numeric" placeholder="ID da afiliada" className="w-32 bg-transparent text-sm font-black text-zinc-800 outline-none" />
             </label>
             <label className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2">
               <span className="text-[10px] font-black uppercase tracking-[.14em] text-zinc-400">Mês</span>
-              <select value={withdrawalMonth} onChange={e => setWithdrawalMonth(e.target.value)} className="bg-transparent text-sm font-black text-zinc-800 outline-none">
+              <select value={withdrawalMonth} onChange={e => { setWithdrawalMonth(e.target.value); setSelectedWithdrawalIds(new Set()) }} className="bg-transparent text-sm font-black text-zinc-800 outline-none">
                 <option value="all">Todos os meses</option>
                 {Array.from(new Set(withdrawals.map(item => {
                   const date = new Date(item.requested_at || item.date || 0)
@@ -1120,19 +1205,63 @@ export default function AdminDashboard() {
               </select>
             </label>
             <div className="flex flex-wrap items-center gap-2">
-              <FilterPill active={withdrawalFilter === 'all'} onClick={() => setWithdrawalFilter('all')}>Todos · {withdrawals.length}</FilterPill>
-              <FilterPill active={withdrawalFilter === 'pending'} onClick={() => setWithdrawalFilter('pending')}>Pendentes · {stats.pendingCount}</FilterPill>
-              <FilterPill active={withdrawalFilter === 'paid'} onClick={() => setWithdrawalFilter('paid')}>Pagos · {withdrawals.filter(item => item.status === 'paid').length}</FilterPill><FilterPill active={withdrawalFilter === 'rejected'} onClick={() => setWithdrawalFilter('rejected')}>Recusados · {withdrawals.filter(item => item.status === 'rejected').length}</FilterPill>
+              <FilterPill active={withdrawalFilter === 'all'} onClick={() => { setWithdrawalFilter('all'); setSelectedWithdrawalIds(new Set()) }}>Todos · {withdrawals.length}</FilterPill>
+              <FilterPill active={withdrawalFilter === 'pending'} onClick={() => { setWithdrawalFilter('pending'); setSelectedWithdrawalIds(new Set()) }}>Pendentes · {stats.pendingCount}</FilterPill>
+              <FilterPill active={withdrawalFilter === 'paid'} onClick={() => { setWithdrawalFilter('paid'); setSelectedWithdrawalIds(new Set()) }}>Pagos · {withdrawals.filter(item => item.status === 'paid').length}</FilterPill><FilterPill active={withdrawalFilter === 'rejected'} onClick={() => { setWithdrawalFilter('rejected'); setSelectedWithdrawalIds(new Set()) }}>Recusados · {withdrawals.filter(item => item.status === 'rejected').length}</FilterPill>
             </div>
             </div>
+          </div>
+
+          <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-pink-100 bg-pink-50/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={allSelectableWithdrawalsSelected}
+                aria-label="Selecionar todos os saques pendentes exibidos"
+                onClick={toggleSelectAllVisibleWithdrawals}
+                disabled={!selectableWithdrawals.length || bulkPayingWithdrawals || payingId !== null}
+                className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-40 ${allSelectableWithdrawalsSelected ? 'bg-pink-500' : 'bg-zinc-300'}`}
+              >
+                <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${allSelectableWithdrawalsSelected ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+              <div>
+                <p className="text-sm font-black text-zinc-900">Selecionar Todos</p>
+                <p className="mt-0.5 text-xs text-zinc-500">Seleciona somente saques pendentes ou aprovados exibidos com os filtros atuais.</p>
+                <p className="mt-1 text-xs font-bold text-zinc-700">{selectedVisibleWithdrawals.length} de {selectableWithdrawals.length} selecionado(s) · Total: {brl(selectedWithdrawalTotal)}</p>
+                <p className="mt-1 text-[11px] font-semibold text-amber-700">A aprovação envia solicitações reais à Woovi. Use quando o Pix Out estiver liberado.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={approveSelectedWithdrawals}
+              disabled={!selectedVisibleWithdrawals.length || bulkPayingWithdrawals || payingId !== null}
+              className="rounded-xl bg-zinc-950 px-5 py-3 text-sm font-black text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {bulkPayingWithdrawals ? `Enviando ${bulkProgress?.current || 0}/${bulkProgress?.total || selectedVisibleWithdrawals.length}…` : `Aprovar selecionadas e enviar Pix (${selectedVisibleWithdrawals.length})`}
+            </button>
           </div>
 
           <div className="mt-5 max-h-[500px] space-y-3 overflow-y-auto pr-1">
             {orderedWithdrawals.map(withdrawal => {
               const pending = withdrawal.status === 'pending' || withdrawal.status === 'approved'
               return (
-                <div key={withdrawal.id} className="flex flex-col gap-4 rounded-2xl border border-zinc-100 bg-zinc-50/70 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
+                <div key={withdrawal.id} className={`flex flex-col gap-4 rounded-2xl border px-4 py-4 lg:flex-row lg:items-center lg:justify-between ${selectedWithdrawalIds.has(String(withdrawal.id)) ? 'border-pink-300 bg-pink-50/70' : 'border-zinc-100 bg-zinc-50/70'}`}>
+                  <div className="flex min-w-0 items-start gap-3">
+                    {pending ? (
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={selectedWithdrawalIds.has(String(withdrawal.id))}
+                        aria-label={`Selecionar saque #${withdrawal.id}`}
+                        onClick={() => toggleWithdrawalSelection(withdrawal.id)}
+                        disabled={bulkPayingWithdrawals || payingId !== null}
+                        className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-40 ${selectedWithdrawalIds.has(String(withdrawal.id)) ? 'bg-pink-500' : 'bg-zinc-300'}`}
+                      >
+                        <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${selectedWithdrawalIds.has(String(withdrawal.id)) ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
+                    ) : <span className="w-11 shrink-0" aria-hidden="true" />}
+                    <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-black text-zinc-950">{withdrawal.affiliates?.name || 'Afiliada'}</p>
                       <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-zinc-500">ID {withdrawal.affiliate_id}</span>
@@ -1143,6 +1272,7 @@ export default function AdminDashboard() {
                     </div>
                     <p className="mt-1 text-xs text-zinc-400">Solicitado em {dateTime(withdrawal.requested_at)} · Saque #{withdrawal.id}</p>
                     <p className="mt-1 text-xs font-semibold text-zinc-600">PIX para recebimento: <span className="break-all font-bold text-zinc-900">{withdrawal.pix_key || 'Não informado (saque antigo)'}</span>{withdrawal.pix_key_type ? <span className="ml-1 text-zinc-400">({withdrawal.pix_key_type})</span> : null}</p>{withdrawal.status === 'rejected' && withdrawal.note && <p className="mt-1 text-xs font-semibold text-red-600"><strong>Motivo da recusa:</strong> {withdrawal.note}</p>}
+                    </div>
                   </div>
 
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
@@ -1167,14 +1297,14 @@ export default function AdminDashboard() {
                               setPayingId(null)
                             }
                           }}
-                          disabled={payingId === withdrawal.id}
+                          disabled={bulkPayingWithdrawals || payingId === withdrawal.id}
                           className="rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-black text-red-600 transition hover:bg-red-50 disabled:opacity-60"
                         >
                           Recusar
                         </button>
                         <button
                           onClick={() => markPaid(withdrawal)}
-                          disabled={payingId === withdrawal.id}
+                          disabled={bulkPayingWithdrawals || payingId === withdrawal.id}
                           className="rounded-xl bg-zinc-950 px-4 py-3 text-sm font-black text-white transition hover:bg-emerald-600 disabled:opacity-60"
                         >
                           {payingId === withdrawal.id ? 'Enviando Pix…' : 'Aprovar e enviar Pix'}
