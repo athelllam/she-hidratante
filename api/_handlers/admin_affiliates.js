@@ -143,22 +143,26 @@ module.exports = async function handler(req, res) {
       // desconta as solicitações de saque de equipe que ainda consomem saldo.
       const teamEarnedByParent = new Map();
       const affiliateIds = (affiliates || []).map(item => Number(item.id)).filter(Number.isFinite);
+      const teamRate = Number(settings.teamCommissionPerSale || 10);
       for (const parentId of affiliateIds) {
-        const directTeamIds = (affiliates || [])
-          .filter(member => Number(member.team_parent_id || 0) === parentId)
-          .map(member => Number(member.id))
-          .filter(Number.isFinite);
+        // Use the same relationship query and paid-order source as the affiliate dashboard.
+        const directTeamRows = await supabaseFetch(
+          `/rest/v1/affiliates?team_parent_id=eq.${parentId}&select=id&limit=1000`
+        );
+        const directTeamIds = (directTeamRows || []).map(member => Number(member.id)).filter(Number.isFinite);
         if (!directTeamIds.length) {
           teamEarnedByParent.set(parentId, 0);
           continue;
         }
-        const directTeamOrders = (orders || []).filter(order =>
-          directTeamIds.includes(Number(order.affiliate_id)) && isPaidOrder(order)
+        const directTeamOrders = await supabaseFetch(
+          `/rest/v1/affiliate_orders?affiliate_id=in.(${directTeamIds.join(',')})&select=affiliate_id,status,team_commission_snapshot,created_at&order=created_at.asc&limit=20000`
         );
-        const earned = directTeamOrders.reduce((sum, order) => {
-          const snapshot = Number(order.team_commission_snapshot);
-          const fallbackTeamRate = Number(settings.teamCommissionPerSale || 10);
-          return sum + (Number.isFinite(snapshot) && snapshot > 0 ? snapshot : fallbackTeamRate);
+        const earned = (directTeamOrders || []).filter(isPaidOrder).reduce((sum, order) => {
+          const rawSnapshot = order.team_commission_snapshot;
+          const snapshot = rawSnapshot === null || rawSnapshot === undefined || rawSnapshot === ''
+            ? NaN
+            : Number(rawSnapshot);
+          return sum + (Number.isFinite(snapshot) && snapshot > 0 ? snapshot : teamRate);
         }, 0);
         teamEarnedByParent.set(parentId, earned);
       }
