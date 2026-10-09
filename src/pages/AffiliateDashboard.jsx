@@ -659,7 +659,7 @@ export default function AffiliateDashboard() {
               <p className="text-xs font-black uppercase tracking-[.2em] text-zinc-400">Qualificação Mensal</p>
               <div className="mt-1 flex flex-wrap items-baseline gap-3">
                 <h2 className={`text-3xl font-black ${levelAccent(level.key)}`}>{level.label}</h2>
-                <span className="text-sm font-bold text-zinc-600">{monthlyLevel.sales} pontos no mês</span>
+                <span className="text-sm font-bold text-zinc-600">{monthlyLevel.sales} vendas pessoais + equipe</span>
                 <span className="rounded-full bg-white/80 px-3 py-1 text-sm font-black text-zinc-800">{brl(level.commissionPerOrder)} / pedido</span>
               </div>
               <p className="mt-2 text-sm text-zinc-500">
@@ -709,7 +709,7 @@ export default function AffiliateDashboard() {
               <p className="text-xs font-black uppercase tracking-[.2em] text-zinc-400">Qualificação Permanente</p>
               <div className="mt-1 flex flex-wrap items-baseline gap-3">
                 <h2 className={`text-3xl font-black ${levelAccent(fixedLevel.key)}`}>{fixedLevel.label}</h2>
-                <span className="text-sm font-bold text-zinc-600">{fixedLevel.sales} vendas pessoais acumuladas</span>
+                <span className="text-sm font-bold text-zinc-600">{fixedLevel.sales} vendas pessoais</span>
               </div>
               <p className="mt-2 text-sm text-zinc-500">
                 {fixedLevel.nextLevel ? `Faltam ${fixedLevel.salesToNext} venda(s) pessoal(is) para ${fixedLevel.nextLevel}.` : 'Você atingiu a qualificação permanente máxima.'}

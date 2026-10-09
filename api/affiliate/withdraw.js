@@ -77,8 +77,15 @@ module.exports = async function handler(req, res) {
       }, 0);
     }
 
-    const reserved = (withdrawals || []).filter(w => !['rejected', 'failed'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
-    const available = Math.max(0, earned - reserved);
+    const reserved = (withdrawals || []).filter(w => !['rejected', 'failed', 'cancelled'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
+    // Compras de impulso também reduzem o saldo pessoal sacável. O cálculo é sempre
+    // acumulado (todos os meses), independentemente do filtro mensal exibido na tela.
+    let boostSpent = 0;
+    if (source === 'personal') {
+      const boostRows = await supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${affiliate.id}&select=price,status&status=in.(queued,active,completed)&limit=5000`).catch(() => []);
+      boostSpent = (boostRows || []).reduce((sum, row) => sum + Number(row.price || 0), 0);
+    }
+    const available = Math.max(0, earned - reserved - boostSpent);
 
     if (amount > available + 0.001) {
       return json(res, 400, { error: source === 'team' ? 'Comissão de equipe disponível insuficiente.' : 'Saldo disponível insuficiente.', available });
