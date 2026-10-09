@@ -98,6 +98,8 @@ export default function AdminDashboard() {
   const [detailData, setDetailData] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [withdrawalFilter, setWithdrawalFilter] = useState('all')
+  const [withdrawalSearch, setWithdrawalSearch] = useState('')
+  const [withdrawalMonth, setWithdrawalMonth] = useState('all')
   const [credentialsAffiliate, setCredentialsAffiliate] = useState(null)
   const [newPassword, setNewPassword] = useState('')
   const [savingPassword, setSavingPassword] = useState(false)
@@ -551,11 +553,22 @@ export default function AdminDashboard() {
   }, [affiliates, affiliateFilter, affiliateSearch, affiliateSort])
 
   const filteredWithdrawals = useMemo(() => {
-    if (withdrawalFilter === 'pending') return withdrawals.filter(item => item.status === 'pending' || item.status === 'approved')
-    if (withdrawalFilter === 'paid') return withdrawals.filter(item => item.status === 'paid')
-    if (withdrawalFilter === 'rejected') return withdrawals.filter(item => item.status === 'rejected')
-    return withdrawals
-  }, [withdrawals, withdrawalFilter])
+    let rows = withdrawals
+    if (withdrawalFilter === 'pending') rows = rows.filter(item => item.status === 'pending' || item.status === 'approved')
+    if (withdrawalFilter === 'paid') rows = rows.filter(item => item.status === 'paid')
+    if (withdrawalFilter === 'rejected') rows = rows.filter(item => item.status === 'rejected')
+    const q = String(withdrawalSearch || '').trim().toLowerCase()
+    if (q) rows = rows.filter(item => String(item.affiliate_id || '').includes(q))
+    if (withdrawalMonth !== 'all') {
+      rows = rows.filter(item => {
+        const date = new Date(item.requested_at || item.date || 0)
+        if (Number.isNaN(date.getTime())) return false
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+        return key === withdrawalMonth
+      })
+    }
+    return rows
+  }, [withdrawals, withdrawalFilter, withdrawalSearch, withdrawalMonth])
 
   const orderedWithdrawals = useMemo(() => {
     const priority = { pending: 0, approved: 1, processing: 2, paid: 3, failed: 4, rejected: 5, cancelled: 6 }
@@ -1006,10 +1019,31 @@ export default function AdminDashboard() {
               <h2 className="text-xl font-black text-zinc-950">Solicitações de saque</h2>
               <p className="mt-1 text-sm text-zinc-400">Pague a afiliada primeiro. Depois clique em “Marcar como pago”.</p>
             </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <label className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2">
+              <span className="text-[10px] font-black uppercase tracking-[.14em] text-zinc-400">Buscar por ID</span>
+              <input value={withdrawalSearch} onChange={e => setWithdrawalSearch(e.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder="ID da afiliada" className="w-32 bg-transparent text-sm font-black text-zinc-800 outline-none" />
+            </label>
+            <label className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2">
+              <span className="text-[10px] font-black uppercase tracking-[.14em] text-zinc-400">Mês</span>
+              <select value={withdrawalMonth} onChange={e => setWithdrawalMonth(e.target.value)} className="bg-transparent text-sm font-black text-zinc-800 outline-none">
+                <option value="all">Todos os meses</option>
+                {Array.from(new Set(withdrawals.map(item => {
+                  const date = new Date(item.requested_at || item.date || 0)
+                  if (Number.isNaN(date.getTime())) return null
+                  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+                }).filter(Boolean))).sort().reverse().map(month => {
+                  const [year, monthNumber] = month.split('-')
+                  const label = new Date(Number(year), Number(monthNumber) - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+                  return <option key={month} value={month}>{label.charAt(0).toUpperCase() + label.slice(1)}</option>
+                })}
+              </select>
+            </label>
             <div className="flex flex-wrap items-center gap-2">
               <FilterPill active={withdrawalFilter === 'all'} onClick={() => setWithdrawalFilter('all')}>Todos · {withdrawals.length}</FilterPill>
               <FilterPill active={withdrawalFilter === 'pending'} onClick={() => setWithdrawalFilter('pending')}>Pendentes · {stats.pendingCount}</FilterPill>
               <FilterPill active={withdrawalFilter === 'paid'} onClick={() => setWithdrawalFilter('paid')}>Pagos · {withdrawals.filter(item => item.status === 'paid').length}</FilterPill><FilterPill active={withdrawalFilter === 'rejected'} onClick={() => setWithdrawalFilter('rejected')}>Recusados · {withdrawals.filter(item => item.status === 'rejected').length}</FilterPill>
+            </div>
             </div>
           </div>
 
