@@ -62,7 +62,7 @@ module.exports = async function handler(req, res) {
         });
         const rejected = rejectedRows?.[0] || null;
         if (!rejected) return json(res, 409, { error: 'O saque já foi processado ou alterado por outra ação.' });
-        await notifyAffiliate({ withdrawal: { ...withdrawal, ...rejected }, affiliate: withdrawal.affiliates, status: 'failed' }).catch(() => null);
+        await notifyAffiliate({ withdrawal: { ...withdrawal, ...rejected }, affiliate: withdrawal.affiliates, status: 'rejected' }).catch(() => null);
         return json(res, 200, { withdrawal: rejected, message: 'Saque recusado. O valor voltou a ficar disponível para a afiliada.' });
       }
 

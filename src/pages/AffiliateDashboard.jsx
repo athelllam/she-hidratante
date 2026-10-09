@@ -981,6 +981,9 @@ export default function AffiliateDashboard() {
                   <div>
                     <p className="font-black text-zinc-900">{movement.kind === 'boost' ? 'Impulso de Equipe' : `Solicitação de Saque ${movement.source === 'team' ? '· Equipe' : '· Pessoal'}`}</p>
                     <p className="mt-0.5 text-xs text-zinc-400">{new Date(movement.date).toLocaleDateString('pt-BR')}</p>
+                    {movement.kind === 'withdrawal' && movement.status === 'rejected' && movement.withdrawal?.note && (
+                      <p className="mt-1 max-w-xl text-xs font-semibold leading-5 text-red-600"><strong>Motivo da recusa:</strong> {movement.withdrawal.note}</p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3 sm:justify-end">

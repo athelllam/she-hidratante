@@ -102,10 +102,10 @@ function affiliateBoostJoinEmail({ parentName, childName }) {
 }
 
 function affiliateWithdrawalApprovedEmail({ name, amount, status = 'paid' }) {
-  const label = status === 'failed' ? 'falhou' : status === 'approved' ? 'foi aprovado' : 'foi pago';
-  const title = status === 'failed' ? 'Saque com problema' : status === 'approved' ? 'Saque aprovado' : 'Saque pago';
-  const color = status === 'failed' ? '#991b1b' : '#166534';
-  const bg = status === 'failed' ? '#fef2f2' : '#f0fdf4';
+  const label = status === 'rejected' ? 'foi recusado' : status === 'failed' ? 'falhou' : status === 'approved' ? 'foi aprovado' : 'foi pago';
+  const title = status === 'rejected' ? 'Saque recusado' : status === 'failed' ? 'Saque com problema' : status === 'approved' ? 'Saque aprovado' : 'Saque pago';
+  const color = status === 'rejected' || status === 'failed' ? '#991b1b' : '#166534';
+  const bg = status === 'rejected' || status === 'failed' ? '#fef2f2' : '#f0fdf4';
   return shell(title, `
     <p style="font-size:15px;line-height:1.7;color:#52525b">Olá, ${escapeHtml(name || 'afiliada')}!</p>
     <p style="font-size:15px;line-height:1.7;color:#52525b">Seu saque <strong>${label}</strong> pela She.</p>
