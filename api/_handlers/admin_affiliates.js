@@ -138,28 +138,41 @@ module.exports = async function handler(req, res) {
         boostSpentByAffiliate.set(aid, (boostSpentByAffiliate.get(aid) || 0) + Number(boost.price || 0));
       }
 
-      // Saldo de equipe: soma das comissões de equipe registradas nos pedidos
-      // das afiliadas ligadas a cada líder, menos saques de equipe já reservados/pagos.
-      const affiliateByIdForTeam = new Map((affiliates || []).map(item => [Number(item.id), item]));
+      // Reproduz exatamente o cálculo do card "Saldo de Equipe" do painel da afiliada:
+      // busca os pedidos das afiliadas diretamente vinculadas a cada líder e
+      // desconta as solicitações de saque de equipe que ainda consomem saldo.
       const teamEarnedByParent = new Map();
-      for (const order of orders || []) {
-        if (!isPaidOrder(order)) continue;
-        const seller = affiliateByIdForTeam.get(Number(order.affiliate_id));
-        const parentId = Number(seller?.team_parent_id || 0);
-        if (!parentId) continue;
-        // Espelha exatamente o card "Saldo de Equipe" do painel da afiliada:
-        // usa o snapshot se for positivo; quando estiver ausente/zerado,
-        // usa a comissão por venda configurada no sistema.
-        const savedAmount = Number(order.team_commission_snapshot);
-        const amount = Number.isFinite(savedAmount) && savedAmount > 0
-          ? savedAmount
-          : Number(settings.teamCommissionPerSale || DEFAULT_COMMISSION_CONFIG.teamCommissionPerSale || 10);
-        teamEarnedByParent.set(parentId, (teamEarnedByParent.get(parentId) || 0) + amount);
+      const affiliateIds = (affiliates || []).map(item => Number(item.id)).filter(Number.isFinite);
+      const teamRate = Number(settings.teamCommissionPerSale || 10);
+      for (const parentId of affiliateIds) {
+        // Use the same relationship query and paid-order source as the affiliate dashboard.
+        const directTeamRows = await supabaseFetch(
+          `/rest/v1/affiliates?team_parent_id=eq.${parentId}&select=id&limit=1000`
+        );
+        const directTeamIds = (directTeamRows || []).map(member => Number(member.id)).filter(Number.isFinite);
+        if (!directTeamIds.length) {
+          teamEarnedByParent.set(parentId, 0);
+          continue;
+        }
+        const directTeamOrders = await supabaseFetch(
+          `/rest/v1/affiliate_orders?affiliate_id=in.(${directTeamIds.join(',')})&select=affiliate_id,status,team_commission_snapshot,created_at&order=created_at.asc&limit=20000`
+        );
+        const earned = (directTeamOrders || []).filter(isPaidOrder).reduce((sum, order) => {
+          const rawSnapshot = order.team_commission_snapshot;
+          const snapshot = rawSnapshot === null || rawSnapshot === undefined || rawSnapshot === ''
+            ? NaN
+            : Number(rawSnapshot);
+          return sum + (Number.isFinite(snapshot) && snapshot > 0 ? snapshot : teamRate);
+        }, 0);
+        teamEarnedByParent.set(parentId, earned);
       }
+
       const teamWithdrawnByParent = new Map();
       for (const withdrawal of withdrawals || []) {
         if (String(withdrawal.source || 'personal') !== 'team') continue;
-        if (!['pending', 'approved', 'processing', 'paid'].includes(String(withdrawal.status || '').toLowerCase())) continue;
+        const status = String(withdrawal.status || '').toLowerCase();
+        // Recusas/falhas/cancelamentos liberam a reserva; demais status reservam ou debitam.
+        if (['rejected', 'failed', 'cancelled'].includes(status)) continue;
         const aid = Number(withdrawal.affiliate_id);
         teamWithdrawnByParent.set(aid, (teamWithdrawnByParent.get(aid) || 0) + Number(withdrawal.amount || 0));
       }
@@ -523,12 +536,24 @@ module.exports = async function handler(req, res) {
         if (!Number.isFinite(averageSaleCost) || averageSaleCost < 0) {
           return json(res, 400, { error: 'Informe um custo médio válido, maior ou igual a zero.' });
         }
-        const rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1', {
+        const normalizedCost = money(averageSaleCost);
+        let rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1', {
           method: 'PATCH',
           headers: { Prefer: 'return=representation' },
-          body: JSON.stringify({ average_sale_cost: money(averageSaleCost) }),
+          body: JSON.stringify({ average_sale_cost: normalizedCost }),
         });
-        return json(res, 200, { averageSaleCost: Number(rows?.[0]?.average_sale_cost ?? averageSaleCost) });
+        if (!Array.isArray(rows) || rows.length === 0) {
+          rows = await supabaseFetch('/rest/v1/affiliate_settings?on_conflict=id', {
+            method: 'POST',
+            headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+            body: JSON.stringify({ id: 1, average_sale_cost: normalizedCost }),
+          });
+        }
+        const persistedRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=average_sale_cost&limit=1');
+        if (!persistedRows?.[0] || Number(persistedRows[0].average_sale_cost) !== normalizedCost) {
+          throw new Error('O custo médio não foi confirmado no banco de dados. Verifique a tabela affiliate_settings e a migração average_sale_cost.');
+        }
+        return json(res, 200, { averageSaleCost: Number(persistedRows[0].average_sale_cost) });
       }
 
       // Metas dos Bônus Mensal/Fixo: tratadas separadamente para que a alteração
