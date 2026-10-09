@@ -115,6 +115,7 @@ export default function AdminDashboard() {
   const [availableMonths, setAvailableMonths] = useState([])
   const [selectedMonths, setSelectedMonths] = useState([])
   const [monthFilterOpen, setMonthFilterOpen] = useState(false)
+  const [averageSaleCost, setAverageSaleCost] = useState('0')
   const [boostState, setBoostState] = useState({ activeCount: 0, queueCount: 0, completedCount: 0, active: [] })
 
   const loadPanel = async () => {
@@ -131,6 +132,7 @@ export default function AdminDashboard() {
     setAvailableMonths(affiliateData.availableMonths || [])
     const nextSettings = affiliateData.settings || { ticketThreshold: 170, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 }, monthlyLevels: { bronze: 10, silver: 50, gold: 101 }, fixedLevels: { bronze: 100, silver: 300, gold: 500 } }
     setSettings(nextSettings)
+    setAverageSaleCost(String(nextSettings.averageSaleCost ?? 0))
     setSettingsForm({
       ticketThreshold: String(nextSettings.ticketThreshold),
       ticketBonus: String(nextSettings.ticketBonus ?? 5),
@@ -160,6 +162,7 @@ export default function AdminDashboard() {
     setDeletePhrase('')
     setAuthenticated(true)
   }
+
 
   useEffect(() => {
     loadPanel()
@@ -483,6 +486,10 @@ export default function AdminDashboard() {
         totalRevenue,
         totalAccesses,
         averageTicket: totalSales ? totalRevenue / totalSales : 0,
+        personalCommission: Number(globalStatsData.all?.personalCommission || 0),
+        teamCommission: Number(globalStatsData.all?.teamCommission || 0),
+        totalCommission: Number(globalStatsData.all?.totalCommission || 0),
+        averageCommissionPerSale: Number(globalStatsData.all?.averageCommissionPerSale || 0),
         totalBalance: affiliates.reduce((sum, affiliate) => sum + Number(affiliate.balance || 0), 0),
         pendingCount: pending.length,
         pendingAmount: pending.reduce((sum, item) => sum + Number(item.amount || 0), 0),
@@ -498,8 +505,10 @@ export default function AdminDashboard() {
       acc.sales += Number(value.sales || 0)
       acc.revenue += Number(value.revenue || 0)
       acc.accesses += Number(value.accesses || 0)
+      acc.personalCommission += Number(value.personalCommission || 0)
+      acc.teamCommission += Number(value.teamCommission || 0)
       return acc
-    }, { sales: 0, revenue: 0, accesses: 0 })
+    }, { sales: 0, revenue: 0, accesses: 0, personalCommission: 0, teamCommission: 0 })
     const snapshotMonth = [...selectedMonths].sort().at(-1)
     const snapshot = globalStatsData.snapshots?.[snapshotMonth] || {}
     const pending = withdrawals.filter(item => item.status === 'pending' || item.status === 'approved')
@@ -511,11 +520,19 @@ export default function AdminDashboard() {
       totalRevenue: selected.revenue,
       totalAccesses: selected.accesses,
       averageTicket: selected.sales ? selected.revenue / selected.sales : 0,
+      personalCommission: selected.personalCommission,
+      teamCommission: selected.teamCommission,
+      totalCommission: selected.personalCommission + selected.teamCommission,
+      averageCommissionPerSale: selected.sales ? (selected.personalCommission + selected.teamCommission) / selected.sales : 0,
       totalBalance: Number(snapshot.totalBalance || 0),
       pendingCount: pending.length,
       pendingAmount: pending.reduce((sum, item) => sum + Number(item.amount || 0), 0),
     }
   }, [affiliates, withdrawals, globalStatsData, selectedMonths])
+
+  const parsedAverageSaleCost = Math.max(0, Number(String(averageSaleCost).replace(',', '.')) || 0)
+  const contributionMargin = stats.averageTicket - parsedAverageSaleCost - stats.averageCommissionPerSale
+  const contributionMarginPercent = stats.averageTicket > 0 ? (contributionMargin / stats.averageTicket) * 100 : 0
 
   const monthLabel = (month) => {
     const [year, monthNumber] = String(month).split('-')
@@ -642,17 +659,17 @@ export default function AdminDashboard() {
           <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">Período dos indicadores globais</p>
-              <p className="mt-1 text-sm font-semibold text-zinc-600">{selectedMonths.length ? `${selectedMonths.length} ${selectedMonths.length === 1 ? 'mês selecionado' : 'meses selecionados'}` : 'Todos os meses'}</p>
+              <p className="mt-1 text-sm font-semibold text-zinc-600">{selectedMonths.length ? `${selectedMonths.length} ${selectedMonths.length === 1 ? 'mês selecionado' : 'meses selecionados'}` : 'Acumulado · todos os meses'}</p>
             </div>
             <div className="relative">
               <button type="button" onClick={() => setMonthFilterOpen(current => !current)} className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-black text-zinc-800 shadow-sm hover:border-pink-300">
-                {selectedMonths.length ? 'Alterar meses' : 'Filtrar por mês'} ▾
+                {selectedMonths.length ? 'Alterar período' : 'Acumulado / filtrar por mês'} ▾
               </button>
               {monthFilterOpen && (
                 <div className="absolute right-0 z-30 mt-2 w-72 rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_20px_60px_rgba(0,0,0,.12)]">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-black text-zinc-950">Selecionar meses</p>
-                    <button type="button" onClick={clearMonthFilter} className="text-xs font-bold text-pink-500">Todos</button>
+                    <p className="text-sm font-black text-zinc-950">Período dos indicadores</p>
+                    <button type="button" onClick={clearMonthFilter} className="text-xs font-bold text-pink-500">Acumulado</button>
                   </div>
                   <div className="mt-3 max-h-64 space-y-2 overflow-auto">
                     {availableMonths.length ? availableMonths.map(month => (
@@ -667,18 +684,80 @@ export default function AdminDashboard() {
               )}
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
-              ['Vendas acumuladas', stats.totalSales],
-              ['Faturamento', brl(stats.totalRevenue)],
+              [selectedMonths.length ? 'Vendas no período' : 'Vendas acumuladas', stats.totalSales],
+              [selectedMonths.length ? 'Faturamento no período' : 'Faturamento acumulado', brl(stats.totalRevenue)],
               ['Ticket médio', brl(stats.averageTicket)],
-              ['Acessos totais', stats.totalAccesses],
+              [selectedMonths.length ? 'Acessos no período' : 'Acessos acumulados', stats.totalAccesses],
             ].map(([label, value]) => (
               <div key={label} className="rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
                 <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">{label}</p>
                 <p className="mt-2 text-2xl font-black text-zinc-950">{value}</p>
               </div>
             ))}
+          </div>
+
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">Comissão média por venda</p>
+              <p className="mt-2 text-2xl font-black text-zinc-950">{brl(stats.averageCommissionPerSale)}</p>
+              <p className="mt-1 text-xs text-zinc-400">Comissões pessoais + equipe ÷ vendas pagas</p>
+            </div>
+            <div className="rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">Comissões pessoais do sistema</p>
+              <p className="mt-2 text-2xl font-black text-zinc-950">{brl(stats.personalCommission)}</p>
+            </div>
+            <div className="rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">Comissões de equipe do sistema</p>
+              <p className="mt-2 text-2xl font-black text-zinc-950">{brl(stats.teamCommission)}</p>
+            </div>
+            <div className="rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
+              <label htmlFor="average-sale-cost" className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">Custo médio por venda (R$)</label>
+              <input
+                id="average-sale-cost"
+                type="number"
+                min="0"
+                step="0.01"
+                value={averageSaleCost}
+                onChange={(event) => setAverageSaleCost(event.target.value)}
+                onBlur={async () => {
+                  const parsed = Number(averageSaleCost)
+                  if (!Number.isFinite(parsed) || parsed < 0) {
+                    setMessage('Informe um custo médio válido, maior ou igual a zero.')
+                    return
+                  }
+                  try {
+                    await api('/api/admin/affiliates', {
+                      method: 'PATCH',
+                      body: JSON.stringify({ action: 'update_average_sale_cost', averageSaleCost: parsed }),
+                    })
+                    setAverageSaleCost(String(parsed))
+                    setSettings((current) => ({ ...current, averageSaleCost: parsed }))
+                    setMessage('Custo médio por venda salvo no banco de dados.')
+                  } catch (saveError) {
+                    setMessage(saveError.message || 'Não foi possível salvar o custo médio por venda.')
+                  }
+                }}
+                className="mt-2 w-full rounded-xl border border-zinc-200 px-3 py-2 text-lg font-black text-zinc-950 outline-none focus:border-pink-400"
+              />
+              <p className="mt-1 text-xs text-zinc-400">Salvo no banco de dados</p>
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-[1.5rem] border border-pink-200 bg-pink-50/60 p-5 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[.18em] text-pink-500">Margem de contribuição estimada</p>
+                <p className="mt-2 text-3xl font-black text-zinc-950">{brl(contributionMargin)} <span className="text-lg">({contributionMarginPercent.toFixed(1).replace('.', ',')}%)</span></p>
+                <p className="mt-1 text-xs text-zinc-500">Ticket médio − custo médio por venda − comissão média paga. Antes das despesas fixas.</p>
+              </div>
+              <div className="text-sm text-zinc-600">
+                <p>Ticket médio: <strong>{brl(stats.averageTicket)}</strong></p>
+                <p>Custo por venda: <strong>{brl(parsedAverageSaleCost)}</strong></p>
+                <p>Comissão média: <strong>{brl(stats.averageCommissionPerSale)}</strong></p>
+              </div>
+            </div>
           </div>
 
           <div className="my-5 h-px w-full bg-zinc-200/70" aria-hidden="true" />

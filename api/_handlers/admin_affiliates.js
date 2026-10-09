@@ -20,7 +20,7 @@ module.exports = async function handler(req, res) {
         supabaseFetch('/rest/v1/affiliate_withdrawals?select=affiliate_id,amount,status,source,requested_at&order=requested_at.desc&limit=10000'),
         supabaseFetch('/rest/v1/affiliate_events?select=affiliate_id,type,created_at&order=created_at.desc&limit=20000'),
         supabaseFetch('/rest/v1/affiliate_admin_status_history?select=affiliate_id,admin_active,effective_at&order=effective_at.asc&limit=20000').catch(() => []),
-        supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active,reseller_hydrant_price,reseller_hydrant_blister_price,reseller_stick_price,reseller_complete_price&limit=1'),
+        supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active,reseller_hydrant_price,reseller_hydrant_blister_price,reseller_stick_price,reseller_complete_price,average_sale_cost&limit=1'),
         supabaseFetch('/rest/v1/rpc/she_team_boost_admin_state', { method: 'POST', body: '{}' }).catch(() => ({ activeCount: 0, queueCount: 0, completedCount: 0, active: [] })),
         supabaseFetch('/rest/v1/affiliate_team_boosts?status=neq.cancelled&select=affiliate_id,price&limit=20000').catch(() => []),
       ]);
@@ -49,6 +49,7 @@ module.exports = async function handler(req, res) {
         maxActive: Number(settingRows[0].team_boost_max_active ?? 3),
       } : { small: { price: 30, connections: 5 }, large: { price: 50, connections: 10 }, maxActive: 3 };
       settings.resellerPrices = { hydrant: Number(settingRows?.[0]?.reseller_hydrant_price ?? 0), hydrantBlister: Number(settingRows?.[0]?.reseller_hydrant_blister_price ?? 0), stick: Number(settingRows?.[0]?.reseller_stick_price ?? 0), complete: Number(settingRows?.[0]?.reseller_complete_price ?? 0) };
+      settings.averageSaleCost = Number(settingRows?.[0]?.average_sale_cost ?? 0);
 
       const detailAffiliateId = Number(req.query?.detail || 0);
       const detailMonth = String(req.query?.month || 'all');
@@ -157,36 +158,68 @@ module.exports = async function handler(req, res) {
       });
 
       const monthlyMap = new Map();
+      const ensureMonthlyBucket = (month) => {
+        const bucket = monthlyMap.get(month) || { sales: 0, revenue: 0, accesses: 0, personalCommission: 0, teamCommission: 0 };
+        monthlyMap.set(month, bucket);
+        return bucket;
+      };
       for (const event of events || []) {
         if (event.type !== 'access' || !event.created_at) continue;
         const date = new Date(event.created_at);
         if (Number.isNaN(date.getTime())) continue;
         const month = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
-        const bucket = monthlyMap.get(month) || { sales: 0, revenue: 0, accesses: 0 };
-        bucket.accesses += 1;
-        monthlyMap.set(month, bucket);
+        ensureMonthlyBucket(month).accesses += 1;
+      }
+      const affiliateById = new Map((affiliates || []).map(affiliate => [Number(affiliate.id), affiliate]));
+      let totalPersonalCommission = 0;
+      let totalTeamCommission = 0;
+      for (const affiliate of affiliates || []) {
+        const affiliateOrders = ordersByAffiliate.get(Number(affiliate.id)) || [];
+        const commissionResult = commissionForOrders(affiliateOrders, settings);
+        totalPersonalCommission += Number(commissionResult.total || 0);
+        for (const annotatedOrder of commissionResult.orders || commissionResult.annotated || []) {
+          if (!annotatedOrder.month) continue;
+          ensureMonthlyBucket(annotatedOrder.month).personalCommission += Number(annotatedOrder.commission || 0);
+        }
       }
       for (const order of orders || []) {
         if (!isPaidOrder(order) || !order.created_at) continue;
         const date = new Date(order.created_at);
         if (Number.isNaN(date.getTime())) continue;
-        const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        const bucket = monthlyMap.get(month) || { sales: 0, revenue: 0, accesses: 0 };
+        const month = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+        const bucket = ensureMonthlyBucket(month);
         bucket.sales += 1;
         bucket.revenue += Number(order.total || 0);
-        monthlyMap.set(month, bucket);
+        const seller = affiliateById.get(Number(order.affiliate_id));
+        if (seller && Number(seller.team_parent_id) > 0) {
+          const savedTeamCommission = Number(order.team_commission_snapshot);
+          const teamCommission = Number.isFinite(savedTeamCommission) && savedTeamCommission > 0
+            ? savedTeamCommission
+            : Number(settings.teamCommissionPerSale || 0);
+          bucket.teamCommission += teamCommission;
+          totalTeamCommission += teamCommission;
+        }
       }
       const monthlyStats = Object.fromEntries(Array.from(monthlyMap.entries()).map(([month, value]) => [month, {
         sales: value.sales,
         revenue: money(value.revenue),
         accesses: value.accesses || 0,
         averageTicket: money(value.sales ? value.revenue / value.sales : 0),
+        personalCommission: money(value.personalCommission || 0),
+        teamCommission: money(value.teamCommission || 0),
       }]));
       const globalAll = Object.values(monthlyStats).reduce((acc, value) => ({
         sales: acc.sales + value.sales,
         revenue: acc.revenue + value.revenue,
         accesses: acc.accesses + Number(value.accesses || 0),
-      }), { sales: 0, revenue: 0, accesses: 0 });
+        personalCommission: acc.personalCommission + Number(value.personalCommission || 0),
+        teamCommission: acc.teamCommission + Number(value.teamCommission || 0),
+      }), { sales: 0, revenue: 0, accesses: 0, personalCommission: 0, teamCommission: 0 });
+      // Use the commission calculation for every affiliate as the source of truth for personal commission.
+      globalAll.personalCommission = money(totalPersonalCommission);
+      globalAll.teamCommission = money(totalTeamCommission);
+      globalAll.totalCommission = money(globalAll.personalCommission + globalAll.teamCommission);
+      globalAll.averageCommissionPerSale = money(globalAll.sales ? globalAll.totalCommission / globalAll.sales : 0);
       globalAll.averageTicket = money(globalAll.sales ? globalAll.revenue / globalAll.sales : 0);
 
       // Snapshots históricos: vendas/faturamento/ticket do período e estado das afiliadas
@@ -452,6 +485,19 @@ module.exports = async function handler(req, res) {
     if (req.method === 'PATCH') {
       const { id, active, adminActive, commissionRate, password, settings: requestedSettings } = req.body || {};
 
+      if (String(req.body?.action || '') === 'update_average_sale_cost') {
+        const averageSaleCost = Number(req.body?.averageSaleCost);
+        if (!Number.isFinite(averageSaleCost) || averageSaleCost < 0) {
+          return json(res, 400, { error: 'Informe um custo médio válido, maior ou igual a zero.' });
+        }
+        const rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1', {
+          method: 'PATCH',
+          headers: { Prefer: 'return=representation' },
+          body: JSON.stringify({ average_sale_cost: money(averageSaleCost) }),
+        });
+        return json(res, 200, { averageSaleCost: Number(rows?.[0]?.average_sale_cost ?? averageSaleCost) });
+      }
+
       // Metas dos Bônus Mensal/Fixo: tratadas separadamente para que a alteração
       // dessas seis configurações nunca dependa das demais configurações do painel.
       if (String(req.body?.action || '') === 'update_bonus_levels') {
@@ -488,7 +534,7 @@ module.exports = async function handler(req, res) {
       }
 
       if (requestedSettings) {
-        const currentRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active,reseller_hydrant_price,reseller_hydrant_blister_price,reseller_stick_price,reseller_complete_price&limit=1');
+        const currentRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active,reseller_hydrant_price,reseller_hydrant_blister_price,reseller_stick_price,reseller_complete_price,average_sale_cost&limit=1');
         const currentSettings = normalizeConfig(currentRows?.[0] ? {
           ticketThreshold: currentRows[0].ticket_threshold,
           ticketBonus: currentRows[0].ticket_bonus,

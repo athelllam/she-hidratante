@@ -151,6 +151,7 @@ create table if not exists public.affiliate_settings (
   id integer primary key check (id = 1),
   ticket_threshold numeric(12,2) not null default 170.00,
   ticket_bonus numeric(12,2) not null default 5.00,
+  average_sale_cost numeric(12,2) not null default 0.00,
   commission_none numeric(12,2) not null default 30.00,
   commission_bronze numeric(12,2) not null default 40.00,
   commission_silver numeric(12,2) not null default 50.00,
