@@ -668,6 +668,12 @@ export default function AffiliateDashboard() {
   const currentMonthPersonalSales = Number(dashboard?.metrics?.currentMonthPersonalSales || 0)
   const canWithdrawThisMonth = currentMonthPersonalSales >= 1
   const team = dashboard?.team || { code: affiliate.team_code || '', joined: false, canJoin: false, commissionPerSale: 10, earnedCommission: 0, availableCommission: 0, members: [], parent: null }
+  const teamBonusExpiresAt = dashboard?.teamBonus?.active && dashboard?.teamBonus?.expiresAt
+    ? new Date(dashboard.teamBonus.expiresAt).getTime()
+    : null
+  const teamBonusRemainingDays = Number.isFinite(teamBonusExpiresAt) && teamBonusExpiresAt > Date.now()
+    ? Math.ceil((teamBonusExpiresAt - Date.now()) / (24 * 60 * 60 * 1000))
+    : 0
   const normalizedTeamSearch = teamSearch.trim().toLocaleLowerCase('pt-BR')
   const filteredTeamMembers = (team.members || []).filter(member =>
     String(member.name || '').toLocaleLowerCase('pt-BR').includes(normalizedTeamSearch) ||
@@ -767,6 +773,11 @@ export default function AffiliateDashboard() {
                   ? `Faltam ${monthlyLevel.salesToNext} venda(s) para ${monthlyLevel.nextLevel}.`
                   : 'Você atingiu o nível máximo deste mês.'}
               </p>
+              {dashboard?.teamBonus?.active && teamBonusRemainingDays > 0 && (
+                <p className="mt-2 inline-flex max-w-full items-center rounded-md border border-pink-100 bg-pink-50 px-2 py-1 text-[11px] font-semibold leading-4 text-pink-700">
+                  Bônus de equipe ativo. {teamBonusRemainingDays === 1 ? 'Resta 1 dia' : `Restam ${teamBonusRemainingDays} dias`} para o término do bônus.
+                </p>
+              )}
             </div>
             <div className="min-w-[220px] text-right">
               <p className="text-xs font-bold text-zinc-400">PROGRESSO</p>
