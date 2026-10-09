@@ -85,33 +85,17 @@ module.exports = async function handler(req, res) {
     let earned = 0;
 
     if (source === 'personal') {
-      // Use the same team-sales context as the dashboard. Monthly qualification
-      // includes personal + team sales, so omitting team sales here can calculate
-      // a lower commission than the amount shown in the affiliate dashboard.
-      const ordersPath = `/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=status,total,commission,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot,created_at&order=created_at.asc&limit=10000`;
-      const orders = await supabaseFetch(ordersPath);
-
-      const teamMembers = await supabaseFetch(`/rest/v1/affiliates?team_parent_id=eq.${Number(affiliate.id)}&select=id&limit=1000`);
-      const teamIds = (teamMembers || []).map(row => Number(row.id)).filter(id => Number.isInteger(id) && id > 0);
-      const teamOrders = teamIds.length
-        ? await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=in.(${teamIds.join(',')})&select=status,created_at&order=created_at.asc&limit=20000`)
-        : [];
-      const teamSalesByMonth = (teamOrders || []).filter(isPaidOrder).reduce((map, order) => {
-        const key = monthKeySaoPaulo(order.created_at);
-        if (key) map[key] = (map[key] || 0) + 1;
-        return map;
-      }, {});
-
-      await reconcileAffiliateOrderCommissions(supabaseFetch, affiliate.id, settings, {
-        teamJoinedAt: affiliate.team_joined_at,
-        teamSalesByMonth,
-      }).catch(() => null);
-
-      const refreshedOrders = await supabaseFetch(ordersPath);
-      earned = commissionForOrders(refreshedOrders || orders || [], settings, {
-        teamJoinedAt: affiliate.team_joined_at,
-        teamSalesByMonth,
-      }).total;
+      // A fonte do saldo é a comissão já consolidada nos pedidos pagos.
+      // O dashboard persiste esses mesmos valores ao reconciliar os pedidos;
+      // recalcular a comissão aqui com outro contexto de nível podia gerar um
+      // saldo diferente do card e fazer o botão recusar uma solicitação válida.
+      const orders = await supabaseFetch(
+        `/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=status,commission&order=created_at.asc&limit=10000`
+      );
+      earned = (orders || []).filter(isPaidOrder).reduce((sum, order) => {
+        const value = Number(order.commission);
+        return sum + (Number.isFinite(value) && value > 0 ? value : 0);
+      }, 0);
     } else {
       const children = await supabaseFetch(`/rest/v1/affiliates?team_parent_id=eq.${affiliate.id}&select=id&limit=1000`);
       const ids = (children || []).map(row => Number(row.id)).filter(Boolean);

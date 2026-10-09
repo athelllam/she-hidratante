@@ -422,7 +422,7 @@ module.exports = async function handler(req, res) {
     // em availableCommission, usado exclusivamente no saldo disponível para saque.
     const personalWithdrawals = (withdrawals || []).filter(w => String(w.source || 'personal') === 'personal');
     const teamWithdrawals = (withdrawals || []).filter(w => String(w.source || 'personal') === 'team');
-    const reserved = personalWithdrawals.filter(w => !['rejected', 'failed'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
+    const reserved = personalWithdrawals.filter(w => !['rejected', 'failed', 'cancelled'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const boostSpent = (boostRows || []).filter(row => ['queued', 'active', 'completed'].includes(String(row.status || ''))).reduce((sum, row) => sum + Number(row.price || 0), 0);
     let availableCommission = Math.max(0, totalEarnedCommission - reserved - boostSpent);
     // O nível é mensal. Em "Todos os meses", usamos o mês atual,
