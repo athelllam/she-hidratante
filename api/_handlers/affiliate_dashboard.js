@@ -154,10 +154,10 @@ module.exports = async function handler(req, res) {
       const orders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${Number(affiliate.id)}&select=status&limit=5000`);
       if ((orders || []).some(isPaidOrder)) return json(res, 400, { error: 'A entrada em uma equipe só pode ser feita antes da primeira venda.' });
       if (parentId === Number(affiliate.id)) return json(res, 200, { parent: null, message: 'Você não pode entrar na própria equipe.' });
-      const parents = await supabaseFetch(`/rest/v1/affiliates?id=eq.${parentId}&select=id,name,active,whatsapp&limit=1`);
+      const parents = await supabaseFetch(`/rest/v1/affiliates?id=eq.${parentId}&select=id,name,active&limit=1`);
       const parent = parents?.[0];
       if (!parent || !parent.active) return json(res, 200, { parent: null, message: 'Não encontramos uma afiliada ativa com esse ID.' });
-      return json(res, 200, { parent: { id: Number(parent.id), name: parent.name, whatsapp: parent.whatsapp || '' } });
+      return json(res, 200, { parent: { id: Number(parent.id), name: parent.name } });
     } catch (error) {
       return json(res, error.statusCode || 500, { error: error.message || 'Não foi possível consultar esse ID.' });
     }
@@ -170,12 +170,7 @@ module.exports = async function handler(req, res) {
       const orders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=status&limit=5000`);
       if ((orders || []).some(isPaidOrder)) return json(res, 400, { error: 'Você já fez sua primeira venda e não pode procurar uma equipe.' });
       const result = await supabaseFetch('/rest/v1/rpc/she_team_boost_find', { method: 'POST', body: JSON.stringify({ p_affiliate_id: Number(affiliate.id) }) });
-      const parentId = Number(result?.parentId);
-      const parentRows = parentId > 0
-        ? await supabaseFetch(`/rest/v1/affiliates?id=eq.${parentId}&select=id,name,whatsapp&limit=1`)
-        : [];
-      const parent = parentRows?.[0];
-      return json(res, 200, { reservation: { ...result, parentWhatsapp: parent?.whatsapp || '' } });
+      return json(res, 200, { reservation: result });
     } catch (error) {
       return json(res, error.statusCode || 500, { error: error.message || 'Não foi possível encontrar uma equipe agora.' });
     }
@@ -235,15 +230,15 @@ module.exports = async function handler(req, res) {
   if (req.method === 'POST' && String(req.body?.action || '') === 'boost_confirm') {
     try {
       const { affiliate } = await requireAffiliate(req);
-      if (req.body?.teamTermsVersion !== '1.0' || req.body?.teamWhatsappConsent !== true || req.body?.teamFixedTeamConsent !== true) {
-        return json(res, 400, { error: 'É necessário aceitar as duas condições de entrada na equipe.' });
+      if (req.body?.teamTermsVersion !== '1.1' || req.body?.teamTermsAccepted !== true) {
+        return json(res, 400, { error: 'É necessário confirmar a aceitação dos termos de entrada na equipe.' });
       }
       const reservationId = Number(req.body?.reservationId);
       if (!Number.isInteger(reservationId) || reservationId <= 0) return json(res, 400, { error: 'Indicação de equipe inválida.' });
       const result = await supabaseFetch('/rest/v1/rpc/she_team_boost_confirm', { method: 'POST', body: JSON.stringify({ p_affiliate_id: Number(affiliate.id), p_reservation_id: reservationId }) });
       const parentId = Number(result?.parentId);
       if (parentId > 0) {
-        const parents = await supabaseFetch(`/rest/v1/affiliates?id=eq.${parentId}&select=id,name,email,whatsapp&limit=1`).catch(() => []);
+        const parents = await supabaseFetch(`/rest/v1/affiliates?id=eq.${parentId}&select=id,name,email&limit=1`).catch(() => []);
         const parent = parents?.[0];
         if (parent?.email) {
           await sendEmail({
@@ -342,8 +337,8 @@ module.exports = async function handler(req, res) {
   if (req.method === 'POST') {
     try {
       const { affiliate } = await requireAffiliate(req);
-      if (req.body?.teamTermsVersion !== '1.0' || req.body?.teamWhatsappConsent !== true || req.body?.teamFixedTeamConsent !== true) {
-        return json(res, 400, { error: 'É necessário aceitar as duas condições de entrada na equipe.' });
+      if (req.body?.teamTermsVersion !== '1.1' || req.body?.teamTermsAccepted !== true) {
+        return json(res, 400, { error: 'É necessário confirmar a aceitação dos termos de entrada na equipe.' });
       }
       const teamParentId = Number(req.body?.teamParentId);
       const teamParentCode = String(req.body?.teamParentCode || '').trim().toUpperCase();
@@ -356,8 +351,8 @@ module.exports = async function handler(req, res) {
       }
 
       const parents = Number.isInteger(teamParentId) && teamParentId > 0
-        ? await supabaseFetch(`/rest/v1/affiliates?id=eq.${teamParentId}&select=id,name,active,team_parent_id,team_code,whatsapp&limit=1`)
-        : await supabaseFetch(`/rest/v1/affiliates?team_code=eq.${encodeURIComponent(teamParentCode)}&select=id,name,active,team_parent_id,team_code,whatsapp&limit=1`);
+        ? await supabaseFetch(`/rest/v1/affiliates?id=eq.${teamParentId}&select=id,name,active,team_parent_id,team_code&limit=1`)
+        : await supabaseFetch(`/rest/v1/affiliates?team_code=eq.${encodeURIComponent(teamParentCode)}&select=id,name,active,team_parent_id,team_code&limit=1`);
       const parent = parents?.[0];
       if (!parent || !parent.active) return json(res, 404, { error: 'Código de equipe não encontrado ou indisponível.' });
       if (Number(parent.id) === Number(affiliate.id)) return json(res, 400, { error: 'Você não pode entrar na própria equipe.' });
@@ -428,7 +423,7 @@ module.exports = async function handler(req, res) {
     const lifetimeSales = annotatedPaidOrders.length;
 
     const teamMembers = await supabaseFetch(`/rest/v1/affiliates?team_parent_id=eq.${id}&select=id,name,slug,whatsapp,created_at,team_join_source&order=created_at.asc&limit=1000`);
-    const teamParentRows = affiliate.team_parent_id ? await supabaseFetch(`/rest/v1/affiliates?id=eq.${Number(affiliate.team_parent_id)}&select=id,name,slug,whatsapp&limit=1`) : [];
+    const teamParentRows = affiliate.team_parent_id ? await supabaseFetch(`/rest/v1/affiliates?id=eq.${Number(affiliate.team_parent_id)}&select=id,name,slug&limit=1`) : [];
     const teamParent = teamParentRows?.[0] || null;
     const teamIds = (teamMembers || []).map(member => Number(member.id)).filter(Boolean);
     const teamOrders = teamIds.length
@@ -586,7 +581,7 @@ module.exports = async function handler(req, res) {
     const teamAvailableCommission = Math.max(0, teamEarnedCommission - teamReserved);
     const team = {
       code: String(affiliate.team_code || ''),
-      parent: teamParent ? { id: Number(teamParent.id), name: teamParent.name, slug: teamParent.slug, whatsapp: teamParent.whatsapp || '' } : null,
+      parent: teamParent ? { id: Number(teamParent.id), name: teamParent.name, slug: teamParent.slug } : null,
       joined: Boolean(affiliate.team_parent_id),
       canJoin: !affiliate.team_parent_id && lifetimeSales === 0,
       code: String(affiliate.team_code || ''),
