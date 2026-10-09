@@ -5,6 +5,10 @@
   ],
   "rewrites": [
     {
+      "source": "/api/webhooks/woovi",
+      "destination": "/api/webhooks/yampi?provider=woovi"
+    },
+    {
       "source": "/api/affiliate/login",
       "destination": "/api/affiliate/auth?action=login"
     },

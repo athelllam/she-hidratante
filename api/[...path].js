@@ -12,8 +12,18 @@ const webhookWoovi = require('./_handlers/webhook_woovi');
 const webhookYampi = require('./_handlers/webhook_yampi');
 
 function pathname(req) {
-  try { return new URL(req.url, `http://${req.headers?.host || 'localhost'}`).pathname.replace(/\/+$/, '') || '/'; }
-  catch { return String(req.url || '').split('?')[0].replace(/\/+$/, '') || '/'; }
+  let current = '/';
+  try { current = new URL(req.url, `http://${req.headers?.host || 'localhost'}`).pathname.replace(/\/+$/, '') || '/'; }
+  catch { current = String(req.url || '').split('?')[0].replace(/\/+$/, '') || '/'; }
+
+  // Some Vercel catch-all invocations expose the route segments in req.query.path
+  // while req.url still contains the catch-all filename. Rebuild the public path.
+  const routeSegments = req.query?.path;
+  if (routeSegments && (current === '/api/[...path]' || current === '/api/[...path].js' || current === '/')) {
+    const parts = Array.isArray(routeSegments) ? routeSegments : String(routeSegments).split('/');
+    if (parts.length) return '/api/' + parts.map(part => encodeURIComponent(String(part))).join('/');
+  }
+  return current;
 }
 
 function queryFromUrl(req) {

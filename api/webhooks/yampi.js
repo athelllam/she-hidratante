@@ -125,6 +125,13 @@ function safeEqual(a, b) {
 }
 
 module.exports = async function handler(req, res) {
+  // The Woovi endpoint is internally rewritten here to avoid exceeding Vercel's
+  // serverless-function limit. Keep the Woovi business logic in its own handler.
+  let requestPath = '';
+  try { requestPath = new URL(req.url, `https://${req.headers?.host || 'localhost'}`).pathname; } catch {}
+  if (req.query?.provider === 'woovi' || requestPath === '/api/webhooks/woovi' || req.headers?.['x-she-webhook-token']) {
+    return require('../_handlers/webhook_woovi')(req, res);
+  }
   if (req.method !== 'POST') return json(res, 405, { error: 'Método não permitido.' });
 
   try {
