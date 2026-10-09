@@ -686,10 +686,10 @@ export default function AdminDashboard() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
+              [selectedMonths.length ? 'Acessos no período' : 'Acessos acumulados', stats.totalAccesses],
               [selectedMonths.length ? 'Vendas no período' : 'Vendas acumuladas', stats.totalSales],
               [selectedMonths.length ? 'Faturamento no período' : 'Faturamento acumulado', brl(stats.totalRevenue)],
               ['Ticket médio', brl(stats.averageTicket)],
-              [selectedMonths.length ? 'Acessos no período' : 'Acessos acumulados', stats.totalAccesses],
             ].map(([label, value]) => (
               <div key={label} className="rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
                 <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">{label}</p>

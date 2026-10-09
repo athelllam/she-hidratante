@@ -173,15 +173,9 @@ module.exports = async function handler(req, res) {
       const affiliateById = new Map((affiliates || []).map(affiliate => [Number(affiliate.id), affiliate]));
       let totalPersonalCommission = 0;
       let totalTeamCommission = 0;
-      for (const affiliate of affiliates || []) {
-        const affiliateOrders = ordersByAffiliate.get(Number(affiliate.id)) || [];
-        const commissionResult = commissionForOrders(affiliateOrders, settings);
-        totalPersonalCommission += Number(commissionResult.total || 0);
-        for (const annotatedOrder of commissionResult.orders || commissionResult.annotated || []) {
-          if (!annotatedOrder.month) continue;
-          ensureMonthlyBucket(annotatedOrder.month).personalCommission += Number(annotatedOrder.commission || 0);
-        }
-      }
+      // Os indicadores globais de comissão devem refletir os valores persistidos
+      // na tabela affiliate_orders, e não uma recomputação que pode divergir dos
+      // snapshots históricos dos pedidos.
       for (const order of orders || []) {
         if (!isPaidOrder(order) || !order.created_at) continue;
         const date = new Date(order.created_at);
@@ -190,6 +184,12 @@ module.exports = async function handler(req, res) {
         const bucket = ensureMonthlyBucket(month);
         bucket.sales += 1;
         bucket.revenue += Number(order.total || 0);
+
+        const savedPersonalCommission = Number(order.commission);
+        const personalCommission = Number.isFinite(savedPersonalCommission) ? savedPersonalCommission : 0;
+        bucket.personalCommission += personalCommission;
+        totalPersonalCommission += personalCommission;
+
         const seller = affiliateById.get(Number(order.affiliate_id));
         if (seller && Number(seller.team_parent_id) > 0) {
           const savedTeamCommission = Number(order.team_commission_snapshot);
