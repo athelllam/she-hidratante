@@ -1050,7 +1050,15 @@ export default function AffiliateDashboard() {
           </div>
 
           <div className="mt-5 max-h-[500px] space-y-3 overflow-y-auto pr-1">
-            {(dashboard?.movements || []).map(movement => (
+            {[...(dashboard?.movements || [])]
+              .sort((a, b) => {
+                const dateA = new Date(a.date || a.requested_at || a.created_at || 0).getTime();
+                const dateB = new Date(b.date || b.requested_at || b.created_at || 0).getTime();
+                const safeA = Number.isFinite(dateA) ? dateA : 0;
+                const safeB = Number.isFinite(dateB) ? dateB : 0;
+                return safeB - safeA || String(b.id || '').localeCompare(String(a.id || ''));
+              })
+              .map(movement => (
               <div key={movement.id} className="flex flex-col gap-3 rounded-2xl border border-zinc-100 bg-zinc-50/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
                   <div className={`flex h-10 w-10 items-center justify-center rounded-full ${movement.kind === 'boost' ? 'bg-emerald-100 text-emerald-600' : 'bg-pink-100 text-pink-600'}`}>{movement.kind === 'boost' ? '↗' : '↗'}</div>
