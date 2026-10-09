@@ -171,6 +171,7 @@ module.exports = async function handler(req, res) {
           accesses: Number(bucket.accesses || 0),
           balance: money(personalBalance),
           teamBalance: money(teamBalance),
+          totalBalance: money(personalBalance + teamBalance),
           adminActive: Boolean(affiliate.admin_active),
           lastSaleAt: bucket.lastSaleAt,
           daysWithoutSales: bucket.lastSaleAt
