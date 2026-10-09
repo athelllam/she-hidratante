@@ -694,6 +694,9 @@ export default function AdminDashboard() {
               <div key={label} className="rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
                 <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">{label}</p>
                 <p className="mt-2 text-2xl font-black text-zinc-950">{value}</p>
+                {label === 'Saldo das afiliadas' && (
+                  <p className="mt-1 text-xs text-zinc-400">Saldo total Pessoal + Equipes</p>
+                )}
               </div>
             ))}
           </div>

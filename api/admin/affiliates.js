@@ -138,6 +138,29 @@ module.exports = async function handler(req, res) {
         boostSpentByAffiliate.set(aid, (boostSpentByAffiliate.get(aid) || 0) + Number(boost.price || 0));
       }
 
+      // Reproduz a mesma regra do card "Saldo de Equipe" no painel da afiliada.
+      // Cada pedido pago de uma afiliada filha gera comissão para seu team_parent_id.
+      const affiliateByIdForTeam = new Map((affiliates || []).map(item => [Number(item.id), item]));
+      const teamEarnedByParent = new Map();
+      for (const order of orders || []) {
+        if (!isPaidOrder(order)) continue;
+        const seller = affiliateByIdForTeam.get(Number(order.affiliate_id));
+        const parentId = Number(seller?.team_parent_id || 0);
+        if (!parentId) continue;
+        const snapshot = Number(order.team_commission_snapshot);
+        const amount = Number.isFinite(snapshot) && snapshot > 0
+          ? snapshot
+          : Number(settings.teamCommissionPerSale || DEFAULT_COMMISSION_CONFIG.teamCommissionPerSale || 10);
+        teamEarnedByParent.set(parentId, (teamEarnedByParent.get(parentId) || 0) + amount);
+      }
+      const teamWithdrawnByParent = new Map();
+      for (const withdrawal of withdrawals || []) {
+        if (String(withdrawal.source || 'personal') !== 'team') continue;
+        if (['rejected', 'failed'].includes(String(withdrawal.status || '').toLowerCase())) continue;
+        const parentId = Number(withdrawal.affiliate_id);
+        teamWithdrawnByParent.set(parentId, (teamWithdrawnByParent.get(parentId) || 0) + Number(withdrawal.amount || 0));
+      }
+
       const result = (affiliates || []).map(affiliate => {
         const bucket = stats.get(Number(affiliate.id)) || { sales: 0, revenue: 0, commission: 0, withdrawals: 0 };
         return {
@@ -148,6 +171,8 @@ module.exports = async function handler(req, res) {
           earnedCommission: money(bucket.commission),
           accesses: Number(bucket.accesses || 0),
           balance: money(Math.max(0, bucket.commission - bucket.withdrawals - (boostSpentByAffiliate.get(Number(affiliate.id)) || 0))),
+          teamBalance: money(Math.max(0, (teamEarnedByParent.get(Number(affiliate.id)) || 0) - (teamWithdrawnByParent.get(Number(affiliate.id)) || 0))),
+          totalBalance: money(Math.max(0, bucket.commission - bucket.withdrawals - (boostSpentByAffiliate.get(Number(affiliate.id)) || 0)) + Math.max(0, (teamEarnedByParent.get(Number(affiliate.id)) || 0) - (teamWithdrawnByParent.get(Number(affiliate.id)) || 0))),
           adminActive: Boolean(affiliate.admin_active),
           lastSaleAt: bucket.lastSaleAt,
           daysWithoutSales: bucket.lastSaleAt
@@ -454,6 +479,33 @@ module.exports = async function handler(req, res) {
       });
     }
 
+    if (req.method === 'PATCH' && String(req.body?.action || '') === 'update_average_sale_cost') {
+      const value = Number(req.body?.averageSaleCost);
+      if (!Number.isFinite(value) || value < 0) {
+        return json(res, 400, { error: 'Informe um custo médio válido, maior ou igual a zero.' });
+      }
+      const rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1', {
+        method: 'PATCH',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ average_sale_cost: value }),
+      });
+      let saved = rows?.[0];
+      if (!saved) {
+        const inserted = await supabaseFetch('/rest/v1/affiliate_settings', {
+          method: 'POST',
+          headers: { Prefer: 'return=representation,resolution=merge-duplicates' },
+          body: JSON.stringify({ id: 1, average_sale_cost: value }),
+        });
+        saved = inserted?.[0];
+      }
+      const confirmed = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=average_sale_cost&limit=1');
+      const persisted = Number(confirmed?.[0]?.average_sale_cost);
+      if (!Number.isFinite(persisted) || persisted !== value) {
+        return json(res, 500, { error: 'Não foi possível confirmar o custo médio salvo no banco de dados.' });
+      }
+      return json(res, 200, { averageSaleCost: persisted });
+    }
+
     if (req.method === 'PATCH' && String(req.body?.action || '') === 'video_review') {
       const id = Number(req.body?.id);
       const status = String(req.body?.status || '').toLowerCase();
@@ -472,31 +524,6 @@ module.exports = async function handler(req, res) {
 
     if (req.method === 'PATCH') {
       const { id, active, adminActive, commissionRate, password, settings: requestedSettings } = req.body || {};
-
-      if (String(req.body?.action || '') === 'update_average_sale_cost') {
-        const averageSaleCost = Number(req.body?.averageSaleCost);
-        if (!Number.isFinite(averageSaleCost) || averageSaleCost < 0) {
-          return json(res, 400, { error: 'Informe um custo médio válido, maior ou igual a zero.' });
-        }
-        const normalizedCost = money(averageSaleCost);
-        let rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1', {
-          method: 'PATCH',
-          headers: { Prefer: 'return=representation' },
-          body: JSON.stringify({ average_sale_cost: normalizedCost }),
-        });
-        if (!Array.isArray(rows) || rows.length === 0) {
-          rows = await supabaseFetch('/rest/v1/affiliate_settings?on_conflict=id', {
-            method: 'POST',
-            headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
-            body: JSON.stringify({ id: 1, average_sale_cost: normalizedCost }),
-          });
-        }
-        const persistedRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=average_sale_cost&limit=1');
-        if (!persistedRows?.[0] || Number(persistedRows[0].average_sale_cost) !== normalizedCost) {
-          throw new Error('O custo médio não foi confirmado no banco de dados. Verifique a tabela affiliate_settings e a migração average_sale_cost.');
-        }
-        return json(res, 200, { averageSaleCost: Number(persistedRows[0].average_sale_cost) });
-      }
 
       // Metas dos Bônus Mensal/Fixo: tratadas separadamente para que a alteração
       // dessas seis configurações nunca dependa das demais configurações do painel.
