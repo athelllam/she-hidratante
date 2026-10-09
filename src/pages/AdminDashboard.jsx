@@ -276,7 +276,7 @@ export default function AdminDashboard() {
         body: JSON.stringify({ id: withdrawal.id, action: 'approve' }),
       })
       await loadPanel()
-      setMessage(result.message || 'Saque aprovado e enviado para processamento pelo Asaas.')
+      setMessage(result.message || 'Solicitação aprovada e enviada à Woovi para pagamento via Pix.')
     } catch (e) {
       setMessage(e.message || 'Não foi possível processar o saque.')
     } finally {
