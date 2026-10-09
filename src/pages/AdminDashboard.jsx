@@ -553,6 +553,7 @@ export default function AdminDashboard() {
   const filteredWithdrawals = useMemo(() => {
     if (withdrawalFilter === 'pending') return withdrawals.filter(item => item.status === 'pending' || item.status === 'approved')
     if (withdrawalFilter === 'paid') return withdrawals.filter(item => item.status === 'paid')
+    if (withdrawalFilter === 'rejected') return withdrawals.filter(item => item.status === 'rejected')
     return withdrawals
   }, [withdrawals, withdrawalFilter])
 
@@ -1008,7 +1009,7 @@ export default function AdminDashboard() {
             <div className="flex flex-wrap items-center gap-2">
               <FilterPill active={withdrawalFilter === 'all'} onClick={() => setWithdrawalFilter('all')}>Todos · {withdrawals.length}</FilterPill>
               <FilterPill active={withdrawalFilter === 'pending'} onClick={() => setWithdrawalFilter('pending')}>Pendentes · {stats.pendingCount}</FilterPill>
-              <FilterPill active={withdrawalFilter === 'paid'} onClick={() => setWithdrawalFilter('paid')}>Pagos · {withdrawals.filter(item => item.status === 'paid').length}</FilterPill>
+              <FilterPill active={withdrawalFilter === 'paid'} onClick={() => setWithdrawalFilter('paid')}>Pagos · {withdrawals.filter(item => item.status === 'paid').length}</FilterPill><FilterPill active={withdrawalFilter === 'rejected'} onClick={() => setWithdrawalFilter('rejected')}>Recusados · {withdrawals.filter(item => item.status === 'rejected').length}</FilterPill>
             </div>
           </div>
 
@@ -1021,13 +1022,13 @@ export default function AdminDashboard() {
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-black text-zinc-950">{withdrawal.affiliates?.name || 'Afiliada'}</p>
                       <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-zinc-500">ID {withdrawal.affiliate_id}</span>
-                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${withdrawal.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : withdrawal.status === 'processing' ? 'bg-blue-100 text-blue-700' : withdrawal.status === 'failed' ? 'bg-red-100 text-red-700' : pending ? 'bg-amber-100 text-amber-800' : 'bg-zinc-200 text-zinc-600'}`}>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${withdrawal.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : withdrawal.status === 'processing' ? 'bg-blue-100 text-blue-700' : withdrawal.status === 'failed' || withdrawal.status === 'rejected' ? 'bg-red-100 text-red-700' : pending ? 'bg-amber-100 text-amber-800' : 'bg-zinc-200 text-zinc-600'}`}>
                         {withdrawalLabel(withdrawal.status)}
                       </span>
                       <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${withdrawal.source === 'team' ? 'bg-pink-100 text-pink-700' : 'bg-zinc-100 text-zinc-600'}`}>{withdrawal.source === 'team' ? 'Equipe' : 'Pessoal'}</span>
                     </div>
                     <p className="mt-1 text-xs text-zinc-400">Solicitado em {dateTime(withdrawal.requested_at)} · Saque #{withdrawal.id}</p>
-                    <p className="mt-1 text-xs font-semibold text-zinc-600">PIX para recebimento: <span className="break-all font-bold text-zinc-900">{withdrawal.pix_key || 'Não informado (saque antigo)'}</span>{withdrawal.pix_key_type ? <span className="ml-1 text-zinc-400">({withdrawal.pix_key_type})</span> : null}</p>
+                    <p className="mt-1 text-xs font-semibold text-zinc-600">PIX para recebimento: <span className="break-all font-bold text-zinc-900">{withdrawal.pix_key || 'Não informado (saque antigo)'}</span>{withdrawal.pix_key_type ? <span className="ml-1 text-zinc-400">({withdrawal.pix_key_type})</span> : null}</p>{withdrawal.status === 'rejected' && withdrawal.note && <p className="mt-1 text-xs font-semibold text-red-600"><strong>Motivo da recusa:</strong> {withdrawal.note}</p>}
                   </div>
 
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
@@ -1045,7 +1046,7 @@ export default function AdminDashboard() {
                                 body: JSON.stringify({ id: withdrawal.id, action: 'reject', note }),
                               })
                               setMessage(result.message || 'Saque recusado. O saldo foi devolvido para a afiliada.')
-                              await loadData()
+                              await loadPanel()
                             } catch (e) {
                               setMessage(e.message || 'Não foi possível recusar o saque.')
                             } finally {
