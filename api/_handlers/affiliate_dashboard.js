@@ -621,15 +621,12 @@ module.exports = async function handler(req, res) {
     ).reduce((sum, row) => sum + Number(row.price || 0), 0);
     const displayAvailableBalance = Math.max(0, displayCommission - displayWithdrawals - displayBoostSpent);
     const isClosedMonthSelected = requestedMonth !== 'all' && requestedMonth !== defaultMonth;
-    const historicalTicketBonuses = displayOrders.map(order => Number(order.commission || 0) - Number(order.commission_base_snapshot || 0)).filter(value => Number.isFinite(value) && value > 0.001);
-    const historicalTicketBonusCounts = historicalTicketBonuses.reduce((map, value) => { const key = value.toFixed(2); map[key] = (map[key] || 0) + 1; return map; }, {});
-    const historicalTicketBonusValue = Object.entries(historicalTicketBonusCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
-    const displayTicketMultiplierActive = isClosedMonthSelected
-      ? historicalTicketBonuses.length > 0
-      : displayAverageTicket > settings.ticketThreshold;
-    const displayTicketMultiplierValue = isClosedMonthSelected && historicalTicketBonusValue !== undefined
-      ? Number(historicalTicketBonusValue)
-      : settings.ticketBonus;
+    // O valor exibido para o Bônus de Valor vem da configuração oficial,
+    // nunca da diferença commission - commission_base_snapshot. Essa diferença
+    // pode conter dados legados/inconsistentes e exibir R$10 quando a configuração
+    // atual é R$5. A comissão histórica registrada nos pedidos continua preservada.
+    const displayTicketMultiplierActive = displayAverageTicket > settings.ticketThreshold;
+    const displayTicketMultiplierValue = Number(settings.ticketBonus ?? 5);
     const displayMonthlyCommissionRates = { ...settings.commissions };
     if (isClosedMonthSelected) {
       for (const key of ['none', 'bronze', 'silver', 'gold']) {
