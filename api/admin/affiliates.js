@@ -20,7 +20,7 @@ module.exports = async function handler(req, res) {
         supabaseFetch('/rest/v1/affiliate_withdrawals?select=affiliate_id,amount,status,source,requested_at&order=requested_at.desc&limit=10000'),
         supabaseFetch('/rest/v1/affiliate_events?select=affiliate_id,type,created_at&order=created_at.desc&limit=20000'),
         supabaseFetch('/rest/v1/affiliate_admin_status_history?select=affiliate_id,admin_active,effective_at&order=effective_at.asc&limit=20000').catch(() => []),
-        supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active,reseller_hydrant_price,reseller_hydrant_blister_price,reseller_stick_price,reseller_complete_price&limit=1'),
+        supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active,reseller_hydrant_price,reseller_hydrant_blister_price,reseller_stick_price,reseller_complete_price,average_sale_cost&limit=1'),
         supabaseFetch('/rest/v1/rpc/she_team_boost_admin_state', { method: 'POST', body: '{}' }).catch(() => ({ activeCount: 0, queueCount: 0, completedCount: 0, active: [] })),
         supabaseFetch('/rest/v1/affiliate_team_boosts?status=neq.cancelled&select=affiliate_id,price&limit=20000').catch(() => []),
       ]);
@@ -28,12 +28,12 @@ module.exports = async function handler(req, res) {
       const settings = normalizeConfig(settingRows?.[0] ? {
         ticketThreshold: settingRows[0].ticket_threshold,
         ticketBonus: settingRows[0].ticket_bonus,
-        teamCommissionPerSale: settingRows[0].team_commission_per_sale,
+        teamCommissionPerSale: Number(settingRows[0].team_commission_per_sale) > 0 ? Number(settingRows[0].team_commission_per_sale) : DEFAULT_COMMISSION_CONFIG.teamCommissionPerSale,
         commissions: {
-          none: settingRows[0].commission_none,
-          bronze: settingRows[0].commission_bronze,
-          silver: settingRows[0].commission_silver,
-          gold: settingRows[0].commission_gold,
+          none: Number(settingRows[0].commission_none) > 0 ? Number(settingRows[0].commission_none) : DEFAULT_COMMISSION_CONFIG.commissions.none,
+          bronze: Number(settingRows[0].commission_bronze) > 0 ? Number(settingRows[0].commission_bronze) : DEFAULT_COMMISSION_CONFIG.commissions.bronze,
+          silver: Number(settingRows[0].commission_silver) > 0 ? Number(settingRows[0].commission_silver) : DEFAULT_COMMISSION_CONFIG.commissions.silver,
+          gold: Number(settingRows[0].commission_gold) > 0 ? Number(settingRows[0].commission_gold) : DEFAULT_COMMISSION_CONFIG.commissions.gold,
         },
         monthlyLevels: { bronze: settingRows[0].monthly_bronze_sales, silver: settingRows[0].monthly_silver_sales, gold: settingRows[0].monthly_gold_sales },
         fixedLevels: { bronze: settingRows[0].fixed_bronze_sales, silver: settingRows[0].fixed_silver_sales, gold: settingRows[0].fixed_gold_sales },
@@ -49,6 +49,7 @@ module.exports = async function handler(req, res) {
         maxActive: Number(settingRows[0].team_boost_max_active ?? 3),
       } : { small: { price: 30, connections: 5 }, large: { price: 50, connections: 10 }, maxActive: 3 };
       settings.resellerPrices = { hydrant: Number(settingRows?.[0]?.reseller_hydrant_price ?? 0), hydrantBlister: Number(settingRows?.[0]?.reseller_hydrant_blister_price ?? 0), stick: Number(settingRows?.[0]?.reseller_stick_price ?? 0), complete: Number(settingRows?.[0]?.reseller_complete_price ?? 0) };
+      settings.averageSaleCost = Number(settingRows?.[0]?.average_sale_cost ?? 0);
 
       const detailAffiliateId = Number(req.query?.detail || 0);
       const detailMonth = String(req.query?.month || 'all');
@@ -488,7 +489,7 @@ module.exports = async function handler(req, res) {
       }
 
       if (requestedSettings) {
-        const currentRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active,reseller_hydrant_price,reseller_hydrant_blister_price,reseller_stick_price,reseller_complete_price&limit=1');
+        const currentRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active,reseller_hydrant_price,reseller_hydrant_blister_price,reseller_stick_price,reseller_complete_price,average_sale_cost&limit=1');
         const currentSettings = normalizeConfig(currentRows?.[0] ? {
           ticketThreshold: currentRows[0].ticket_threshold,
           ticketBonus: currentRows[0].ticket_bonus,

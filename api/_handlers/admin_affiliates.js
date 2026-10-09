@@ -28,12 +28,12 @@ module.exports = async function handler(req, res) {
       const settings = normalizeConfig(settingRows?.[0] ? {
         ticketThreshold: settingRows[0].ticket_threshold,
         ticketBonus: settingRows[0].ticket_bonus,
-        teamCommissionPerSale: settingRows[0].team_commission_per_sale,
+        teamCommissionPerSale: Number(settingRows[0].team_commission_per_sale) > 0 ? Number(settingRows[0].team_commission_per_sale) : DEFAULT_COMMISSION_CONFIG.teamCommissionPerSale,
         commissions: {
-          none: settingRows[0].commission_none,
-          bronze: settingRows[0].commission_bronze,
-          silver: settingRows[0].commission_silver,
-          gold: settingRows[0].commission_gold,
+          none: Number(settingRows[0].commission_none) > 0 ? Number(settingRows[0].commission_none) : DEFAULT_COMMISSION_CONFIG.commissions.none,
+          bronze: Number(settingRows[0].commission_bronze) > 0 ? Number(settingRows[0].commission_bronze) : DEFAULT_COMMISSION_CONFIG.commissions.bronze,
+          silver: Number(settingRows[0].commission_silver) > 0 ? Number(settingRows[0].commission_silver) : DEFAULT_COMMISSION_CONFIG.commissions.silver,
+          gold: Number(settingRows[0].commission_gold) > 0 ? Number(settingRows[0].commission_gold) : DEFAULT_COMMISSION_CONFIG.commissions.gold,
         },
         monthlyLevels: { bronze: settingRows[0].monthly_bronze_sales, silver: settingRows[0].monthly_silver_sales, gold: settingRows[0].monthly_gold_sales },
         fixedLevels: { bronze: settingRows[0].fixed_bronze_sales, silver: settingRows[0].fixed_silver_sales, gold: settingRows[0].fixed_gold_sales },
