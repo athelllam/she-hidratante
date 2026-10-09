@@ -357,6 +357,8 @@ module.exports = async function handler(req, res) {
     const id = affiliate.id;
     const now = new Date();
     const defaultMonth = monthKeyInSaoPaulo(now);
+    const requestedMonthRaw = req.query?.month ?? new URL(req.url || '/', 'http://localhost').searchParams.get('month');
+    const requestedMonth = String(requestedMonthRaw || 'all') === 'all' ? 'all' : validMonth(requestedMonthRaw) || 'all';
     const { start: startOfCurrentMonth, end: endOfCurrentMonth } = monthRange(defaultMonth);
 
     const [events, orders, withdrawals, settingRows, boostRows] = await Promise.all([
@@ -408,17 +410,11 @@ module.exports = async function handler(req, res) {
     const selectedAccesses = accessEvents;
     const selectedWithdrawals = withdrawals || [];
     const selectedSales = selectedOrders.length;
-    const selectedRevenue = selectedOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
-    const selectedAverageTicket = selectedSales ? selectedRevenue / selectedSales : 0;
     const currentMonthOrders = annotatedPaidOrders.filter(o => { const date = new Date(o.created_at); return date >= startOfCurrentMonth && date < endOfCurrentMonth; });
-    const currentMonthRevenue = currentMonthOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
-    const lifetimeAverageTicket = selectedAverageTicket;
-    const ticketMultiplierActive = lifetimeAverageTicket > settings.ticketThreshold;
     // Comissão do período é sempre histórica/bruta: soma das comissões
     // geradas pelos pedidos pagos dentro do período selecionado.
     // Ela NÃO sofre desconto por saques. O desconto de saques existe apenas
     // em availableCommission, usado exclusivamente no saldo disponível para saque.
-    let selectedCommission = selectedOrders.reduce((sum, o) => sum + Number(o.commission || 0), 0);
     const personalWithdrawals = (withdrawals || []).filter(w => String(w.source || 'personal') === 'personal');
     const teamWithdrawals = (withdrawals || []).filter(w => String(w.source || 'personal') === 'team');
     const reserved = personalWithdrawals.filter(w => !['rejected', 'failed'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
@@ -429,9 +425,6 @@ module.exports = async function handler(req, res) {
 
     // Saldo acumulado: o saldo de abertura do mês é o saldo final do mês anterior.
     // Saques pending/approved/paid já reduzem o saldo disponível imediatamente.
-    const selectedWithdrawalsTotal = selectedWithdrawals.filter(w => String(w.source || 'personal') === 'personal' && !['rejected', 'failed'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
-    const openingBalance = 0;
-    const closingBalance = availableCommission;
 
     const teamRate = Number(settings.teamCommissionPerSale || 10);
     const levelMonth = defaultMonth;
@@ -541,7 +534,6 @@ module.exports = async function handler(req, res) {
     salesByMonth = cardCommissionData.salesByMonth;
     monthlyStats = cardCommissionData.monthlyStats;
     selectedOrders = annotatedPaidOrders;
-    selectedCommission = selectedOrders.reduce((sum, o) => sum + Number(o.commission || 0), 0);
     availableCommission = Math.max(0, totalEarnedCommission - reserved - boostSpent);
 
     const teamSalesByAffiliate = new Map();
@@ -586,8 +578,10 @@ module.exports = async function handler(req, res) {
     const withdrawalMonths = selectedWithdrawals.map(w => monthKeyInSaoPaulo(w.requested_at)).filter(Boolean);
     const historicalMonths = Array.from(new Set([
       ...Object.keys(salesByMonth),
+      ...Object.keys(teamSalesByMonth),
       ...eventMonths,
       ...withdrawalMonths,
+      ...(boostRows || []).map(row => monthKeyInSaoPaulo(row.created_at || row.queue_created_at)).filter(Boolean),
       defaultMonth,
     ])).filter(Boolean).sort();
 
@@ -607,38 +601,110 @@ module.exports = async function handler(req, res) {
       monthMap[key].sales++;
     }
     const chart = Object.values(monthMap).sort((a, b) => a.date.localeCompare(b.date));
+    const displayOrders = requestedMonth === 'all'
+      ? annotatedPaidOrders
+      : annotatedPaidOrders.filter(order => (order.month || monthKeyInSaoPaulo(order.created_at)) === requestedMonth);
+    const displayAccesses = requestedMonth === 'all'
+      ? accessEvents
+      : accessEvents.filter(event => monthKeyInSaoPaulo(event.created_at) === requestedMonth);
+    const displayCommission = displayOrders.reduce((sum, order) => sum + Number(order.commission || 0), 0);
+    const displayRevenue = displayOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+    const displaySales = displayOrders.length;
+    const displayAverageTicket = displaySales ? displayRevenue / displaySales : 0;
+    const displayWithdrawals = personalWithdrawals.filter(withdrawal =>
+      !['rejected', 'failed'].includes(String(withdrawal.status || '')) &&
+      (requestedMonth === 'all' || monthKeyInSaoPaulo(withdrawal.requested_at) === requestedMonth)
+    ).reduce((sum, withdrawal) => sum + Number(withdrawal.amount || 0), 0);
+    const displayBoostSpent = (boostRows || []).filter(row =>
+      ['queued', 'active', 'completed'].includes(String(row.status || '')) &&
+      (requestedMonth === 'all' || monthKeyInSaoPaulo(row.created_at || row.queue_created_at) === requestedMonth)
+    ).reduce((sum, row) => sum + Number(row.price || 0), 0);
+    const displayAvailableBalance = Math.max(0, displayCommission - displayWithdrawals - displayBoostSpent);
+    const isClosedMonthSelected = requestedMonth !== 'all' && requestedMonth !== defaultMonth;
+    const historicalTicketBonuses = displayOrders.map(order => Number(order.commission || 0) - Number(order.commission_base_snapshot || 0)).filter(value => Number.isFinite(value) && value > 0.001);
+    const historicalTicketBonusCounts = historicalTicketBonuses.reduce((map, value) => { const key = value.toFixed(2); map[key] = (map[key] || 0) + 1; return map; }, {});
+    const historicalTicketBonusValue = Object.entries(historicalTicketBonusCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+    const displayTicketMultiplierActive = isClosedMonthSelected
+      ? historicalTicketBonuses.length > 0
+      : displayAverageTicket > settings.ticketThreshold;
+    const displayTicketMultiplierValue = isClosedMonthSelected && historicalTicketBonusValue !== undefined
+      ? Number(historicalTicketBonusValue)
+      : settings.ticketBonus;
+    const displayMonthlyCommissionRates = { ...settings.commissions };
+    if (isClosedMonthSelected) {
+      for (const key of ['none', 'bronze', 'silver', 'gold']) {
+        const values = displayOrders
+          .filter(order => String(order.commission_level_snapshot || '').toLowerCase() === key)
+          .map(order => Number(order.commission_base_snapshot))
+          .filter(value => Number.isFinite(value));
+        const counts = values.reduce((map, value) => { const valueKey = value.toFixed(2); map[valueKey] = (map[valueKey] || 0) + 1; return map; }, {});
+        const mostCommon = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0];
+        if (mostCommon !== undefined) displayMonthlyCommissionRates[key] = Number(mostCommon);
+      }
+    }
+    let displayMonthlyLevel = monthlyLevel;
+    if (requestedMonth !== 'all' && requestedMonth !== defaultMonth) {
+      const monthlySalesCount = Number(salesByMonth[requestedMonth] || 0);
+      const monthlyTeamSalesCount = Number(teamSalesByMonth[requestedMonth] || 0);
+      const snapshotLevels = displayOrders.map(order => String(order.commission_level_snapshot || '').toLowerCase()).filter(key => LEVEL_ORDER[key] !== undefined);
+      const snapshotLevelKey = snapshotLevels.length
+        ? snapshotLevels.sort((a, b) => LEVEL_ORDER[b] - LEVEL_ORDER[a])[0]
+        : (cardCommissionData.levelByMonth?.[requestedMonth]?.key || 'none');
+      const historicalLevel = getLevel(0, settings, 'monthly');
+      const levelKeyForDisplay = snapshotLevelKey;
+      const levelLabelForDisplay = levelKeyForDisplay === 'gold' ? 'Ouro' : levelKeyForDisplay === 'silver' ? 'Prata' : levelKeyForDisplay === 'bronze' ? 'Bronze' : 'Início';
+      const snapshotBases = displayOrders.filter(order => String(order.commission_level_snapshot || '').toLowerCase() === levelKeyForDisplay).map(order => Number(order.commission_base_snapshot)).filter(value => Number.isFinite(value));
+      const baseCounts = snapshotBases.reduce((map, value) => { const key = String(value); map[key] = (map[key] || 0) + 1; return map; }, {});
+      const historicalCommissionPerOrder = Object.entries(baseCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+      const monthlyThresholds = settings.monthlyLevels || {};
+      const nextMonthly = levelKeyForDisplay === 'none' ? 'bronze' : levelKeyForDisplay === 'bronze' ? 'silver' : levelKeyForDisplay === 'silver' ? 'gold' : null;
+      const nextMonthlyMin = nextMonthly ? Number(monthlyThresholds[nextMonthly] || (nextMonthly === 'gold' ? 101 : nextMonthly === 'silver' ? 50 : 10)) : null;
+      const levelPoints = monthlySalesCount + monthlyTeamSalesCount;
+      displayMonthlyLevel = {
+        ...historicalLevel,
+        key: levelKeyForDisplay,
+        label: levelLabelForDisplay,
+        sales: monthlySalesCount + monthlyTeamSalesCount,
+        commissionPerOrder: historicalCommissionPerOrder !== undefined ? Number(historicalCommissionPerOrder) : Number(settings.commissions?.[levelKeyForDisplay] || 0),
+        progress: levelKeyForDisplay === 'gold' ? 100 : Math.min(100, levelPoints / Math.max(1, nextMonthlyMin || levelPoints || 1) * 100),
+        nextLevel: nextMonthly === 'bronze' ? 'Bronze' : nextMonthly === 'silver' ? 'Prata' : nextMonthly === 'gold' ? 'Ouro' : null,
+        nextMinSales: nextMonthlyMin,
+        salesToNext: nextMonthlyMin === null ? 0 : Math.max(0, nextMonthlyMin - levelPoints),
+      };
+    }
     return json(res, 200, {
       affiliate,
       settings,
-      selectedMonth: defaultMonth,
-      isAllMonths: true,
+      monthlyCommissionRates: displayMonthlyCommissionRates,
+      selectedMonth: requestedMonth,
+      isAllMonths: requestedMonth === 'all',
       lifetimeSales,
       team,
       metrics: {
-        accesses: selectedAccesses.length,
-        sales: selectedSales,
-        revenue: money(selectedRevenue),
-        averageTicket: money(selectedAverageTicket),
-        // Comissão histórica do período selecionado. Saques nunca são abatidos aqui.
-        commission: money(selectedCommission),
-        earnedCommission: money(selectedCommission),
-        // Saldo disponível é separado e já considera saques/reservas.
-        availableCommission: money(availableCommission),
-        reservedWithdrawals: money(reserved),
-        openingBalance: money(openingBalance),
-        closingBalance: money(closingBalance),
-        selectedWithdrawals: money(selectedWithdrawalsTotal),
-        ticketMultiplier: money(ticketMultiplierActive ? settings.ticketBonus : 0),
-        ticketMultiplierActive,
+        accesses: displayAccesses.length,
+        sales: displaySales,
+        revenue: money(displayRevenue),
+        averageTicket: money(displayAverageTicket),
+        // Comissão do período escolhido; o saldo desconta saques e impulsos do mesmo período.
+        commission: money(displayCommission),
+        earnedCommission: money(displayCommission),
+        availableCommission: money(displayAvailableBalance),
+        reservedWithdrawals: money(displayWithdrawals),
+        openingBalance: requestedMonth === 'all' ? 0 : money(Math.max(0, availableCommission - displayAvailableBalance)),
+        closingBalance: money(displayAvailableBalance),
+        selectedWithdrawals: money(displayWithdrawals),
+        ticketMultiplier: money(displayTicketMultiplierActive ? displayTicketMultiplierValue : 0),
+        ticketMultiplierActive: displayTicketMultiplierActive,
         ticketMultiplierThreshold: settings.ticketThreshold,
-        ticketMultiplierValue: settings.ticketBonus,
+        ticketMultiplierValue: displayTicketMultiplierValue,
+        currentMonthPersonalSales: currentMonthOrders.length,
       },
       teamBonus: { active: teamBonusActive, joinedAt: affiliate.team_joined_at || null, expiresAt: teamBonusEnd ? teamBonusEnd.toISOString() : null },
       boost: { purchases: boostRows || [], spent: money(boostSpent) },
       monthlyLevel: {
-        key: monthlyLevel.key, label: monthlyLevel.label, sales: monthlyLevel.sales,
-        commissionPerOrder: monthlyLevel.commissionPerOrder, progress: monthlyLevel.progress,
-        nextLevel: monthlyLevel.nextLevel, nextMinSales: monthlyLevel.nextMinSales, salesToNext: monthlyLevel.salesToNext,
+        key: displayMonthlyLevel.key, label: displayMonthlyLevel.label, sales: displayMonthlyLevel.sales,
+        commissionPerOrder: displayMonthlyLevel.commissionPerOrder, progress: displayMonthlyLevel.progress,
+        nextLevel: displayMonthlyLevel.nextLevel, nextMinSales: displayMonthlyLevel.nextMinSales, salesToNext: displayMonthlyLevel.salesToNext,
       },
       fixedLevel: {
         key: fixedLevel.key, label: fixedLevel.label, sales: fixedLevel.sales,

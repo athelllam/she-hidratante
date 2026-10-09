@@ -9,7 +9,7 @@ const DEFAULT_COMMISSION_CONFIG = {
     gold: 60,
   },
   monthlyLevels: { bronze: 10, silver: 50, gold: 101 },
-  fixedLevels: { bronze: 100, silver: 300, gold: 500 },
+  fixedLevels: { bronze: 50, silver: 300, gold: 500 },
 };
 
 const LEVEL_DEFINITIONS = [
@@ -163,10 +163,6 @@ function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG, options
   const normalized = normalizeConfig(config);
   const paid = (orders || []).filter(order => isPaidOrder(order));
   const monthlyStats = calculateMonthlyStats(paid, normalized);
-  const lifetimeRevenue = paid.reduce((sum, order) => sum + Number(order.total || 0), 0);
-  const lifetimeAverageTicket = paid.length ? lifetimeRevenue / paid.length : 0;
-  const lifetimeTicketMultiplierActive = lifetimeAverageTicket > normalized.ticketThreshold;
-  const lifetimeTicketMultiplier = lifetimeTicketMultiplierActive ? normalized.ticketBonus : 0;
   const salesByMonth = Object.fromEntries(
     Object.entries(monthlyStats).map(([key, stats]) => [key, stats.sales])
   );
@@ -194,7 +190,7 @@ function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG, options
     const effectiveLevel = key === currentMonth
       ? historicalLevel
       : historicalLevel;
-    const multiplier = lifetimeTicketMultiplier;
+    const multiplier = stats.averageTicket > normalized.ticketThreshold ? normalized.ticketBonus : 0;
     const isCurrentMonth = key === currentMonth;
 
     // O card do mês atual é a fonte da verdade. Para meses encerrados,
@@ -257,9 +253,9 @@ function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG, options
       monthlyLevel: monthlyLevel.label,
       fixedLevel: fixedLevel.label,
       month: key,
-      ticketAverage: Number(lifetimeAverageTicket.toFixed(2)),
+      ticketAverage: Number(Number(stats.averageTicket || 0).toFixed(2)),
       ticketMultiplier: multiplier,
-      ticketMultiplierActive: lifetimeTicketMultiplierActive,
+      ticketMultiplierActive: Number(stats.averageTicket || 0) > normalized.ticketThreshold,
     };
   });
 
@@ -279,10 +275,6 @@ async function reconcileAffiliateOrderCommissions(supabaseFetch, affiliateId, co
   if (!paid.length) return { updated: 0, orders: [] };
 
   const monthlyStats = calculateMonthlyStats(paid, normalized);
-  const lifetimeRevenue = paid.reduce((sum, order) => sum + Number(order.total || 0), 0);
-  const lifetimeAverageTicket = paid.length ? lifetimeRevenue / paid.length : 0;
-  const lifetimeTicketMultiplierActive = lifetimeAverageTicket > normalized.ticketThreshold;
-  const lifetimeTicketMultiplier = lifetimeTicketMultiplierActive ? normalized.ticketBonus : 0;
 
   const cumulativeByMonth = {};
   let cumulativeSales = 0;
@@ -333,23 +325,30 @@ async function reconcileAffiliateOrderCommissions(supabaseFetch, affiliateId, co
     // nível. Se o nível do mês atual mudar por uma nova meta, usamos o valor
     // atualmente configurado para o novo nível; depois disso ele fica
     // congelado até que o nível do mês mude novamente.
-    let nextLevel = hasPersistedSnapshot ? existingLevel : computedLevelKey;
-    let nextBase = hasPersistedSnapshot ? Number(order.commission_base_snapshot) : Number(normalized.commissions[nextLevel] || 0);
+    const existingCommissionValue = Number(order.commission);
+    const hasHistoricalCommission = key !== currentMonth && Number.isFinite(existingCommissionValue) && existingCommissionValue > 0;
+    let nextLevel = hasPersistedSnapshot
+      ? existingLevel
+      : (hasHistoricalCommission && LEVEL_ORDER[existingLevel] !== undefined ? existingLevel : computedLevelKey);
+    const monthlyTicketBonusForSnapshot = Number(stats.averageTicket || 0) > normalized.ticketThreshold ? normalized.ticketBonus : 0;
+    let nextBase = hasPersistedSnapshot
+      ? Number(order.commission_base_snapshot)
+      : (hasHistoricalCommission ? Math.max(0, existingCommissionValue - monthlyTicketBonusForSnapshot) : Number(normalized.commissions[nextLevel] || 0));
 
     if (currentLevelChanged || currentLevelNeedsInitialSnapshot) {
       nextLevel = computedLevelKey;
       nextBase = Number(normalized.commissions[nextLevel] || 0);
     }
 
-    // Bônus de Valor é a única bonificação deliberadamente dinâmica:
-    // depende da média de todas as vendas e das configurações atuais de
-    // Meta Ticket Médio/Bônus de Valor. Por isso o adicional pode mudar
-    // imediatamente até mesmo em vendas antigas.
+    // Bônus de Valor é calculado pela média das vendas daquele mês. A regra
+    // e o valor configurado só podem recalcular as vendas do mês corrente;
+    // meses encerrados preservam a comissão registrada.
     // Somente o mês atual pode sofrer recálculo dinâmico. Meses anteriores
     // mantêm exatamente a comissão e o saldo já adquiridos.
+    const monthlyTicketBonus = Number(stats.averageTicket || 0) > normalized.ticketThreshold ? normalized.ticketBonus : 0;
     const nextCommission = key === currentMonth
-      ? Number((nextBase + lifetimeTicketMultiplier).toFixed(2))
-      : (hasPersistedSnapshot ? Number(order.commission) : Number((nextBase + lifetimeTicketMultiplier).toFixed(2)));
+      ? Number((nextBase + monthlyTicketBonus).toFixed(2))
+      : (hasHistoricalCommission ? existingCommissionValue : Number((nextBase + monthlyTicketBonus).toFixed(2)));
     const existingBase = Number(order.commission_base_snapshot);
     const existingCommission = Number(order.commission);
     const existingTeamSnapshot = Number(order.team_commission_snapshot);

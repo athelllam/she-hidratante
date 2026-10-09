@@ -70,6 +70,7 @@ function levelAccent(key) {
 export default function AffiliateDashboard() {
   const [affiliate, setAffiliate] = useState(null)
   const [dashboard, setDashboard] = useState(null)
+  const [selectedMonth, setSelectedMonth] = useState('all')
   const [registerMode, setRegisterMode] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', password: '', whatsapp: '', cpf: '' })
   const [login, setLogin] = useState({ email: '', password: '' })
@@ -128,9 +129,10 @@ export default function AffiliateDashboard() {
     requestAnimationFrame(() => { node.scrollLeft = node.scrollWidth })
   }, [dashboard?.chart])
 
-  const load = async ({ sync = false } = {}) => {
+  const load = async ({ sync = false, month = selectedMonth } = {}) => {
     try {
-      const data = await api('/api/affiliate/dashboard')
+      const dashboardUrl = `/api/affiliate/dashboard?month=${encodeURIComponent(month || 'all')}`
+      const data = await api(dashboardUrl)
       setAffiliate(data.affiliate)
       setPixKey(data.affiliate?.pix_key || '')
       setPixKeyType(data.affiliate?.pix_key_type || 'CPF')
@@ -159,7 +161,7 @@ export default function AffiliateDashboard() {
             setSyncMessage('Integração de vendas ainda não configurada.')
           } else {
             setSyncMessage(`${result.synced || 0} pedido(s) sincronizado(s).`)
-            const refreshed = await api('/api/affiliate/dashboard')
+            const refreshed = await api(dashboardUrl)
             setDashboard(refreshed)
           }
         } catch (e) {
@@ -275,6 +277,16 @@ export default function AffiliateDashboard() {
     setDashboard(null)
   }
 
+  const changeSelectedMonth = async (value) => {
+    setSelectedMonth(value)
+    try {
+      const data = await api(`/api/affiliate/dashboard?month=${encodeURIComponent(value || 'all')}`)
+      setDashboard(data)
+    } catch (e) {
+      setError(e.message || 'Não foi possível carregar os indicadores do mês.')
+    }
+  }
+
   const requestWithdraw = async (event) => {
     event.preventDefault()
     setWithdrawBusy(true)
@@ -287,7 +299,7 @@ export default function AffiliateDashboard() {
       })
       setWithdrawAmount('')
       setWithdrawMessage(`Solicitação enviada. ${brl(amount)} ficou reservado para análise.`)
-      const refreshed = await api('/api/affiliate/dashboard')
+      const refreshed = await api(`/api/affiliate/dashboard?month=${encodeURIComponent(selectedMonth || 'all')}`)
       setDashboard(refreshed)
     } catch (e) {
       setWithdrawMessage(e.message || 'Não foi possível solicitar o saque.')
@@ -319,7 +331,7 @@ export default function AffiliateDashboard() {
       setTeamJoinMessage('Você entrou na equipe com sucesso.')
       setTeamCode('')
       setTeamReservation(null)
-      const refreshed = await api('/api/affiliate/dashboard')
+      const refreshed = await api(`/api/affiliate/dashboard?month=${encodeURIComponent(selectedMonth || 'all')}`)
       setDashboard(refreshed)
       try { setTeamBoost(await api('/api/affiliate/dashboard?boost=1')) } catch {}
     } catch (e) {
@@ -350,7 +362,7 @@ export default function AffiliateDashboard() {
     try {
       await api('/api/affiliate/dashboard', { method: 'POST', body: JSON.stringify({ action: 'boost_purchase', plan }) })
       setTeamBoostMessage('Impulso contratado. Seu saldo foi reservado e sua posição na fila foi registrada.')
-      const [refreshed, boostData] = await Promise.all([api('/api/affiliate/dashboard'), api('/api/affiliate/dashboard?boost=1')])
+      const [refreshed, boostData] = await Promise.all([api(`/api/affiliate/dashboard?month=${encodeURIComponent(selectedMonth || 'all')}`), api('/api/affiliate/dashboard?boost=1')])
       setDashboard(refreshed)
       setTeamBoost(boostData)
     } catch (e) {
@@ -366,7 +378,7 @@ export default function AffiliateDashboard() {
     try {
       await api('/api/affiliate/dashboard', { method: 'POST', body: JSON.stringify({ action: 'boost_leave_queue' }) })
       setTeamBoostMessage('Você saiu da fila e o valor foi devolvido ao seu saldo.')
-      const [refreshed, boostData] = await Promise.all([api('/api/affiliate/dashboard'), api('/api/affiliate/dashboard?boost=1')])
+      const [refreshed, boostData] = await Promise.all([api(`/api/affiliate/dashboard?month=${encodeURIComponent(selectedMonth || 'all')}`), api('/api/affiliate/dashboard?boost=1')])
       setDashboard(refreshed)
       setTeamBoost(boostData)
     } catch (e) {
@@ -388,7 +400,7 @@ export default function AffiliateDashboard() {
       })
       setTeamWithdrawAmount('')
       setTeamWithdrawMessage(`Solicitação de saque de equipe enviada. ${brl(amount)} ficou reservado para análise.`)
-      const refreshed = await api('/api/affiliate/dashboard')
+      const refreshed = await api(`/api/affiliate/dashboard?month=${encodeURIComponent(selectedMonth || 'all')}`)
       setDashboard(refreshed)
     } catch (e) {
       setTeamWithdrawMessage(e.message || 'Não foi possível solicitar o saque de equipe.')
@@ -549,10 +561,11 @@ export default function AffiliateDashboard() {
   const publicUrl = hasAffiliateLink ? `https://shecoisademulher.com/${affiliate.slug}` : ''
   const qrUrl = publicUrl ? `https://quickchart.io/qr?size=220&text=${encodeURIComponent(publicUrl)}` : ''
   const config = dashboard?.settings || { ticketThreshold: 170, ticketBonus: 5, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 } }
-  const level = dashboard?.level || { key: 'none', label: 'Início', sales: 0, commissionPerOrder: Number(config.commissions?.none || 30), progress: 0, nextLevel: 'Bronze', nextMinSales: config.monthlyLevels?.bronze || 10, salesToNext: config.monthlyLevels?.bronze || 10 }
+  const level = dashboard?.monthlyLevel || dashboard?.level || { key: 'none', label: 'Início', sales: 0, commissionPerOrder: Number(config.commissions?.none || 30), progress: 0, nextLevel: 'Bronze', nextMinSales: config.monthlyLevels?.bronze || 10, salesToNext: config.monthlyLevels?.bronze || 10 }
   const monthlyLevel = dashboard?.monthlyLevel || level
   const fixedLevel = dashboard?.fixedLevel || { key: 'none', label: 'Início', sales: Number(dashboard?.lifetimeSales || 0), progress: 0 }
   const months = dashboard?.months?.length ? dashboard.months : []
+  const fixedProgress = fixedLevel.progress || 0
   const availableCommission = Number(dashboard?.metrics?.availableCommission || 0)
   const currentMonthPersonalSales = Number(dashboard?.metrics?.currentMonthPersonalSales || 0)
   const canWithdrawThisMonth = currentMonthPersonalSales >= 1
@@ -565,7 +578,14 @@ export default function AffiliateDashboard() {
           <div>
             <p className="text-xs font-bold uppercase tracking-[.28em] text-pink-500">She Afiliadas</p>
             <h1 className="mt-1 text-3xl md:text-4xl font-black text-zinc-950">Olá, {affiliate.name}.</h1>
-            <p className="mt-2 text-sm text-zinc-500">Visão acumulada de todo o período</p>
+            <p className="mt-2 text-sm text-zinc-500">{selectedMonth === 'all' ? 'Indicadores acumulados de todo o período' : `Indicadores de ${monthLabel(selectedMonth)}`}</p>
+          </div>
+          <div className="w-full lg:w-64">
+            <label htmlFor="affiliate-month-filter" className="mb-2 block text-[10px] font-black uppercase tracking-[.16em] text-zinc-400">Filtrar indicadores por mês</label>
+            <select id="affiliate-month-filter" value={selectedMonth} onChange={event => changeSelectedMonth(event.target.value)} className="w-full rounded-xl border border-pink-100 bg-white px-4 py-3 text-sm font-bold text-zinc-800 outline-none focus:border-pink-400">
+              <option value="all">Todos os meses</option>
+              {[...months].sort((a, b) => b.localeCompare(a)).map(month => <option key={month} value={month}>{monthLabel(month)}</option>)}
+            </select>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -636,7 +656,7 @@ export default function AffiliateDashboard() {
         <section className={`relative mt-7 overflow-hidden rounded-[2rem] border border-white bg-gradient-to-r ${levelTone(level.key)} p-5 shadow-sm md:p-7`}>
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[.2em] text-zinc-400">Bônus Mensal</p>
+              <p className="text-xs font-black uppercase tracking-[.2em] text-zinc-400">Qualificação Mensal</p>
               <div className="mt-1 flex flex-wrap items-baseline gap-3">
                 <h2 className={`text-3xl font-black ${levelAccent(level.key)}`}>{level.label}</h2>
                 <span className="text-sm font-bold text-zinc-600">{monthlyLevel.sales} pontos no mês</span>
@@ -664,9 +684,9 @@ export default function AffiliateDashboard() {
 
 
             {[
-              { label: 'Bronze', min: Number(config.monthlyLevels?.bronze || 10), image: '/badge-bronze.svg', rate: brl(config.commissions?.bronze), tone: 'text-[#9a5a22]' },
-              { label: 'Prata', min: Number(config.monthlyLevels?.silver || 50), image: '/badge-silver.svg', rate: brl(config.commissions?.silver), tone: 'text-zinc-500' },
-              { label: 'Ouro', min: Number(config.monthlyLevels?.gold || 101), image: '/badge-gold.svg', rate: brl(config.commissions?.gold), tone: 'text-amber-600' },
+              { label: 'Bronze', min: Number(config.monthlyLevels?.bronze || 10), image: '/badge-bronze.svg', rate: brl(dashboard?.monthlyCommissionRates?.bronze ?? config.commissions?.bronze), tone: 'text-[#9a5a22]' },
+              { label: 'Prata', min: Number(config.monthlyLevels?.silver || 50), image: '/badge-silver.svg', rate: brl(dashboard?.monthlyCommissionRates?.silver ?? config.commissions?.silver), tone: 'text-zinc-500' },
+              { label: 'Ouro', min: Number(config.monthlyLevels?.gold || 101), image: '/badge-gold.svg', rate: brl(dashboard?.monthlyCommissionRates?.gold ?? config.commissions?.gold), tone: 'text-amber-600' },
             ].map(item => {
               const markerLeft = item.label === 'Bronze' ? '10%' : item.label === 'Prata' ? '50%' : '90%'
               return (
@@ -683,28 +703,53 @@ export default function AffiliateDashboard() {
           <button type="button" aria-label="Como funcionam os níveis" onClick={() => setLevelHelpOpen(true)} className="absolute bottom-4 right-5 flex h-6 w-6 items-center justify-center rounded-full border border-zinc-200 bg-white/90 text-xs font-black text-zinc-500 shadow-sm transition hover:border-pink-300 hover:text-pink-500">?</button>
         </section>
 
+        <section className={`relative mt-5 overflow-hidden rounded-[2rem] border border-white bg-gradient-to-r ${levelTone(fixedLevel.key)} p-5 shadow-sm md:p-7`}>
+          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[.2em] text-zinc-400">Qualificação Permanente</p>
+              <div className="mt-1 flex flex-wrap items-baseline gap-3">
+                <h2 className={`text-3xl font-black ${levelAccent(fixedLevel.key)}`}>{fixedLevel.label}</h2>
+                <span className="text-sm font-bold text-zinc-600">{fixedLevel.sales} vendas pessoais acumuladas</span>
+              </div>
+              <p className="mt-2 text-sm text-zinc-500">
+                {fixedLevel.nextLevel ? `Faltam ${fixedLevel.salesToNext} venda(s) pessoal(is) para ${fixedLevel.nextLevel}.` : 'Você atingiu a qualificação permanente máxima.'}
+              </p>
+            </div>
+            <div className="min-w-[220px] text-right">
+              <p className="text-xs font-bold text-zinc-400">PROGRESSO ACUMULADO</p>
+              <p className="mt-1 text-2xl font-black text-zinc-900">{Math.round(fixedProgress)}%</p>
+            </div>
+          </div>
+          <div className="relative mx-auto mt-8 h-[92px] w-[82%] max-w-[520px] px-0">
+            <div className="absolute left-0 right-0 top-4 h-4 overflow-hidden rounded-full bg-zinc-200/80">
+              <div className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-zinc-400 via-orange-400 via-zinc-500 to-amber-400 transition-all duration-700" style={{ width: `${Math.min(100, fixedProgress)}%` }} />
+            </div>
+            {[
+              { label: 'Bronze', min: Number(config.fixedLevels?.bronze || 50), image: '/badge-bronze.svg', tone: 'text-[#9a5a22]' },
+              { label: 'Prata', min: Number(config.fixedLevels?.silver || 300), image: '/badge-silver.svg', tone: 'text-zinc-500' },
+              { label: 'Ouro', min: Number(config.fixedLevels?.gold || 500), image: '/badge-gold.svg', tone: 'text-amber-600' },
+            ].map(item => {
+              const fixedMax = Number(config.fixedLevels?.gold || 500)
+              const markerLeft = `${Math.min(100, Math.max(0, item.min / Math.max(1, fixedMax) * 100))}%`
+              return <div key={item.label} className="absolute top-0 -translate-x-1/2 text-center" style={{ left: markerLeft }}>
+                <div className="mx-auto h-10 w-10 rounded-full border-2 border-white bg-white shadow-[0_5px_14px_rgba(0,0,0,.14)] sm:h-12 sm:w-12"><img src={item.image} alt={`Broche ${item.label}`} className="h-full w-full object-contain" /></div>
+                <div className={`mt-1 whitespace-nowrap text-[8px] font-black uppercase tracking-wider sm:text-[9px] ${item.tone}`}>{item.label}</div>
+                <div className="mt-1 text-[8px] font-black text-zinc-400 sm:text-[9px]">{item.min} vendas</div>
+              </div>
+            })}
+          </div>
+          <button type="button" aria-label="Como funciona a Qualificação Permanente" onClick={() => setFixedHelpOpen(true)} className="absolute bottom-4 right-5 flex h-6 w-6 items-center justify-center rounded-full border border-zinc-200 bg-white/90 text-xs font-black text-zinc-500 shadow-sm transition hover:border-pink-300 hover:text-pink-500">?</button>
+        </section>
+
         <section className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {cards.map(([label, value]) => {
             const multiplierActive = label === 'Ticket médio' && dashboard?.metrics?.ticketMultiplierActive
-            const fixedActive = label === 'Vendas' && fixedLevel.key !== 'none'
-            const fixedTone = fixedLevel.key === 'gold'
-              ? 'border-amber-300 bg-gradient-to-br from-amber-200 via-yellow-100 to-amber-50 shadow-[0_0_35px_rgba(245,158,11,.28)]'
-              : fixedLevel.key === 'silver'
-                ? 'border-zinc-300 bg-gradient-to-br from-zinc-200 via-white to-zinc-100 shadow-[0_0_35px_rgba(113,113,122,.20)]'
-                : fixedLevel.key === 'bronze'
-                  ? 'border-orange-300 bg-gradient-to-br from-orange-200 via-orange-100 to-amber-50 shadow-[0_0_35px_rgba(234,88,12,.20)]'
-                  : 'border-pink-100 bg-white'
             return (
-              <div key={label} className={`relative rounded-[1.5rem] p-5 border shadow-sm transition-all ${fixedActive ? fixedTone : multiplierActive ? 'border-amber-300 bg-gradient-to-br from-amber-100 via-yellow-50 to-white shadow-[0_0_35px_rgba(245,158,11,.28)]' : 'border-pink-100 bg-white'}`}>
-                {label === 'Vendas' && fixedLevel.key !== 'none' && (
-                  <div className="absolute right-4 top-3 h-11 w-11 rounded-full bg-white/80 p-1 shadow-sm"><img src={fixedLevel.key === 'gold' ? '/badge-gold.svg' : fixedLevel.key === 'silver' ? '/badge-silver.svg' : '/badge-bronze.svg'} alt={`Broche ${fixedLevel.label}`} className="h-full w-full object-contain" /></div>
-                )}
-                <p className={`text-xs uppercase tracking-[.18em] ${fixedActive ? levelAccent(fixedLevel.key) : multiplierActive ? 'text-amber-700' : 'text-zinc-400'}`}>{label}</p>
-                <p className={`mt-3 text-2xl font-black ${fixedActive ? levelAccent(fixedLevel.key) : multiplierActive ? 'text-amber-900' : 'text-zinc-950'}`}>{value}</p>
-                {label === 'Vendas' && <p className={`mt-2 text-[10px] font-black uppercase tracking-[.12em] ${fixedActive ? levelAccent(fixedLevel.key) : 'text-zinc-400'}`}>Bônus Fixo · {fixedLevel.label}</p>}
+              <div key={label} className={`relative rounded-[1.5rem] p-5 border shadow-sm transition-all ${multiplierActive ? 'border-amber-300 bg-gradient-to-br from-amber-100 via-yellow-50 to-white shadow-[0_0_35px_rgba(245,158,11,.28)]' : 'border-pink-100 bg-white'}`}>
+                <p className={`text-xs uppercase tracking-[.18em] ${multiplierActive ? 'text-amber-700' : 'text-zinc-400'}`}>{label}</p>
+                <p className={`mt-3 text-2xl font-black ${multiplierActive ? 'text-amber-900' : 'text-zinc-950'}`}>{value}</p>
                 {multiplierActive && <span className="mt-2 inline-flex rounded-full bg-amber-400/20 px-2.5 py-1 text-[11px] font-black text-amber-800">+ {brl(dashboard?.metrics?.ticketMultiplierValue ?? config.ticketBonus)} / pedido</span>}
-                {label === 'Ticket médio' && <p className={`mt-2 text-[10px] leading-4 ${multiplierActive ? 'text-amber-700' : 'text-zinc-400'}`}>Ticket médio acumulado acima de {brl(dashboard?.metrics?.ticketMultiplierThreshold ?? config.ticketThreshold)} ativa + {brl(dashboard?.metrics?.ticketMultiplierValue ?? config.ticketBonus)} por pedido.</p>}
-                {label === 'Vendas' && <button type="button" aria-label="Como funciona o Bônus Fixo" onClick={() => setFixedHelpOpen(true)} className="absolute bottom-4 right-4 flex h-6 w-6 items-center justify-center rounded-full border border-zinc-200 bg-white/90 text-xs font-black text-zinc-500 shadow-sm transition hover:border-pink-300 hover:text-pink-500">?</button>}
+                {label === 'Ticket médio' && <p className={`mt-2 text-[10px] leading-4 ${multiplierActive ? 'text-amber-700' : 'text-zinc-400'}`}>Ticket médio deste período acima de {brl(dashboard?.metrics?.ticketMultiplierThreshold ?? config.ticketThreshold)} ativa + {brl(dashboard?.metrics?.ticketMultiplierValue ?? config.ticketBonus)} por pedido.</p>}
               </div>
             )
           })}
