@@ -20,13 +20,13 @@ Depois de alterar variáveis, faça um novo deploy.
 
 ## Webhook Woovi
 
-Configure na Woovi o endereço sem segredo na URL:
+Configure na Woovi o endereço:
 
-`https://SEU-DOMINIO/api/webhooks/woovi`
+`https://SEU-DOMINIO/api/webhooks/woovi?token=SEU_WOOVI_WEBHOOK_TOKEN`
 
-Assine os eventos `OPENPIX:MOVEMENT_CONFIRMED`, `OPENPIX:MOVEMENT_FAILED` e `OPENPIX:MOVEMENT_REMOVED`. Em cada webhook, adicione o cabeçalho `x-she-webhook-token` com o mesmo valor configurado em `WOOVI_WEBHOOK_TOKEN`.
+Assine os eventos `OPENPIX:MOVEMENT_CONFIRMED`, `OPENPIX:MOVEMENT_FAILED` e `OPENPIX:MOVEMENT_REMOVED`.
 
-O endpoint valida também o header oficial `x-webhook-signature` da Woovi usando a chave pública publicada em `https://api.woovi.com/api/v1/webhook/public-keys`. A entrada compartilhada preserva o corpo bruto do POST para que a assinatura RSA-SHA256 seja validada antes de gravar o evento no banco. Não compartilhe tokens nem assinaturas.
+A Woovi também fornece assinatura criptográfica no header `x-webhook-signature`; o endpoint usa o token secreto da URL como camada de autenticação. Não compartilhe a URL completa do webhook.
 
 ## Banco de dados
 
@@ -34,7 +34,7 @@ Antes de publicar, execute `supabase/migration_woovi_withdrawals.sql` no SQL Edi
 
 ## Importante antes de produção
 
-- Confirme com a Woovi que o AppID tem permissão para criar/aprovar pagamentos de saída Pix (`POST /api/v1/payment`), que Pix Out está habilitado e que a função `autoApprove: true` está liberada para a conta.
+- Confirme com a Woovi que o AppID tem permissão para criar/aprovar pagamentos de saída Pix (`POST /api/v1/payment`) e que a conta tem saldo/limites habilitados.
 - Teste primeiro com sandbox e uma chave controlada.
 - A API da Woovi recebe valores em centavos: R$ 100,00 é enviado como `10000`.
 - A chave de API nunca deve ser colocada no frontend.
