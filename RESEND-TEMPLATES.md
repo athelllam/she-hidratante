@@ -4,6 +4,19 @@ O sistema usa a API do Resend. Não há notificações de vendas por e-mail.
 
 ## Afiliada
 
+**Boas-vindas**
+- Assunto: `Bem-vinda à She Afiliadas, NOME! ✨`
+- Destinatária: e-mail usado no cadastro.
+- Disparo: imediatamente após o cadastro da afiliada ser concluído com sucesso.
+- Contém: mensagem de boas-vindas, próximos passos e botão para abrir o painel. A falha no envio do e-mail não cancela o cadastro.
+
+**Resultado da análise de vídeo**
+- Aprovação: assunto `Seu vídeo foi aprovado! — She Afiliadas`.
+- Recusa: assunto `Atualização sobre seu vídeo — She Afiliadas`.
+- Destinatária: e-mail da afiliada que enviou o vídeo.
+- Disparo: quando o administrador muda o status da solicitação para aprovado ou rejeitado. A mensagem de recusa inclui a observação informada pelo administrador.
+- Não reenvia o e-mail se a solicitação já estiver no mesmo status.
+
 **Redefinição de senha**
 - Assunto: `Redefina sua senha — She Afiliadas`
 - Destinatária: e-mail cadastrado da afiliada.

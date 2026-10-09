@@ -1,6 +1,6 @@
 const { authFetch, supabaseFetch, setAuthCookie, clearAuthCookie, json } = require('../_lib/supabase');
 const crypto = require('crypto');
-const { sendEmail, resetPasswordEmail } = require('../_lib/email');
+const { sendEmail, resetPasswordEmail, affiliateWelcomeEmail } = require('../_lib/email');
 
 function normalizeCpf(value) {
   return String(value || '').replace(/\D/g, '');
@@ -243,6 +243,13 @@ async function register(req, res) {
     });
 
     setAuthCookie(res, session.access_token);
+    // E-mail de boas-vindas não deve impedir que o cadastro seja concluído se o provedor estiver indisponível.
+    await sendEmail({
+      to: cleanEmail,
+      subject: `Bem-vinda à She Afiliadas, ${cleanName}! ✨`,
+      html: affiliateWelcomeEmail({ name: cleanName }),
+      tags: [{ name: 'category', value: 'affiliate-welcome' }],
+    }).catch(() => null);
     return json(res, 201, { affiliate: rows[0], user: { id: created.id, email: cleanEmail } });
   } catch (error) {
     try {

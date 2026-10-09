@@ -10,7 +10,9 @@ async function adminRecipients() {
   try {
     const rows = await supabaseFetch('/rest/v1/admin_profile_settings?id=eq.1&select=notification_emails&limit=1');
     if (rows?.[0] && Array.isArray(rows[0].notification_emails)) {
-      return [...new Set(rows[0].notification_emails.map(value => String(value || '').trim().toLowerCase()).filter(Boolean))];
+      const saved = [...new Set(rows[0].notification_emails.map(value => String(value || '').trim().toLowerCase()).filter(Boolean))];
+      if (saved.length) return saved;
+      // Empty saved settings should not silence all administrative alerts.
     }
   } catch {
     // The existing env-based notification configuration remains available if the
@@ -77,6 +79,64 @@ function resetPasswordEmail({ name, actionLink }) {
   `);
 }
 
+function affiliateWelcomeEmail({ name, actionLink }) {
+  const safeName = escapeHtml(String(name || '').trim().split(/\s+/)[0] || 'linda');
+  const cta = actionLink || (APP_BASE_URL ? `${APP_BASE_URL}/afiliado` : '');
+  return shell('Sua jornada começa aqui ✨', `
+    <div style="margin:0 0 24px;padding:28px 22px;border-radius:20px;background:linear-gradient(135deg,#fce7f3 0%,#fff1f7 52%,#fff7ed 100%);text-align:center;border:1px solid #fbcfe8">
+      <div style="display:inline-block;padding:7px 12px;border-radius:999px;background:#ffffffd9;color:#be185d;font-size:10px;font-weight:900;letter-spacing:.16em;text-transform:uppercase">SEJA MUITO BEM-VINDA</div>
+      <div style="font-size:34px;line-height:1;margin:18px 0 12px;color:#db2777">✦ ✿ ✦</div>
+      <h2 style="margin:0;color:#831843;font-size:27px;line-height:1.2">Que bom ter você com a gente, ${safeName}!</h2>
+      <p style="margin:12px auto 0;max-width:420px;color:#9d174d;font-size:15px;line-height:1.75">Você acaba de dar o primeiro passo para compartilhar a She e construir seus resultados no seu ritmo.</p>
+    </div>
+    <p style="font-size:15px;line-height:1.8;color:#52525b">A comunidade <strong style="color:#be185d">She Afiliadas</strong> está feliz em receber você. Seu espaço já está criado — agora é hora de deixar sua marca com autenticidade, carinho e confiança.</p>
+    <div style="margin:22px 0;padding:4px 0">
+      <div style="display:flex;gap:12px;align-items:flex-start;margin:0 0 16px">
+        <div style="flex:0 0 34px;height:34px;line-height:34px;text-align:center;border-radius:12px;background:#fce7f3;color:#be185d;font-weight:900">01</div>
+        <div><strong style="font-size:14px;color:#27272a">Prepare seu espaço</strong><p style="margin:4px 0 0;color:#71717a;font-size:13px;line-height:1.6">Acesse o painel e complete os próximos passos, incluindo a criação do seu link exclusivo.</p></div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-start;margin:0 0 16px">
+        <div style="flex:0 0 34px;height:34px;line-height:34px;text-align:center;border-radius:12px;background:#fce7f3;color:#be185d;font-weight:900">02</div>
+        <div><strong style="font-size:14px;color:#27272a">Compartilhe do seu jeito</strong><p style="margin:4px 0 0;color:#71717a;font-size:13px;line-height:1.6">Mostre os produtos e crie conversas verdadeiras com pessoas que combinam com a marca.</p></div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-start;margin:0">
+        <div style="flex:0 0 34px;height:34px;line-height:34px;text-align:center;border-radius:12px;background:#fce7f3;color:#be185d;font-weight:900">03</div>
+        <div><strong style="font-size:14px;color:#27272a">Acompanhe sua evolução</strong><p style="margin:4px 0 0;color:#71717a;font-size:13px;line-height:1.6">Consulte suas vendas, comissões e informações no painel de afiliada.</p></div>
+      </div>
+    </div>
+    ${cta ? `<div style="margin:28px 0;text-align:center">${buttonHtml('Entrar no meu painel ✨', cta)}</div>` : ''}
+    <div style="margin-top:22px;padding:15px 17px;border-radius:14px;background:#fafafa;border:1px solid #f4f4f5"><p style="margin:0;color:#71717a;font-size:12px;line-height:1.7">Guarde este e-mail para consultar quando precisar. Estamos torcendo pelo seu sucesso. 💗</p></div>
+  `);
+}
+
+function affiliateVideoReviewEmail({ name, status, note, submissionId }) {
+  const approved = String(status || '').toLowerCase() === 'approved';
+  const safeName = escapeHtml(String(name || '').trim().split(/\s+/)[0] || 'afiliada');
+  const title = approved ? 'Seu vídeo foi aprovado! ✨' : 'Atualização sobre seu vídeo';
+  const bannerBg = approved ? '#ecfdf5' : '#fff1f2';
+  const bannerColor = approved ? '#047857' : '#be123c';
+  const badge = approved ? 'APROVADO' : 'PRECISA DE AJUSTES';
+  const message = approved
+    ? 'Temos uma ótima notícia: nossa equipe analisou seu envio e aprovou o vídeo. Obrigada por dedicar seu tempo e criatividade para divulgar a She!'
+    : 'Nossa equipe analisou seu vídeo, mas não conseguiu aprová-lo desta vez. Não desanime: confira a observação abaixo e veja o que pode ser ajustado antes de uma nova submissão, conforme as orientações do programa.';
+  const safeNote = String(note || '').trim();
+  return shell(title, `
+    <div style="margin:0 0 24px;padding:26px 22px;border-radius:20px;background:${approved ? 'linear-gradient(135deg,#fdf2f8 0%,#fce7f3 55%,#ecfdf5 100%)' : 'linear-gradient(135deg,#fff1f2 0%,#fff7fb 58%,#fdf2f8 100%)'};text-align:center;border:1px solid ${approved ? '#fbcfe8' : '#fecdd3'}">
+      <div style="display:inline-block;padding:7px 12px;border-radius:999px;background:${bannerBg};color:${bannerColor};font-size:10px;font-weight:900;letter-spacing:.15em">${badge}</div>
+      <div style="font-size:35px;line-height:1;margin:17px 0 12px;color:${approved ? '#db2777' : '#e11d48'}">${approved ? '✦ ♡ ✦' : '♡'}</div>
+      <h2 style="margin:0;color:${approved ? '#831843' : '#9f1239'};font-size:25px;line-height:1.25">${approved ? 'Arrasou, ' : 'Oi, '}${safeName}${approved ? '!' : '!'}</h2>
+      <p style="margin:12px auto 0;max-width:430px;color:#52525b;font-size:14px;line-height:1.75">${escapeHtml(message)}</p>
+    </div>
+    <div style="margin:20px 0;padding:17px 18px;border-radius:16px;background:#fafafa;border:1px solid #f4f4f5">
+      <p style="margin:0 0 6px;color:#a1a1aa;font-size:10px;font-weight:900;letter-spacing:.14em;text-transform:uppercase">Solicitação de vídeo</p>
+      <p style="margin:0;color:#27272a;font-size:15px;font-weight:800">#${escapeHtml(submissionId || '—')}</p>
+      ${safeNote ? `<div style="margin-top:15px;padding-top:13px;border-top:1px solid #e4e4e7"><p style="margin:0 0 5px;color:#52525b;font-size:12px;font-weight:800">Observação da equipe She</p><p style="margin:0;color:#52525b;font-size:13px;line-height:1.75;white-space:pre-wrap">${escapeHtml(safeNote)}</p></div>` : ''}
+    </div>
+    ${APP_BASE_URL ? `<div style="margin:25px 0;text-align:center">${buttonHtml('Acessar meu painel', `${APP_BASE_URL}/afiliado`)}</div>` : ''}
+    <p style="margin:18px 0 0;color:#a1a1aa;font-size:12px;line-height:1.65;text-align:center">${approved ? 'Continue criando com autenticidade — estamos felizes em ver você crescer com a She.' : 'Obrigada por participar e por dedicar seu tempo à She. 💗'}</p>
+  `);
+}
+
 function adminWithdrawalEmail(withdrawal) {
   const source = withdrawal.source === 'team' ? 'Comissão de equipe' : 'Comissão pessoal';
   return shell('Nova solicitação de saque', `
@@ -128,6 +188,8 @@ module.exports = {
   sendEmail,
   adminRecipients,
   resetPasswordEmail,
+  affiliateWelcomeEmail,
+  affiliateVideoReviewEmail,
   adminWithdrawalEmail,
   adminVideoEmail,
   affiliateBoostJoinEmail,

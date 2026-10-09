@@ -56,8 +56,21 @@ async function api(path, options = {}) {
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     ...options,
   })
-  const data = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(data.error || 'Não foi possível concluir a operação.')
+  const responseText = await response.text().catch(() => '')
+  let data = {}
+  let parsedJson = false
+  try {
+    data = responseText ? JSON.parse(responseText) : {}
+    parsedJson = Boolean(responseText)
+  } catch { data = {} }
+  if (!response.ok) {
+    const bodyMessage = typeof data.error === 'string' ? data.error : (typeof data.message === 'string' ? data.message : '')
+    const fallback = `A API ${path} respondeu HTTP ${response.status}. ${responseText && !responseText.trim().startsWith('<') ? responseText.slice(0, 180) : 'Confira se o endpoint foi publicado no último deploy.'}`
+    throw new Error(bodyMessage || fallback)
+  }
+  if (responseText && (!parsedJson || !data || typeof data !== 'object' || Array.isArray(data))) {
+    throw new Error(`A API ${path} não retornou uma resposta JSON válida. Confira o endpoint e o deploy da Vercel.`)
+  }
   return data
 }
 
@@ -122,12 +135,11 @@ export default function AdminDashboard() {
   const [boostState, setBoostState] = useState({ activeCount: 0, queueCount: 0, completedCount: 0, active: [] })
   const [adminDataOpen, setAdminDataOpen] = useState(false)
   const [adminDataLoading, setAdminDataLoading] = useState(false)
+  const [adminDataReady, setAdminDataReady] = useState(false)
   const [adminDataSaving, setAdminDataSaving] = useState(false)
   const [adminDataError, setAdminDataError] = useState('')
   const [adminDataNotice, setAdminDataNotice] = useState('')
   const [adminDataForm, setAdminDataForm] = useState({ loginUsername: '', loginEmail: '', notificationEmails: [''] })
-  const [adminDataInitial, setAdminDataInitial] = useState({ loginUsername: '', loginEmail: '', notificationEmails: [] })
-  const [adminCurrentPassword, setAdminCurrentPassword] = useState('')
   const [adminNewPassword, setAdminNewPassword] = useState('')
   const [adminConfirmPassword, setAdminConfirmPassword] = useState('')
 
@@ -240,27 +252,24 @@ export default function AdminDashboard() {
   const openAdminData = async () => {
     setAdminDataOpen(true)
     setAdminDataLoading(true)
+    setAdminDataReady(false)
     setAdminDataError('')
     setAdminDataNotice('')
-    setAdminCurrentPassword('')
     setAdminNewPassword('')
     setAdminConfirmPassword('')
     try {
       const data = await api('/api/admin/data')
+      const loginUsername = String(data.loginUsername || '').trim()
+      const loginEmail = String(data.loginEmail || '').trim().toLowerCase()
+      if (!loginUsername || !loginEmail) {
+        throw new Error('A API não retornou o login e o e-mail atuais. Confira se api/[...path].js e api/_handlers/admin_data.js estão publicados e tente novamente.')
+      }
       const emails = Array.isArray(data.notificationEmails) && data.notificationEmails.length
         ? data.notificationEmails
         : ['']
-      const form = {
-        loginUsername: String(data.loginUsername || ''),
-        loginEmail: String(data.loginEmail || ''),
-        notificationEmails: emails,
-      }
+      const form = { loginUsername, loginEmail, notificationEmails: emails }
       setAdminDataForm(form)
-      setAdminDataInitial({
-        loginUsername: form.loginUsername,
-        loginEmail: form.loginEmail,
-        notificationEmails: Array.isArray(data.notificationEmails) ? data.notificationEmails.filter(Boolean) : [],
-      })
+      setAdminDataReady(true)
     } catch (e) {
       setAdminDataError(e.message || 'Não foi possível carregar os dados do administrador.')
     } finally {
@@ -274,6 +283,7 @@ export default function AdminDashboard() {
     setAdminDataError('')
     setAdminDataNotice('')
     try {
+      if (!adminDataReady) throw new Error('Os dados atuais do administrador não foram carregados. Feche e abra Dados novamente ou tente recarregar.');
       const notificationEmails = [...new Set(adminDataForm.notificationEmails.map(value => String(value || '').trim().toLowerCase()).filter(Boolean))]
       if (!adminDataForm.loginUsername.trim() || !adminDataForm.loginEmail.trim()) {
         throw new Error('Preencha o login e o e-mail de login.')
@@ -282,18 +292,12 @@ export default function AdminDashboard() {
       if (notificationEmails.length > 20) throw new Error('Você pode cadastrar até 20 e-mails de notificação.')
       if (adminNewPassword && adminNewPassword.length < 10) throw new Error('A nova senha deve ter pelo menos 10 caracteres.')
       if (adminNewPassword !== adminConfirmPassword) throw new Error('A confirmação da nova senha não confere.')
-      const profileChanged = adminDataForm.loginUsername.trim() !== adminDataInitial.loginUsername
-        || adminDataForm.loginEmail.trim().toLowerCase() !== adminDataInitial.loginEmail.toLowerCase()
-        || Boolean(adminNewPassword)
-      if (profileChanged && !adminCurrentPassword) throw new Error('Informe a senha atual para alterar o login, o e-mail de login ou a senha.')
-
       const data = await api('/api/admin/data', {
         method: 'PATCH',
         body: JSON.stringify({
           loginUsername: adminDataForm.loginUsername.trim(),
           loginEmail: adminDataForm.loginEmail.trim().toLowerCase(),
           notificationEmails,
-          currentPassword: adminCurrentPassword,
           newPassword: adminNewPassword,
         }),
       })
@@ -303,12 +307,6 @@ export default function AdminDashboard() {
         notificationEmails: data.notificationEmails?.length ? data.notificationEmails : [''],
       }
       setAdminDataForm(form)
-      setAdminDataInitial({
-        loginUsername: data.loginUsername,
-        loginEmail: data.loginEmail,
-        notificationEmails: data.notificationEmails || [],
-      })
-      setAdminCurrentPassword('')
       setAdminNewPassword('')
       setAdminConfirmPassword('')
       setAdminDataNotice(data.passwordChanged ? 'Dados salvos. A senha do administrador também foi alterada; use a nova senha no próximo login.' : 'Dados do administrador salvos com sucesso.')
@@ -1607,7 +1605,16 @@ export default function AdminDashboard() {
             </div>
 
             {adminDataLoading ? (
-              <div className="py-16 text-center text-sm font-semibold text-zinc-400">Carregando dados seguros…</div>
+              <div className="py-16 text-center text-sm font-semibold text-zinc-400">Carregando dados do administrador…</div>
+            ) : !adminDataReady ? (
+              <div className="mt-6 space-y-4">
+                {adminDataError && <p role="alert" className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{adminDataError}</p>}
+                <p className="text-sm leading-6 text-zinc-500">Por segurança, os campos de login e e-mail só ficam editáveis depois que a API carregar os valores atuais.</p>
+                <div className="flex justify-end gap-2">
+                  <button type="button" onClick={() => setAdminDataOpen(false)} className="rounded-xl border border-zinc-200 px-5 py-3 text-sm font-black text-zinc-600">Fechar</button>
+                  <button type="button" onClick={openAdminData} className="rounded-xl bg-pink-500 px-5 py-3 text-sm font-black text-white">Tentar novamente</button>
+                </div>
+              </div>
             ) : (
               <form onSubmit={saveAdminData} className="mt-6 space-y-5">
                 <section className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
@@ -1622,16 +1629,10 @@ export default function AdminDashboard() {
                       <input value={adminDataForm.loginEmail} onChange={event => setAdminDataForm(current => ({ ...current, loginEmail: event.target.value }))} type="email" autoComplete="email" required className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none focus:border-pink-400" />
                     </label>
                   </div>
-                  <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
-                    <p className="text-[10px] font-black uppercase tracking-[.15em] text-amber-700">Senha atual</p>
-                    <p className="mt-1 font-mono text-sm font-black tracking-[.2em] text-amber-900">••••••••••••</p>
-                    <p className="mt-1 text-xs leading-5 text-amber-800">Por segurança, a senha existente não pode ser visualizada. Você pode alterá-la abaixo. Para mudar o login, o e-mail de login ou a senha, será necessário confirmar a senha atual.</p>
+                  <div className="mt-3 rounded-xl border border-pink-100 bg-pink-50 px-3 py-3">
+                    <p className="text-xs leading-5 text-pink-800">Para trocar a senha, basta preencher uma nova senha abaixo. Deixe o campo vazio para manter a senha atual. A alteração é protegida pela sua sessão administrativa autenticada.</p>
                   </div>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <label className="block">
-                      <span className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-500">Senha atual (para alterações de acesso)</span>
-                      <input value={adminCurrentPassword} onChange={event => setAdminCurrentPassword(event.target.value)} type="password" autoComplete="current-password" placeholder="Digite a senha atual" className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none focus:border-pink-400" />
-                    </label>
+                  <div className="mt-3">
                     <label className="block">
                       <span className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-500">Nova senha (opcional)</span>
                       <input value={adminNewPassword} onChange={event => { setAdminNewPassword(event.target.value); if (!event.target.value) setAdminConfirmPassword('') }} type="password" autoComplete="new-password" minLength={10} placeholder="Mínimo de 10 caracteres" className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none focus:border-pink-400" />
@@ -1668,7 +1669,7 @@ export default function AdminDashboard() {
 
                 <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                   <button type="button" disabled={adminDataSaving} onClick={() => setAdminDataOpen(false)} className="rounded-xl border border-zinc-200 px-5 py-3 text-sm font-black text-zinc-600 disabled:opacity-50">Fechar</button>
-                  <button type="submit" disabled={adminDataSaving || adminDataLoading} className="rounded-xl bg-pink-500 px-5 py-3 text-sm font-black text-white transition hover:bg-pink-600 disabled:opacity-50">{adminDataSaving ? 'Salvando…' : 'Salvar dados'}</button>
+                  <button type="submit" disabled={adminDataSaving || adminDataLoading || !adminDataReady} className="rounded-xl bg-pink-500 px-5 py-3 text-sm font-black text-white transition hover:bg-pink-600 disabled:opacity-50">{adminDataSaving ? 'Salvando…' : 'Salvar dados'}</button>
                 </div>
               </form>
             )}

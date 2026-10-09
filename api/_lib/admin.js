@@ -114,15 +114,18 @@ async function getAdminCredentials() {
   const defaults = envAdminCredentials();
   const row = await readAdminProfileRow();
   if (!row) return defaults;
+  const savedNotificationEmails = Array.isArray(row.notification_emails)
+    ? [...new Set(row.notification_emails.map(value => String(value || '').trim().toLowerCase()).filter(Boolean))]
+    : [];
   return {
     login: String(row.login_email || defaults.loginEmail).trim().toLowerCase(),
     loginUsername: String(row.login_username || defaults.loginUsername).trim(),
     loginEmail: String(row.login_email || defaults.loginEmail).trim().toLowerCase(),
     passwordSha256: String(row.password_sha256 || defaults.passwordSha256).trim().toLowerCase(),
     databaseConfigured: true,
-    notificationEmails: Array.isArray(row.notification_emails)
-      ? row.notification_emails.map(value => String(value || '').trim().toLowerCase()).filter(Boolean)
-      : defaults.notificationEmails,
+    // When settings have not been configured yet (or the saved array is empty),
+    // seed the panel with ADMIN_EMAILS instead of presenting a blank recipient list.
+    notificationEmails: savedNotificationEmails.length ? savedNotificationEmails : defaults.notificationEmails,
   };
 }
 

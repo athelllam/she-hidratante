@@ -1,4 +1,5 @@
 const { requireAdmin, supabaseFetch } = require('../_lib/admin');
+const { sendEmail, affiliateVideoReviewEmail } = require('../_lib/email');
 const { commissionForOrders, reconcileAffiliateOrderCommissions, isPaidOrder, DEFAULT_COMMISSION_CONFIG, normalizeConfig } = require('../_lib/affiliateCommission');
 
 function json(res, status, body) { res.status(status).json(body); }
@@ -512,14 +513,33 @@ module.exports = async function handler(req, res) {
       const note = String(req.body?.note || '').trim();
       if (!Number.isInteger(id) || id <= 0) return json(res, 400, { error: 'ID da solicitação obrigatório.' });
       if (!['approved', 'rejected'].includes(status)) return json(res, 400, { error: 'Status de análise inválido.' });
-      const current = await supabaseFetch(`/rest/v1/affiliate_video_submissions?id=eq.${id}&select=id,status&limit=1`);
+      const current = await supabaseFetch(`/rest/v1/affiliate_video_submissions?id=eq.${id}&select=id,affiliate_id,status&limit=1`);
       if (!current?.[0]) return json(res, 404, { error: 'Solicitação de vídeo não encontrada.' });
+      const previousStatus = String(current[0].status || '').toLowerCase();
       const rows = await supabaseFetch(`/rest/v1/affiliate_video_submissions?id=eq.${id}`, {
         method: 'PATCH',
         headers: { Prefer: 'return=representation' },
         body: JSON.stringify({ status, note: note || null, reviewed_at: new Date().toISOString() }),
       });
-      return json(res, 200, { video: rows?.[0] || null });
+      const reviewedVideo = rows?.[0] || null;
+      // Notifica somente quando o estado realmente muda, evitando reenviar o e-mail em cliques repetidos.
+      if (reviewedVideo && previousStatus !== status) {
+        try {
+          const affiliateRows = await supabaseFetch(`/rest/v1/affiliates?id=eq.${Number(current[0].affiliate_id)}&select=id,name,email&limit=1`);
+          const affiliate = affiliateRows?.[0];
+          if (affiliate?.email) {
+            await sendEmail({
+              to: affiliate.email,
+              subject: status === 'approved' ? 'Seu vídeo foi aprovado! — She Afiliadas' : 'Atualização sobre seu vídeo — She Afiliadas',
+              html: affiliateVideoReviewEmail({ name: affiliate.name, status, note, submissionId: id }),
+              tags: [{ name: 'category', value: status === 'approved' ? 'affiliate-video-approved' : 'affiliate-video-rejected' }],
+            });
+          }
+        } catch (emailError) {
+          // A falha no Resend não desfaz a decisão já gravada no banco.
+        }
+      }
+      return json(res, 200, { video: reviewedVideo });
     }
 
     if (req.method === 'PATCH') {

@@ -12,8 +12,9 @@ Suba o projeto atualizado ao GitHub e espere o deploy da Vercel ficar `Ready`. N
 
 ## Uso e segurança
 
-- Para alterar o login, e-mail de login ou senha, informe a senha atual.
+- Como as operações já exigem uma sessão administrativa autenticada, não é necessário informar a senha atual novamente para alterar o login ou o e-mail. Para trocar a senha, informe a nova senha e confirme-a.
 - A nova senha precisa ter pelo menos 10 caracteres.
-- Para salvar apenas os e-mails de notificação, não é necessário alterar a senha.
+- Se não houver e-mails salvos na tabela, a interface e os avisos administrativos usam `ADMIN_EMAILS` como lista inicial/fallback. Assim, endereços já configurados como `adm@shecoisademulher.com` voltam a aparecer quando a lista salva estiver vazia.
+- Para salvar apenas os e-mails de notificação, deixe a nova senha em branco.
 - Os e-mails cadastrados serão usados nos avisos administrativos existentes, como novas solicitações de saque e vídeos para análise.
 - Não há endpoint público de leitura da tabela; as consultas e gravações são feitas no backend autenticado.

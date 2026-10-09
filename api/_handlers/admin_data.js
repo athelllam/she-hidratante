@@ -6,12 +6,6 @@ function hashPassword(password) {
   return crypto.createHash('sha256').update(String(password || ''), 'utf8').digest('hex').toLowerCase();
 }
 
-function sameHash(left, right) {
-  const a = Buffer.from(String(left || ''), 'hex');
-  const b = Buffer.from(String(right || ''), 'hex');
-  return a.length === b.length && a.length > 0 && crypto.timingSafeEqual(a, b);
-}
-
 function validEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
 }
@@ -46,7 +40,6 @@ module.exports = async function handler(req, res) {
     const loginUsername = String(body.loginUsername ?? credentials.loginUsername).trim();
     const loginEmail = String(body.loginEmail ?? credentials.loginEmail).trim().toLowerCase();
     const notificationEmails = normalizeEmails(body.notificationEmails);
-    const currentPassword = String(body.currentPassword || '');
     const newPassword = String(body.newPassword || '');
 
     if (!loginUsername || loginUsername.length < 3 || loginUsername.length > 80 || /\s/.test(loginUsername)) {
@@ -57,10 +50,9 @@ module.exports = async function handler(req, res) {
     if (notificationEmails.length > 20) return json(res, 400, { error: 'É possível cadastrar até 20 e-mails de notificação.' });
     if (notificationEmails.some(value => !validEmail(value))) return json(res, 400, { error: 'Um ou mais e-mails de notificação são inválidos.' });
 
-    const profileChanged = loginUsername !== credentials.loginUsername || loginEmail !== credentials.loginEmail || Boolean(newPassword);
-    if (profileChanged && !sameHash(hashPassword(currentPassword), credentials.passwordSha256)) {
-      return json(res, 401, { error: 'Informe a senha atual correta para alterar o login, o e-mail de login ou a senha.' });
-    }
+    // Access is already protected by requireAdmin. The authenticated admin may
+    // change the username/login email and optionally set a new password without
+    // entering the old password again.
     if (newPassword && newPassword.length < 10) {
       return json(res, 400, { error: 'A nova senha deve ter pelo menos 10 caracteres.' });
     }
