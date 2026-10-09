@@ -554,6 +554,8 @@ export default function AffiliateDashboard() {
   const fixedLevel = dashboard?.fixedLevel || { key: 'none', label: 'Início', sales: Number(dashboard?.lifetimeSales || 0), progress: 0 }
   const months = dashboard?.months?.length ? dashboard.months : []
   const availableCommission = Number(dashboard?.metrics?.availableCommission || 0)
+  const currentMonthPersonalSales = Number(dashboard?.metrics?.currentMonthPersonalSales || 0)
+  const canWithdrawThisMonth = currentMonthPersonalSales >= 1
   const team = dashboard?.team || { code: affiliate.team_code || '', joined: false, canJoin: false, commissionPerSale: 10, earnedCommission: 0, availableCommission: 0, members: [], parent: null }
 
   return (
@@ -751,11 +753,11 @@ export default function AffiliateDashboard() {
                   placeholder="Ex.: 100"
                   className="w-full rounded-2xl border border-zinc-200 px-4 py-3.5 text-lg font-bold outline-none focus:border-pink-400"
                 />
-                <button disabled={withdrawBusy} className="mt-3 w-full rounded-2xl bg-zinc-950 py-4 text-base font-black text-white transition hover:bg-pink-500 disabled:opacity-60">
+                <button disabled={withdrawBusy || !canWithdrawThisMonth} className="mt-3 w-full rounded-2xl bg-zinc-950 py-4 text-base font-black text-white transition hover:bg-pink-500 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 disabled:opacity-100">
                   {withdrawBusy ? 'Enviando…' : 'Solicitar saque'}
                 </button>
               </form>
-              <p className="mt-3 text-xs leading-5 text-zinc-400">Saque mínimo de R$ 100,00. Os pedidos devem ser feitos em múltiplos de R$ 100,00.</p>
+              <p className="mt-3 text-xs leading-5 text-zinc-400">Saque mínimo de R$ 100,00. Os pedidos devem ser feitos em múltiplos de R$ 100,00. Para liberar o saque, é necessário ter pelo menos 1 venda pessoal contabilizada neste mês.</p>
               {withdrawMessage && <p className="mt-3 rounded-xl bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-600">{withdrawMessage}</p>}
           </div>
 
@@ -850,7 +852,7 @@ export default function AffiliateDashboard() {
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4"><p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Comissão gerada</p><p className="mt-1 text-2xl font-black text-zinc-950">{brl(team.earnedCommission)}</p></div>
-            <div className="rounded-2xl border border-pink-100 bg-pink-50/60 p-4"><p className="text-[10px] font-black uppercase tracking-[.15em] text-pink-500">Disponível para saque</p><p className="mt-1 text-2xl font-black text-zinc-950">{brl(team.availableCommission)}</p></div>
+            <div className="rounded-2xl border border-pink-100 bg-pink-50/60 p-4"><p className="text-[10px] font-black uppercase tracking-[.15em] text-pink-500">Saldo de Equipe</p><p className="mt-1 text-2xl font-black text-zinc-950">{brl(team.availableCommission)}</p></div>
           </div>
 
           <div className="mt-5 overflow-x-auto">
@@ -859,6 +861,18 @@ export default function AffiliateDashboard() {
               <tbody>{(team.members || []).map(member => <tr key={member.id} className="border-b border-zinc-100 last:border-0"><td className="py-3 font-black"><div className="flex items-center gap-2"><a href={whatsappUrl(member.whatsapp) || '#'} target={member.whatsapp ? '_blank' : undefined} rel={member.whatsapp ? 'noreferrer' : undefined} aria-label={member.whatsapp ? `Falar com ${member.name} pelo WhatsApp` : undefined} className={member.whatsapp ? 'text-[#25D366] transition-opacity hover:opacity-70' : 'pointer-events-none text-zinc-200'}><svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M20.52 3.48A11.82 11.82 0 0 0 12.08 0C5.55 0 .24 5.31.24 11.84c0 2.09.55 4.13 1.59 5.93L.13 24l6.38-1.67a11.8 11.8 0 0 0 5.57 1.42h.01c6.53 0 11.84-5.31 11.84-11.84 0-3.16-1.23-6.13-3.41-8.43ZM12.09 21.8h-.01a9.91 9.91 0 0 1-5.05-1.39l-.36-.21-3.79.99 1.01-3.69-.23-.38a9.9 9.9 0 0 1-1.52-5.28C2.14 6.37 6.6 1.91 12.08 1.91c2.65 0 5.14 1.03 7.01 2.9a9.86 9.86 0 0 1 2.91 7.02c0 5.48-4.46 9.94-9.91 9.97Zm5.44-7.45c-.3-.15-1.78-.88-2.05-.98-.27-.1-.47-.15-.67.15-.2.3-.77.98-.94 1.18-.17.2-.35.22-.65.07-.3-.15-1.27-.47-2.42-1.49-.9-.8-1.51-1.78-1.69-2.08-.18-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.61-.92-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.49s1.07 2.89 1.22 3.09c.15.2 2.11 3.22 5.12 4.52.72.31 1.28.5 1.72.64.72.23 1.37.2 1.89.12.58-.09 1.78-.73 2.03-1.44.25-.71.25-1.32.18-1.44-.07-.12-.27-.2-.57-.35Z"/></svg></a><div className="min-w-0"><span className="block">{member.name}</span><span className="mt-0.5 block text-[9px] font-black uppercase tracking-[.12em] text-zinc-400">{member.teamJoinSource === 'boost' ? 'Impulsionado' : 'Orgânico'}</span></div></div></td><td className="py-3 text-zinc-500">{member.id}</td><td className="py-3 font-bold">{member.sales}</td><td className="py-3 font-black text-pink-600">{brl(member.commission)}</td></tr>)}</tbody>
             </table>
             {!team.members?.length && <div className="py-6 text-center text-sm text-zinc-400">Nenhuma afiliada entrou na sua equipe ainda.</div>}
+          </div>
+
+
+
+          <div className="mt-5 rounded-2xl border border-pink-100 bg-white p-4">
+            <p className="text-sm font-black text-zinc-900">Sacar comissão de equipe</p>
+            <p className="mt-1 text-xs text-zinc-400">Esse saldo é separado da sua bonificação pessoal. Saque mínimo de R$ 100,00, sempre em múltiplos de R$ 100,00. Para liberar o saque, é necessário ter pelo menos 1 venda pessoal contabilizada neste mês.</p>
+            <form onSubmit={requestTeamWithdraw} className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <input value={teamWithdrawAmount} onChange={e => setTeamWithdrawAmount(e.target.value)} inputMode="decimal" placeholder="Ex.: 100" className="flex-1 rounded-xl border border-zinc-200 px-4 py-3 font-bold outline-none focus:border-pink-400" />
+              <button disabled={teamWithdrawBusy || team.availableCommission < 100 || !canWithdrawThisMonth} className="rounded-xl bg-pink-500 px-5 py-3 font-black text-white disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 disabled:opacity-100">{teamWithdrawBusy ? 'Enviando…' : 'Solicitar saque de equipe'}</button>
+            </form>
+            {teamWithdrawMessage && <p className="mt-2 rounded-xl bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-600">{teamWithdrawMessage}</p>}
           </div>
 
         {hasAffiliateLink && (
@@ -892,16 +906,6 @@ export default function AffiliateDashboard() {
           </section>
         )}
 
-
-          <div className="mt-5 rounded-2xl border border-pink-100 bg-white p-4">
-            <p className="text-sm font-black text-zinc-900">Sacar comissão de equipe</p>
-            <p className="mt-1 text-xs text-zinc-400">Esse saldo é separado da sua comissão pessoal. Saque mínimo de R$ 100,00, sempre em múltiplos de R$ 100,00.</p>
-            <form onSubmit={requestTeamWithdraw} className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <input value={teamWithdrawAmount} onChange={e => setTeamWithdrawAmount(e.target.value)} inputMode="decimal" placeholder="Ex.: 100" className="flex-1 rounded-xl border border-zinc-200 px-4 py-3 font-bold outline-none focus:border-pink-400" />
-              <button disabled={teamWithdrawBusy || team.availableCommission < 100} className="rounded-xl bg-pink-500 px-5 py-3 font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{teamWithdrawBusy ? 'Enviando…' : 'Solicitar saque de equipe'}</button>
-            </form>
-            {teamWithdrawMessage && <p className="mt-2 rounded-xl bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-600">{teamWithdrawMessage}</p>}
-          </div>
         </section>
 
 

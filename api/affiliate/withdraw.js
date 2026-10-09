@@ -37,6 +37,19 @@ module.exports = async function handler(req, res) {
     const source = String(req.body?.source || 'personal').toLowerCase();
     if (!['personal', 'team'].includes(source)) return json(res, 400, { error: 'Tipo de saque inválido.' });
 
+    // Todo saque, pessoal ou de equipe, exige pelo menos 1 venda pessoal paga no mês atual.
+    const now = new Date();
+    const saoPauloParts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).formatToParts(now);
+    const spYear = Number(saoPauloParts.find(part => part.type === 'year')?.value);
+    const spMonth = Number(saoPauloParts.find(part => part.type === 'month')?.value);
+    const monthStart = new Date(Date.UTC(spYear, spMonth - 1, 1, 3, 0, 0));
+    const nextMonthStart = new Date(Date.UTC(spYear, spMonth, 1, 3, 0, 0));
+    const ownOrdersForWithdrawal = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=status,created_at&created_at=gte.${encodeURIComponent(monthStart.toISOString())}&created_at=lt.${encodeURIComponent(nextMonthStart.toISOString())}&limit=5000`);
+    const personalSalesThisMonth = (ownOrdersForWithdrawal || []).filter(isPaidOrder).length;
+    if (personalSalesThisMonth < 1) {
+      return json(res, 400, { error: 'Você precisa ter pelo menos 1 venda pessoal contabilizada neste mês para solicitar um saque.' });
+    }
+
     const settingRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold&limit=1');
     const settings = normalizeConfig(settingRows?.[0] ? {
       ticketThreshold: settingRows[0].ticket_threshold,

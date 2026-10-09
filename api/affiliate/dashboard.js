@@ -632,6 +632,7 @@ module.exports = async function handler(req, res) {
         ticketMultiplierActive,
         ticketMultiplierThreshold: settings.ticketThreshold,
         ticketMultiplierValue: settings.ticketBonus,
+        currentMonthPersonalSales: currentMonthOrders.length,
       },
       teamBonus: { active: teamBonusActive, joinedAt: affiliate.team_joined_at || null, expiresAt: teamBonusEnd ? teamBonusEnd.toISOString() : null },
       boost: { purchases: boostRows || [], spent: money(boostSpent) },
