@@ -158,36 +158,56 @@ module.exports = async function handler(req, res) {
       });
 
       const monthlyMap = new Map();
+      const ensureMonthlyBucket = (month) => {
+        const bucket = monthlyMap.get(month) || { sales: 0, revenue: 0, accesses: 0, personalCommission: 0, teamCommission: 0 };
+        monthlyMap.set(month, bucket);
+        return bucket;
+      };
       for (const event of events || []) {
         if (event.type !== 'access' || !event.created_at) continue;
         const date = new Date(event.created_at);
         if (Number.isNaN(date.getTime())) continue;
         const month = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
-        const bucket = monthlyMap.get(month) || { sales: 0, revenue: 0, accesses: 0 };
-        bucket.accesses += 1;
-        monthlyMap.set(month, bucket);
+        ensureMonthlyBucket(month).accesses += 1;
       }
+      const affiliateById = new Map((affiliates || []).map(affiliate => [Number(affiliate.id), affiliate]));
       for (const order of orders || []) {
-        if (!isPaidOrder(order) || !order.created_at) continue;
+        if (!order.created_at) continue;
         const date = new Date(order.created_at);
         if (Number.isNaN(date.getTime())) continue;
-        const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        const bucket = monthlyMap.get(month) || { sales: 0, revenue: 0, accesses: 0 };
-        bucket.sales += 1;
-        bucket.revenue += Number(order.total || 0);
-        monthlyMap.set(month, bucket);
+        const month = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+        const bucket = ensureMonthlyBucket(month);
+        if (isPaidOrder(order)) {
+          bucket.sales += 1;
+          bucket.revenue += Number(order.total || 0);
+        }
+        const personalCommission = Number(order.commission);
+        if (Number.isFinite(personalCommission)) bucket.personalCommission += personalCommission;
+        const seller = affiliateById.get(Number(order.affiliate_id));
+        if (seller && Number(seller.team_parent_id) > 0) {
+          const teamCommission = Number(order.team_commission_snapshot);
+          if (Number.isFinite(teamCommission)) bucket.teamCommission += teamCommission;
+        }
       }
       const monthlyStats = Object.fromEntries(Array.from(monthlyMap.entries()).map(([month, value]) => [month, {
         sales: value.sales,
         revenue: money(value.revenue),
         accesses: value.accesses || 0,
         averageTicket: money(value.sales ? value.revenue / value.sales : 0),
+        personalCommission: money(value.personalCommission || 0),
+        teamCommission: money(value.teamCommission || 0),
+        totalCommission: money((value.personalCommission || 0) + (value.teamCommission || 0)),
+        averageCommissionPerSale: money(value.sales ? ((value.personalCommission || 0) + (value.teamCommission || 0)) / value.sales : 0),
       }]));
       const globalAll = Object.values(monthlyStats).reduce((acc, value) => ({
         sales: acc.sales + value.sales,
         revenue: acc.revenue + value.revenue,
         accesses: acc.accesses + Number(value.accesses || 0),
-      }), { sales: 0, revenue: 0, accesses: 0 });
+        personalCommission: acc.personalCommission + Number(value.personalCommission || 0),
+        teamCommission: acc.teamCommission + Number(value.teamCommission || 0),
+      }), { sales: 0, revenue: 0, accesses: 0, personalCommission: 0, teamCommission: 0 });
+      globalAll.totalCommission = money(globalAll.personalCommission + globalAll.teamCommission);
+      globalAll.averageCommissionPerSale = money(globalAll.sales ? globalAll.totalCommission / globalAll.sales : 0);
       globalAll.averageTicket = money(globalAll.sales ? globalAll.revenue / globalAll.sales : 0);
 
       // Snapshots históricos: vendas/faturamento/ticket do período e estado das afiliadas

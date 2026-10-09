@@ -177,14 +177,19 @@ module.exports = async function handler(req, res) {
       // na tabela affiliate_orders, e não uma recomputação que pode divergir dos
       // snapshots históricos dos pedidos.
       for (const order of orders || []) {
-        if (!isPaidOrder(order) || !order.created_at) continue;
+        if (!order.created_at) continue;
         const date = new Date(order.created_at);
         if (Number.isNaN(date.getTime())) continue;
         const month = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
         const bucket = ensureMonthlyBucket(month);
-        bucket.sales += 1;
-        bucket.revenue += Number(order.total || 0);
+        const paid = isPaidOrder(order);
+        if (paid) {
+          bucket.sales += 1;
+          bucket.revenue += Number(order.total || 0);
+        }
 
+        // Comissão Total deve somar os valores efetivamente gravados no banco,
+        // sem depender do filtro de status usado para contar vendas/faturamento.
         const savedPersonalCommission = Number(order.commission);
         const personalCommission = Number.isFinite(savedPersonalCommission) ? savedPersonalCommission : 0;
         bucket.personalCommission += personalCommission;
@@ -193,9 +198,7 @@ module.exports = async function handler(req, res) {
         const seller = affiliateById.get(Number(order.affiliate_id));
         if (seller && Number(seller.team_parent_id) > 0) {
           const savedTeamCommission = Number(order.team_commission_snapshot);
-          const teamCommission = Number.isFinite(savedTeamCommission) && savedTeamCommission > 0
-            ? savedTeamCommission
-            : Number(settings.teamCommissionPerSale || 0);
+          const teamCommission = Number.isFinite(savedTeamCommission) ? savedTeamCommission : 0;
           bucket.teamCommission += teamCommission;
           totalTeamCommission += teamCommission;
         }
