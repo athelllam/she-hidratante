@@ -182,8 +182,13 @@ module.exports = async function handler(req, res) {
       } : DEFAULT_COMMISSION_CONFIG);
       const orders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=status,total,created_at&order=created_at.asc&limit=5000`);
       const earned = commissionForOrders(orders || [], settings, { teamJoinedAt: affiliate.team_joined_at }).total;
-      const withdrawals = await supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${affiliate.id}&source=eq.personal&status=in.(pending,approved,processing,paid)&select=amount&limit=1000`);
-      const baseAvailable = earned - (withdrawals || []).filter(w => !['rejected', 'failed'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
+      const [withdrawals, existingBoosts] = await Promise.all([
+        supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${affiliate.id}&source=eq.personal&select=amount,status&limit=1000`),
+        supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${affiliate.id}&select=price,status&limit=1000`).catch(() => []),
+      ]);
+      const reservedWithdrawals = (withdrawals || []).filter(w => !['rejected', 'failed', 'cancelled'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
+      const reservedBoosts = (existingBoosts || []).filter(row => ['queued', 'active', 'completed'].includes(String(row.status || ''))).reduce((sum, row) => sum + Number(row.price || 0), 0);
+      const baseAvailable = Math.max(0, earned - reservedWithdrawals - reservedBoosts);
       const result = await supabaseFetch('/rest/v1/rpc/she_team_boost_purchase', {
         method: 'POST',
         body: JSON.stringify({ p_affiliate_id: Number(affiliate.id), p_price: selected.price, p_connections: selected.connections, p_earned_balance: baseAvailable }),
@@ -684,9 +689,10 @@ module.exports = async function handler(req, res) {
         sales: displaySales,
         revenue: money(displayRevenue),
         averageTicket: money(displayAverageTicket),
-        // Comissão segue o filtro mensal; saldo sacável é sempre o acumulado de todos os meses.
+        // Comissão do período acompanha o filtro mensal; totalCommission e saldo são sempre acumulados.
         commission: money(displayCommission),
         earnedCommission: money(displayCommission),
+        totalCommission: money(totalEarnedCommission),
         availableCommission: money(displayAvailableBalance),
         reservedWithdrawals: money(displayWithdrawals),
         openingBalance: requestedMonth === 'all' ? 0 : money(Math.max(0, availableCommission - displayAvailableBalance)),

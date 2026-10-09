@@ -790,8 +790,19 @@ export default function AffiliateDashboard() {
           </div>
 
           <div className="order-2 rounded-[1.5rem] bg-white p-6 border border-pink-100 shadow-sm lg:col-start-2 lg:row-start-1">
-              <h2 className="font-black text-xl">Solicitar saque</h2>
-              <p className="mt-2 text-sm text-zinc-500">Disponível para saque: <strong className="text-zinc-900">{brl(availableCommission)}</strong></p>
+              <h2 className="font-black text-xl">Saldo e saque pessoal</h2>
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
+                  <p className="text-[10px] font-black uppercase tracking-[.14em] text-zinc-400">Comissão total acumulada</p>
+                  <p className="mt-1 text-xl font-black text-zinc-950">{brl(dashboard?.metrics?.totalCommission ?? dashboard?.metrics?.earnedCommission ?? 0)}</p>
+                  <p className="mt-1 text-[11px] text-zinc-400">Todos os meses, sem descontar movimentações</p>
+                </div>
+                <div className="rounded-2xl border border-pink-100 bg-pink-50/70 p-4">
+                  <p className="text-[10px] font-black uppercase tracking-[.14em] text-pink-500">Saldo disponível</p>
+                  <p className="mt-1 text-xl font-black text-zinc-950">{brl(availableCommission)}</p>
+                  <p className="mt-1 text-[11px] text-zinc-500">Após reservas de saques e impulsos</p>
+                </div>
+              </div>
               <form onSubmit={requestWithdraw} className="mt-5">
                 <input
                   value={withdrawAmount}

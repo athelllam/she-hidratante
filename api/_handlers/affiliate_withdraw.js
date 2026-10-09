@@ -81,7 +81,7 @@ module.exports = async function handler(req, res) {
       commissions: { none: settingRows[0].commission_none, bronze: settingRows[0].commission_bronze, silver: settingRows[0].commission_silver, gold: settingRows[0].commission_gold },
     } : DEFAULT_COMMISSION_CONFIG);
 
-    const withdrawals = await supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${affiliate.id}&source=eq.${source}&status=in.(pending,approved,processing,paid)&select=amount`);
+    const withdrawals = await supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${affiliate.id}&source=eq.${source}&select=amount,status&limit=5000`);
     let earned = 0;
 
     if (source === 'personal') {
@@ -123,8 +123,13 @@ module.exports = async function handler(req, res) {
       }, 0);
     }
 
-    const reserved = (withdrawals || []).filter(w => !['rejected', 'failed'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
-    const available = Math.max(0, earned - reserved);
+    const reserved = (withdrawals || []).filter(w => !['rejected', 'failed', 'cancelled'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
+    let reservedBoosts = 0;
+    if (source === 'personal') {
+      const boosts = await supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${affiliate.id}&select=price,status&limit=5000`).catch(() => []);
+      reservedBoosts = (boosts || []).filter(row => ['queued', 'active', 'completed'].includes(String(row.status || ''))).reduce((sum, row) => sum + Number(row.price || 0), 0);
+    }
+    const available = Math.max(0, earned - reserved - reservedBoosts);
 
     if (amount > available + 0.001) {
       return json(res, 400, { error: source === 'team' ? 'Comissão de equipe disponível insuficiente.' : 'Saldo disponível insuficiente.', available });
@@ -159,7 +164,7 @@ module.exports = async function handler(req, res) {
         console.error('[She Email] Falha no aviso de nova solicitação de saque:', error);
       });
     }
-    return json(res, 201, { withdrawal, available: Math.max(0, available - amount) });
+    return json(res, 201, { withdrawal, available: Math.max(0, available - amount), totalCommission: earned });
   } catch (e) {
     return json(res, e.statusCode || 500, { error: e.message });
   }
