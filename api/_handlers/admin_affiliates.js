@@ -147,8 +147,13 @@ module.exports = async function handler(req, res) {
         const seller = affiliateByIdForTeam.get(Number(order.affiliate_id));
         const parentId = Number(seller?.team_parent_id || 0);
         if (!parentId) continue;
-        const amount = Number(order.team_commission_snapshot || 0);
-        if (Number.isFinite(amount)) teamEarnedByParent.set(parentId, (teamEarnedByParent.get(parentId) || 0) + amount);
+        // Usar a mesma regra do card "Saldo de Equipe" do painel da afiliada:
+        // quando o pedido legado não tem snapshot válido, aplicar a comissão
+        // por venda configurada no sistema, em vez de somar zero.
+        const snapshot = Number(order.team_commission_snapshot);
+        const fallbackTeamRate = Number(settings.teamCommissionPerSale || 10);
+        const amount = Number.isFinite(snapshot) && snapshot > 0 ? snapshot : fallbackTeamRate;
+        teamEarnedByParent.set(parentId, (teamEarnedByParent.get(parentId) || 0) + amount);
       }
       const teamWithdrawnByParent = new Map();
       for (const withdrawal of withdrawals || []) {
