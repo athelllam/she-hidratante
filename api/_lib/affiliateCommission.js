@@ -226,17 +226,24 @@ function commissionForOrders(orders, config = DEFAULT_COMMISSION_CONFIG, options
     const hasPersistedCommission = Number.isFinite(Number(order?.commission)) && Number(order?.commission) > 0
       && LEVEL_ORDER[snapshotLevelKey] !== undefined;
 
-    // A comissão de uma venda é congelada no momento em que a venda é
-    // contabilizada. Alterações posteriores nas configurações do Admin
-    // nunca podem recalcular vendas já existentes, inclusive as do mês atual.
+    // O valor-base de uma venda fica congelado. Somente o mês atual pode ser
+    // recalculado quando uma META altera o nível da afiliada. O Bônus de
+    // Valor também é dinâmico, mas suas alterações afetam apenas o mês atual.
     if (hasPersistedCommission) {
       const snapshotBase = Number(order?.commission_base_snapshot);
       baseCommission = Number.isFinite(snapshotBase) ? snapshotBase : baseCommission;
-      cardLevelKey = snapshotLevelKey;
-      commission = Number(order.commission);
+      if (isCurrentMonth) {
+        if (LEVEL_ORDER[cardLevelKey] !== undefined && cardLevelKey !== snapshotLevelKey) {
+          baseCommission = Number(normalized.commissions[cardLevelKey] || 0);
+        } else {
+          cardLevelKey = snapshotLevelKey;
+        }
+        commission = Number((baseCommission + multiplier).toFixed(2));
+      } else {
+        cardLevelKey = snapshotLevelKey;
+        commission = Number(order.commission);
+      }
     } else {
-      // Fallback apenas para registros antigos/incompletos. O webhook/reconciliação
-      // persiste o snapshot e, a partir daí, o valor fica imutável.
       commission = Number((baseCommission + multiplier).toFixed(2));
     }
     total += commission;
@@ -336,7 +343,11 @@ async function reconcileAffiliateOrderCommissions(supabaseFetch, affiliateId, co
     // depende da média de todas as vendas e das configurações atuais de
     // Meta Ticket Médio/Bônus de Valor. Por isso o adicional pode mudar
     // imediatamente até mesmo em vendas antigas.
-    const nextCommission = Number((nextBase + lifetimeTicketMultiplier).toFixed(2));
+    // Somente o mês atual pode sofrer recálculo dinâmico. Meses anteriores
+    // mantêm exatamente a comissão e o saldo já adquiridos.
+    const nextCommission = key === currentMonth
+      ? Number((nextBase + lifetimeTicketMultiplier).toFixed(2))
+      : (hasPersistedSnapshot ? Number(order.commission) : Number((nextBase + lifetimeTicketMultiplier).toFixed(2)));
     const existingBase = Number(order.commission_base_snapshot);
     const existingCommission = Number(order.commission);
     const existingTeamSnapshot = Number(order.team_commission_snapshot);
