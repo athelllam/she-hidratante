@@ -145,6 +145,24 @@ module.exports = async function handler(req, res) {
     }
   }
 
+  if (req.method === 'POST' && String(req.body?.action || '') === 'team_lookup') {
+    try {
+      const { affiliate } = await requireAffiliate(req);
+      const parentId = Number(req.body?.parentId);
+      if (!Number.isInteger(parentId) || parentId <= 0) return json(res, 200, { parent: null, message: 'Digite um ID numérico válido.' });
+      if (affiliate.team_parent_id) return json(res, 400, { error: 'Você já está em uma equipe.' });
+      const orders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${Number(affiliate.id)}&select=status&limit=5000`);
+      if ((orders || []).some(isPaidOrder)) return json(res, 400, { error: 'A entrada em uma equipe só pode ser feita antes da primeira venda.' });
+      if (parentId === Number(affiliate.id)) return json(res, 200, { parent: null, message: 'Você não pode entrar na própria equipe.' });
+      const parents = await supabaseFetch(`/rest/v1/affiliates?id=eq.${parentId}&select=id,name,active,whatsapp&limit=1`);
+      const parent = parents?.[0];
+      if (!parent || !parent.active) return json(res, 200, { parent: null, message: 'Não encontramos uma afiliada ativa com esse ID.' });
+      return json(res, 200, { parent: { id: Number(parent.id), name: parent.name, whatsapp: parent.whatsapp || '' } });
+    } catch (error) {
+      return json(res, error.statusCode || 500, { error: error.message || 'Não foi possível consultar esse ID.' });
+    }
+  }
+
   if (req.method === 'POST' && String(req.body?.action || '') === 'boost_find') {
     try {
       const { affiliate } = await requireAffiliate(req);
@@ -152,7 +170,12 @@ module.exports = async function handler(req, res) {
       const orders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=status&limit=5000`);
       if ((orders || []).some(isPaidOrder)) return json(res, 400, { error: 'Você já fez sua primeira venda e não pode procurar uma equipe.' });
       const result = await supabaseFetch('/rest/v1/rpc/she_team_boost_find', { method: 'POST', body: JSON.stringify({ p_affiliate_id: Number(affiliate.id) }) });
-      return json(res, 200, { reservation: result });
+      const parentId = Number(result?.parentId);
+      const parentRows = parentId > 0
+        ? await supabaseFetch(`/rest/v1/affiliates?id=eq.${parentId}&select=id,name,whatsapp&limit=1`)
+        : [];
+      const parent = parentRows?.[0];
+      return json(res, 200, { reservation: { ...result, parentWhatsapp: parent?.whatsapp || '' } });
     } catch (error) {
       return json(res, error.statusCode || 500, { error: error.message || 'Não foi possível encontrar uma equipe agora.' });
     }
@@ -212,6 +235,9 @@ module.exports = async function handler(req, res) {
   if (req.method === 'POST' && String(req.body?.action || '') === 'boost_confirm') {
     try {
       const { affiliate } = await requireAffiliate(req);
+      if (req.body?.teamTermsVersion !== '1.0' || req.body?.teamWhatsappConsent !== true || req.body?.teamFixedTeamConsent !== true) {
+        return json(res, 400, { error: 'É necessário aceitar as duas condições de entrada na equipe.' });
+      }
       const reservationId = Number(req.body?.reservationId);
       if (!Number.isInteger(reservationId) || reservationId <= 0) return json(res, 400, { error: 'Indicação de equipe inválida.' });
       const result = await supabaseFetch('/rest/v1/rpc/she_team_boost_confirm', { method: 'POST', body: JSON.stringify({ p_affiliate_id: Number(affiliate.id), p_reservation_id: reservationId }) });
@@ -316,6 +342,9 @@ module.exports = async function handler(req, res) {
   if (req.method === 'POST') {
     try {
       const { affiliate } = await requireAffiliate(req);
+      if (req.body?.teamTermsVersion !== '1.0' || req.body?.teamWhatsappConsent !== true || req.body?.teamFixedTeamConsent !== true) {
+        return json(res, 400, { error: 'É necessário aceitar as duas condições de entrada na equipe.' });
+      }
       const teamParentId = Number(req.body?.teamParentId);
       const teamParentCode = String(req.body?.teamParentCode || '').trim().toUpperCase();
       if ((!Number.isInteger(teamParentId) || teamParentId <= 0) && !/^[A-Z0-9]{6}$/.test(teamParentCode)) return json(res, 400, { error: 'Informe um ID numérico de afiliada válido.' });

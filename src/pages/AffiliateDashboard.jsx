@@ -25,6 +25,14 @@ function whatsappUrl(value) {
   return `https://wa.me/${normalized}`
 }
 
+function formatWhatsapp(value) {
+  const digits = String(value || '').replace(/\D/g, '')
+  const local = digits.startsWith('55') ? digits.slice(2) : digits
+  if (local.length === 11) return `(${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`
+  if (local.length === 10) return `(${local.slice(0, 2)}) ${local.slice(2, 6)}-${local.slice(6)}`
+  return value || 'WhatsApp não informado'
+}
+
 function withdrawalStatusLabel(status) {
   if (status === 'approved') return 'Aprovado'
   if (status === 'paid') return 'Pago'
@@ -97,6 +105,14 @@ export default function AffiliateDashboard() {
   const [teamBoostBusy, setTeamBoostBusy] = useState(false)
   const [teamBoostMessage, setTeamBoostMessage] = useState('')
   const [teamReservation, setTeamReservation] = useState(null)
+  const [teamLookup, setTeamLookup] = useState(null)
+  const [teamLookupBusy, setTeamLookupBusy] = useState(false)
+  const [teamLookupMessage, setTeamLookupMessage] = useState('')
+  const [teamConfirmOpen, setTeamConfirmOpen] = useState(false)
+  const [teamConfirmParent, setTeamConfirmParent] = useState(null)
+  const [teamConfirmType, setTeamConfirmType] = useState('manual')
+  const [teamWhatsappConsent, setTeamWhatsappConsent] = useState(false)
+  const [teamFixedTeamConsent, setTeamFixedTeamConsent] = useState(false)
   const [videoSubmissions, setVideoSubmissions] = useState([])
   const [videoUrl, setVideoUrl] = useState('')
   const [videoTermsOpen, setVideoTermsOpen] = useState(false)
@@ -176,6 +192,42 @@ export default function AffiliateDashboard() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    const numericValue = String(teamCode || '').trim()
+    if (!affiliate?.id || !numericValue || !/^\d+$/.test(numericValue) || teamReservation) {
+      setTeamLookup(null)
+      setTeamLookupMessage('')
+      setTeamLookupBusy(false)
+      return undefined
+    }
+
+    let cancelled = false
+    const timeout = setTimeout(async () => {
+      setTeamLookupBusy(true)
+      setTeamLookupMessage('')
+      try {
+        const result = await api('/api/affiliate/dashboard', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'team_lookup', parentId: Number(numericValue) }),
+        })
+        if (cancelled) return
+        setTeamLookup(result.parent || null)
+        setTeamLookupMessage(result.parent ? '' : (result.message || 'Não encontramos uma afiliada ativa com esse ID.'))
+      } catch (e) {
+        if (cancelled) return
+        setTeamLookup(null)
+        setTeamLookupMessage(e.message || 'Não foi possível consultar esse ID agora.')
+      } finally {
+        if (!cancelled) setTeamLookupBusy(false)
+      }
+    }, 350)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timeout)
+    }
+  }, [teamCode, teamReservation, affiliate?.id])
 
   useEffect(() => { load({ sync: true }) }, [])
 
@@ -309,29 +361,80 @@ export default function AffiliateDashboard() {
     }
   }
 
-  const joinTeam = async (event) => {
+  const resetTeamTerms = () => {
+    setTeamWhatsappConsent(false)
+    setTeamFixedTeamConsent(false)
+  }
+
+  const openTeamConfirmation = (parent, type) => {
+    setTeamConfirmParent(parent)
+    setTeamConfirmType(type)
+    resetTeamTerms()
+    setTeamConfirmOpen(true)
+    setTeamJoinMessage('')
+    setTeamBoostMessage('')
+  }
+
+  const closeTeamConfirmation = () => {
+    setTeamConfirmOpen(false)
+    resetTeamTerms()
+  }
+
+  // O primeiro clique apenas abre a confirmação; o vínculo só é criado após os dois aceites.
+  const joinTeam = (event) => {
     event.preventDefault()
+    if (teamReservation?.reservationId) {
+      openTeamConfirmation({
+        id: Number(teamReservation.parentId),
+        parentId: Number(teamReservation.parentId),
+        name: teamReservation.parentName,
+        parentName: teamReservation.parentName,
+        whatsapp: teamReservation.parentWhatsapp || '',
+        parentWhatsapp: teamReservation.parentWhatsapp || '',
+      }, 'boost')
+      return
+    }
+    const numericId = Number(String(teamCode).trim())
+    if (!teamLookup || Number(teamLookup.id) !== numericId) {
+      setTeamJoinMessage('Aguarde a confirmação do nome da afiliada mãe antes de continuar.')
+      return
+    }
+    openTeamConfirmation(teamLookup, 'manual')
+  }
+
+  const confirmTeamJoin = async () => {
+    if (!teamWhatsappConsent || !teamFixedTeamConsent) return
     setTeamJoinBusy(true)
     setTeamJoinMessage('')
+    setTeamBoostMessage('')
     try {
-      const numericId = Number(String(teamCode).trim())
+      const commonTerms = {
+        teamTermsVersion: '1.0',
+        teamWhatsappConsent: true,
+        teamFixedTeamConsent: true,
+      }
       let result
-      if (teamReservation?.reservationId) {
+      if (teamConfirmType === 'boost' && teamReservation?.reservationId) {
         result = await api('/api/affiliate/dashboard', {
           method: 'POST',
-          body: JSON.stringify({ action: 'boost_confirm', reservationId: teamReservation.reservationId }),
+          body: JSON.stringify({ action: 'boost_confirm', reservationId: teamReservation.reservationId, ...commonTerms }),
         })
       } else {
-        if (!Number.isInteger(numericId) || numericId <= 0) throw new Error('Informe o ID numérico da afiliada mãe.')
+        const numericId = Number(teamConfirmParent?.id || teamConfirmParent?.parentId || teamCode)
+        if (!Number.isInteger(numericId) || numericId <= 0) throw new Error('Informe um ID numérico de afiliada mãe válido.')
         result = await api('/api/affiliate/dashboard', {
           method: 'POST',
-          body: JSON.stringify({ teamParentId: numericId }),
+          body: JSON.stringify({ teamParentId: numericId, ...commonTerms }),
         })
       }
       setAffiliate(current => current ? { ...current, team_parent_id: result.affiliate?.team_parent_id || result.result?.parentId || true } : current)
       setTeamJoinMessage('Você entrou na equipe com sucesso.')
       setTeamCode('')
+      setTeamLookup(null)
+      setTeamLookupMessage('')
       setTeamReservation(null)
+      setTeamConfirmOpen(false)
+      resetTeamTerms()
       const refreshed = await api(`/api/affiliate/dashboard?month=${encodeURIComponent(selectedMonth || 'all')}`)
       setDashboard(refreshed)
       try { setTeamBoost(await api('/api/affiliate/dashboard?boost=1')) } catch {}
@@ -345,10 +448,29 @@ export default function AffiliateDashboard() {
   const findTeam = async () => {
     setTeamBoostBusy(true)
     setTeamBoostMessage('')
+    setTeamJoinMessage('')
     try {
       const result = await api('/api/affiliate/dashboard', { method: 'POST', body: JSON.stringify({ action: 'boost_find' }) })
-      setTeamReservation(result.reservation)
-      setTeamCode(String(result.reservation?.parentId || ''))
+      const reservation = result.reservation || null
+      if (!reservation?.reservationId || !reservation?.parentId) throw new Error('Não foi possível confirmar a afiliada selecionada.')
+      const normalized = {
+        ...reservation,
+        parentId: Number(reservation.parentId),
+        parentName: reservation.parentName || 'Afiliada mãe',
+        parentWhatsapp: reservation.parentWhatsapp || '',
+      }
+      setTeamReservation(normalized)
+      setTeamCode(String(normalized.parentId))
+      setTeamLookup(null)
+      setTeamLookupMessage('')
+      openTeamConfirmation({
+        id: normalized.parentId,
+        parentId: normalized.parentId,
+        name: normalized.parentName,
+        parentName: normalized.parentName,
+        whatsapp: normalized.parentWhatsapp,
+        parentWhatsapp: normalized.parentWhatsapp,
+      }, 'boost')
       setTeamBoostMessage('Encontramos uma afiliada mãe para você.')
     } catch (e) {
       setTeamBoostMessage(e.message || 'Não foi possível encontrar uma equipe agora.')
@@ -635,15 +757,21 @@ export default function AffiliateDashboard() {
               <>
                 <p className="text-[10px] font-black uppercase tracking-[.2em] text-zinc-400">Equipe</p>
                 <h2 className="mt-1 text-xl font-black text-zinc-950">Entre em uma equipe</h2>
-                <p className="mt-1 text-xs leading-5 text-zinc-400">Você pode informar o ID de uma afiliada que indicou você ou encontrar automaticamente uma afiliada mãe impulsionada.</p>
+                <p className="mt-1 text-xs leading-5 text-zinc-500">Entre em uma equipe e qualifique como bronze por 30 dias corridos.</p>
+                <p className="mt-1 text-xs leading-5 text-zinc-400">Digite o ID de quem indicou você ou encontre uma afiliada mãe disponível. Antes de entrar, você poderá conferir os dados e aceitar as condições do vínculo.</p>
                 <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                   <form onSubmit={joinTeam} className="flex min-w-0 flex-1 gap-2">
-                    <input value={teamCode} onChange={e => setTeamCode(e.target.value.replace(/\D/g, '').slice(0, 12))} disabled={teamJoinBusy || Boolean(teamReservation)} inputMode="numeric" placeholder="ID da afiliada mãe" className="min-w-0 flex-1 rounded-xl border border-zinc-200 px-3 py-2.5 text-sm font-bold outline-none focus:border-pink-400" />
-                    <button disabled={teamJoinBusy || !teamCode || teamCode.length < 1} className="rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{teamJoinBusy ? 'Entrando…' : 'Entrar na equipe'}</button>
+                    <input value={teamCode} onChange={e => { setTeamCode(e.target.value.replace(/\D/g, '').slice(0, 12)); setTeamLookup(null); setTeamLookupMessage(''); setTeamJoinMessage('') }} disabled={teamJoinBusy || Boolean(teamReservation)} inputMode="numeric" placeholder="ID da afiliada mãe" className="min-w-0 flex-1 rounded-xl border border-zinc-200 px-3 py-2.5 text-sm font-bold outline-none focus:border-pink-400" />
+                    <button disabled={teamJoinBusy || teamLookupBusy || !teamCode || !teamLookup || Number(teamLookup.id) !== Number(teamCode)} className="rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40">Revisar e entrar</button>
                   </form>
-                  <button type="button" onClick={findTeam} disabled={teamBoostBusy || Boolean(teamReservation)} className="rounded-xl border border-pink-200 bg-pink-50 px-4 py-2.5 text-sm font-black text-pink-600 disabled:cursor-not-allowed disabled:opacity-40">{teamBoostBusy ? 'Buscando…' : 'Encontrar equipe'}</button>
+                  <button type="button" onClick={findTeam} disabled={teamBoostBusy || Boolean(teamReservation)} className="rounded-xl border border-pink-200 bg-pink-50 px-4 py-2.5 text-sm font-black text-pink-600 disabled:cursor-not-allowed disabled:opacity-40">{teamBoostBusy ? 'Buscando…' : 'Encontrar uma equipe'}</button>
                 </div>
-                {teamReservation && <p className="mt-3 rounded-xl bg-pink-50 px-3 py-2 text-xs font-semibold text-zinc-700">Sua afiliada mãe será: <strong>{teamReservation.parentName}</strong></p>}
+                {teamCode && !teamReservation && (
+                  <div className={`mt-3 rounded-xl border px-3 py-2.5 text-xs ${teamLookup ? 'border-pink-200 bg-pink-50 text-zinc-700' : 'border-zinc-100 bg-zinc-50 text-zinc-500'}`} aria-live="polite">
+                    {teamLookupBusy ? 'Buscando afiliada pelo ID…' : teamLookup ? <>Sua afiliada mãe será: <strong className="text-zinc-950">{teamLookup.name}</strong> <span className="text-zinc-400">(ID {teamLookup.id})</span></> : teamLookupMessage || 'Digite o ID para localizar a afiliada mãe.'}
+                  </div>
+                )}
+                {teamReservation && !teamConfirmOpen && <div className="mt-3 flex flex-col gap-2 rounded-xl border border-pink-100 bg-pink-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs font-semibold text-zinc-700">Sua afiliada mãe será: <strong>{teamReservation.parentName}</strong></p><button type="button" onClick={() => openTeamConfirmation({ id: teamReservation.parentId, parentId: teamReservation.parentId, name: teamReservation.parentName, parentName: teamReservation.parentName, whatsapp: teamReservation.parentWhatsapp || '', parentWhatsapp: teamReservation.parentWhatsapp || '' }, 'boost')} className="rounded-lg bg-pink-500 px-3 py-2 text-xs font-black text-white">Revisar seleção</button></div>}
                 {teamJoinMessage && <p className="mt-2 text-xs font-semibold text-zinc-500">{teamJoinMessage}</p>}
                 {teamBoostMessage && <p className="mt-2 text-xs font-semibold text-zinc-500">{teamBoostMessage}</p>}
               </>
@@ -1198,6 +1326,45 @@ export default function AffiliateDashboard() {
       )}
 
         </div>
+
+      {teamConfirmOpen && teamConfirmParent && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 px-4 py-6 backdrop-blur-[3px]" onMouseDown={event => { if (event.target === event.currentTarget) closeTeamConfirmation() }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="team-confirm-title" className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-[1.8rem] bg-white p-5 shadow-[0_30px_100px_rgba(0,0,0,.28)] sm:p-7" onMouseDown={event => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4">
+              <div><p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Confirmação de equipe</p><h3 id="team-confirm-title" className="mt-1 text-2xl font-black text-zinc-950">Conheça sua afiliada mãe</h3><p className="mt-1 text-sm leading-5 text-zinc-500">Confira os dados e aceite as condições antes de confirmar sua entrada.</p></div>
+              <button type="button" aria-label="Fechar confirmação" onClick={closeTeamConfirmation} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-lg font-black text-zinc-500 hover:bg-pink-50 hover:text-pink-600">×</button>
+            </div>
+
+            <div className="mt-5 rounded-[1.4rem] border border-pink-100 bg-gradient-to-br from-pink-50 via-white to-rose-50 p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-pink-100 bg-white text-xl font-black text-pink-500 shadow-sm">{String(teamConfirmParent.name || teamConfirmParent.parentName || 'A').trim().charAt(0).toUpperCase()}</div>
+                <div className="min-w-0 flex-1"><p className="text-[10px] font-black uppercase tracking-[.16em] text-pink-500">Sua afiliada mãe será</p><h4 className="mt-1 break-words text-lg font-black text-zinc-950">{teamConfirmParent.name || teamConfirmParent.parentName || 'Afiliada SHE'}</h4><p className="mt-0.5 text-xs font-semibold text-zinc-400">ID {teamConfirmParent.id || teamConfirmParent.parentId}</p></div>
+              </div>
+              <div className="mt-4 rounded-xl border border-white bg-white/90 p-3">
+                <p className="text-[10px] font-black uppercase tracking-[.14em] text-zinc-400">Contato da afiliada mãe</p>
+                {(teamConfirmParent.whatsapp || teamConfirmParent.parentWhatsapp) ? (
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-bold text-zinc-700">{formatWhatsapp(teamConfirmParent.whatsapp || teamConfirmParent.parentWhatsapp)}</span><a href={whatsappUrl(teamConfirmParent.whatsapp || teamConfirmParent.parentWhatsapp)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg bg-[#25D366] px-3 py-2 text-xs font-black text-white shadow-sm hover:opacity-90"><svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true"><path d="M20.52 3.48A11.82 11.82 0 0 0 12.08 0C5.55 0 .24 5.31.24 11.84c0 2.09.55 4.13 1.59 5.93L.13 24l6.38-1.67a11.8 11.8 0 0 0 5.57 1.42h.01c6.53 0 11.84-5.31 11.84-11.84c0-3.16-1.23-6.13-3.41-8.43ZM12.09 21.8h-.01a9.91 9.91 0 0 1-5.05-1.39l-.36-.21-3.79.99 1.01-3.69-.23-.38a9.9 9.9 0 0 1-1.52-5.28C2.14 6.37 6.6 1.91 12.08 1.91c2.65 0 5.14 1.03 7.01 2.9a9.86 9.86 0 0 1 2.91 7.02c0 5.48-4.46 9.94-9.91 9.97Zm5.44-7.45c-.3-.15-1.78-.88-2.05-.98-.27-.1-.47-.15-.67.15-.2.3-.77.98-.94 1.18-.17.2-.35.22-.65.07-.3-.15-1.27-.47-2.42-1.49-.9-.8-1.51-1.78-1.69-2.08-.18-.3-.02-.37.13-.52.13-.17.45-.5.52-.67.07-.17.1-.3.15-.45.05-.15-.02-.37-.07-.52-.07-.15-.67-1.61-.92-2.21-.24-.58-.49-.51-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.49s1.07 2.89 1.22 3.09c.15.2 2.11 3.22 5.12 4.52.72.31 1.37.47 1.72.64.72.23 1.37.2 1.89.12.58-.09 1.78-.73 2.03-1.44.25-.71.18-1.32.18-1.44-.07-.12-.27-.2-.57-.35Z"/></svg>Conversar no WhatsApp</a></div>
+                ) : <p className="mt-2 text-sm text-zinc-500">A afiliada ainda não informou um WhatsApp de contato.</p>}
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center gap-3 rounded-[1.2rem] border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-4">
+              <img src="/badge-bronze.svg" alt="Broche Bronze" className="h-14 w-14 shrink-0 object-contain drop-shadow-sm" />
+              <div><p className="text-[10px] font-black uppercase tracking-[.17em] text-amber-700">Benefício de entrada</p><p className="mt-1 text-lg font-black leading-tight text-zinc-950">Ganhe 30 dias de Qualificação Bronze</p><p className="mt-1 text-xs leading-5 text-zinc-600">O prazo é de 30 dias corridos, contados a partir da confirmação da entrada na equipe.</p></div>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              <p className="text-xs font-black uppercase tracking-[.15em] text-zinc-500">Leia e confirme as condições</p>
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-zinc-200 p-3.5 transition hover:border-pink-200 hover:bg-pink-50/40"><input type="checkbox" checked={teamWhatsappConsent} onChange={event => setTeamWhatsappConsent(event.target.checked)} className="mt-1 h-4 w-4 shrink-0 accent-pink-500" /><span className="text-sm leading-5 text-zinc-700">Aceito que a afiliada mãe poderá entrar em contato comigo por WhatsApp.</span></label>
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-zinc-200 p-3.5 transition hover:border-pink-200 hover:bg-pink-50/40"><input type="checkbox" checked={teamFixedTeamConsent} onChange={event => setTeamFixedTeamConsent(event.target.checked)} className="mt-1 h-4 w-4 shrink-0 accent-pink-500" /><span className="text-sm leading-5 text-zinc-700">Tenho ciência de que, depois de entrar em uma equipe, não poderei sair dela nem trocar de afiliada mãe.</span></label>
+            </div>
+
+            <p className="mt-4 text-xs leading-5 text-zinc-400">Ao confirmar, você declara que conferiu os dados acima e concorda com as duas condições para entrar na equipe.</p>
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" disabled={teamJoinBusy} onClick={closeTeamConfirmation} className="rounded-xl border border-zinc-200 px-5 py-3 text-sm font-black text-zinc-600 disabled:opacity-50">Voltar</button><button type="button" disabled={teamJoinBusy || !teamWhatsappConsent || !teamFixedTeamConsent} onClick={confirmTeamJoin} className="rounded-xl bg-pink-500 px-5 py-3 text-sm font-black text-white shadow-md shadow-pink-100 transition hover:bg-pink-600 disabled:cursor-not-allowed disabled:opacity-40">{teamJoinBusy ? 'Confirmando…' : 'Aceitar e entrar na equipe'}</button></div>
+            {!teamWhatsappConsent || !teamFixedTeamConsent ? <p className="mt-3 text-center text-[11px] font-semibold text-zinc-400">Marque as duas opções para confirmar sua entrada.</p> : null}
+          </div>
+        </div>
+      )}
 
       {boostHelpOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-5 py-8 backdrop-blur-[2px]" onMouseDown={() => setBoostHelpOpen(false)}>
