@@ -138,27 +138,37 @@ module.exports = async function handler(req, res) {
         boostSpentByAffiliate.set(aid, (boostSpentByAffiliate.get(aid) || 0) + Number(boost.price || 0));
       }
 
-      // Saldo de equipe: soma das comissões de equipe registradas nos pedidos
-      // das afiliadas ligadas a cada líder, menos saques de equipe já reservados/pagos.
-      const affiliateByIdForTeam = new Map((affiliates || []).map(item => [Number(item.id), item]));
+      // Reproduz exatamente o cálculo do card "Saldo de Equipe" do painel da afiliada:
+      // busca os pedidos das afiliadas diretamente vinculadas a cada líder e
+      // desconta as solicitações de saque de equipe que ainda consomem saldo.
       const teamEarnedByParent = new Map();
-      for (const order of orders || []) {
-        if (!isPaidOrder(order)) continue;
-        const seller = affiliateByIdForTeam.get(Number(order.affiliate_id));
-        const parentId = Number(seller?.team_parent_id || 0);
-        if (!parentId) continue;
-        // Usar a mesma regra do card "Saldo de Equipe" do painel da afiliada:
-        // quando o pedido legado não tem snapshot válido, aplicar a comissão
-        // por venda configurada no sistema, em vez de somar zero.
-        const snapshot = Number(order.team_commission_snapshot);
-        const fallbackTeamRate = Number(settings.teamCommissionPerSale || 10);
-        const amount = Number.isFinite(snapshot) && snapshot > 0 ? snapshot : fallbackTeamRate;
-        teamEarnedByParent.set(parentId, (teamEarnedByParent.get(parentId) || 0) + amount);
+      const affiliateIds = (affiliates || []).map(item => Number(item.id)).filter(Number.isFinite);
+      for (const parentId of affiliateIds) {
+        const directTeamIds = (affiliates || [])
+          .filter(member => Number(member.team_parent_id || 0) === parentId)
+          .map(member => Number(member.id))
+          .filter(Number.isFinite);
+        if (!directTeamIds.length) {
+          teamEarnedByParent.set(parentId, 0);
+          continue;
+        }
+        const directTeamOrders = (orders || []).filter(order =>
+          directTeamIds.includes(Number(order.affiliate_id)) && isPaidOrder(order)
+        );
+        const earned = directTeamOrders.reduce((sum, order) => {
+          const snapshot = Number(order.team_commission_snapshot);
+          const fallbackTeamRate = Number(settings.teamCommissionPerSale || 10);
+          return sum + (Number.isFinite(snapshot) && snapshot > 0 ? snapshot : fallbackTeamRate);
+        }, 0);
+        teamEarnedByParent.set(parentId, earned);
       }
+
       const teamWithdrawnByParent = new Map();
       for (const withdrawal of withdrawals || []) {
         if (String(withdrawal.source || 'personal') !== 'team') continue;
-        if (!['pending', 'approved', 'processing', 'paid'].includes(String(withdrawal.status || '').toLowerCase())) continue;
+        const status = String(withdrawal.status || '').toLowerCase();
+        // Recusas/falhas/cancelamentos liberam a reserva; demais status reservam ou debitam.
+        if (['rejected', 'failed', 'cancelled'].includes(status)) continue;
         const aid = Number(withdrawal.affiliate_id);
         teamWithdrawnByParent.set(aid, (teamWithdrawnByParent.get(aid) || 0) + Number(withdrawal.amount || 0));
       }
