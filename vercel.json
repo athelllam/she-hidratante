@@ -5,6 +5,10 @@
   ],
   "rewrites": [
     {
+      "source": "/api/admin/data",
+      "destination": "/api/admin/affiliates?__handler=admin-data"
+    },
+    {
       "source": "/api/webhooks/woovi",
       "destination": "/api/webhooks/yampi?provider=woovi"
     },

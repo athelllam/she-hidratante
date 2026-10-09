@@ -6,6 +6,13 @@ function json(res, status, body) { res.status(status).json(body); }
 function money(value) { return Math.round((Number(value) || 0) * 100) / 100; }
 
 module.exports = async function handler(req, res) {
+  // Reuse this existing serverless function for admin data settings so the
+  // project stays within Vercel's function-count limit. The rewrite in
+  // vercel.json forwards /api/admin/data here with __handler=admin-data.
+  if (String(req.query?.__handler || '') === 'admin-data') {
+    return require('../_handlers/admin_data')(req, res);
+  }
+
   try {
     await requireAdmin(req);
 
