@@ -138,6 +138,29 @@ module.exports = async function handler(req, res) {
         boostSpentByAffiliate.set(aid, (boostSpentByAffiliate.get(aid) || 0) + Number(boost.price || 0));
       }
 
+      // Reproduz a mesma regra do card "Saldo de Equipe" no painel da afiliada.
+      // Cada pedido pago de uma afiliada filha gera comissão para seu team_parent_id.
+      const affiliateByIdForTeam = new Map((affiliates || []).map(item => [Number(item.id), item]));
+      const teamEarnedByParent = new Map();
+      for (const order of orders || []) {
+        if (!isPaidOrder(order)) continue;
+        const seller = affiliateByIdForTeam.get(Number(order.affiliate_id));
+        const parentId = Number(seller?.team_parent_id || 0);
+        if (!parentId) continue;
+        const snapshot = Number(order.team_commission_snapshot);
+        const amount = Number.isFinite(snapshot) && snapshot > 0
+          ? snapshot
+          : Number(settings.teamCommissionPerSale || DEFAULT_COMMISSION_CONFIG.teamCommissionPerSale || 10);
+        teamEarnedByParent.set(parentId, (teamEarnedByParent.get(parentId) || 0) + amount);
+      }
+      const teamWithdrawnByParent = new Map();
+      for (const withdrawal of withdrawals || []) {
+        if (String(withdrawal.source || 'personal') !== 'team') continue;
+        if (['rejected', 'failed'].includes(String(withdrawal.status || '').toLowerCase())) continue;
+        const parentId = Number(withdrawal.affiliate_id);
+        teamWithdrawnByParent.set(parentId, (teamWithdrawnByParent.get(parentId) || 0) + Number(withdrawal.amount || 0));
+      }
+
       const result = (affiliates || []).map(affiliate => {
         const bucket = stats.get(Number(affiliate.id)) || { sales: 0, revenue: 0, commission: 0, withdrawals: 0 };
         return {
@@ -148,6 +171,8 @@ module.exports = async function handler(req, res) {
           earnedCommission: money(bucket.commission),
           accesses: Number(bucket.accesses || 0),
           balance: money(Math.max(0, bucket.commission - bucket.withdrawals - (boostSpentByAffiliate.get(Number(affiliate.id)) || 0))),
+          teamBalance: money(Math.max(0, (teamEarnedByParent.get(Number(affiliate.id)) || 0) - (teamWithdrawnByParent.get(Number(affiliate.id)) || 0))),
+          totalBalance: money(Math.max(0, bucket.commission - bucket.withdrawals - (boostSpentByAffiliate.get(Number(affiliate.id)) || 0)) + Math.max(0, (teamEarnedByParent.get(Number(affiliate.id)) || 0) - (teamWithdrawnByParent.get(Number(affiliate.id)) || 0))),
           adminActive: Boolean(affiliate.admin_active),
           lastSaleAt: bucket.lastSaleAt,
           daysWithoutSales: bucket.lastSaleAt
