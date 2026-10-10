@@ -31,13 +31,18 @@ module.exports = async function handler(req, res) {
         accounts[0] ||
         (result?.balance && typeof result.balance === 'object' ? result : null);
       if (!account?.balance || account.balance.available == null || !Number.isFinite(Number(account.balance.available))) {
-        console.error('[Woovi balance] Unexpected account response shape', {
-          responseKeys: result && typeof result === 'object' ? Object.keys(result) : [],
+        const diagnostic = {
+          responseType: result === null ? 'null' : Array.isArray(result) ? 'array' : typeof result,
+          responseKeys: result && typeof result === 'object' ? Object.keys(result).slice(0, 30) : [],
           accountCount: accounts.length,
-          accountKeys: account && typeof account === 'object' ? Object.keys(account) : [],
-          balanceKeys: account?.balance && typeof account.balance === 'object' ? Object.keys(account.balance) : [],
-        });
-        return json(res, 502, { error: 'A Woovi respondeu, mas o formato dos dados de saldo não foi reconhecido. Verifique os Runtime Logs da função de administração.' });
+          accountKeys: account && typeof account === 'object' ? Object.keys(account).slice(0, 30) : [],
+          balanceType: account?.balance === null ? 'null' : Array.isArray(account?.balance) ? 'array' : typeof account?.balance,
+          balanceKeys: account?.balance && typeof account.balance === 'object' ? Object.keys(account.balance).slice(0, 30) : [],
+        };
+        // Safe shape-only diagnostics: never return balances, tokens, IDs, or raw provider payloads.
+        console.error('[Woovi balance] Unexpected account response shape', diagnostic);
+        const summary = `Tipo: ${diagnostic.responseType}; chaves raiz: ${diagnostic.responseKeys.join(', ') || '(nenhuma)'}; chaves conta: ${diagnostic.accountKeys.join(', ') || '(nenhuma)'}; tipo saldo: ${diagnostic.balanceType}; chaves saldo: ${diagnostic.balanceKeys.join(', ') || '(nenhuma)'}.`;
+        return json(res, 502, { error: `A Woovi respondeu, mas o formato dos dados de saldo não foi reconhecido. ${summary}` });
       }
       return json(res, 200, {
         balance: {
