@@ -21,15 +21,22 @@ module.exports = async function handler(req, res) {
     // stay within Vercel's serverless-function limit; the AppID remains server-side.
     if (req.method === 'GET' && String(req.query?.wooviBalance || '') === '1') {
       const result = await wooviFetch('/api/v1/account');
-      // Woovi account responses can be wrapped as { accounts: [...] } (list)
-      // or { account: {...} } (single account). Support both without exposing
-      // provider credentials or raw response data to the browser.
+      // The account-list endpoint may return account metadata without balance.
+      // Select the default account, then fetch its detail endpoint for balance.
       const accounts = Array.isArray(result?.accounts) ? result.accounts : [];
-      const account =
+      let account =
         (result?.account && typeof result.account === 'object' ? result.account : null) ||
         accounts.find(item => item?.isDefault) ||
         accounts[0] ||
         (result?.balance && typeof result.balance === 'object' ? result : null);
+
+      if ((!account?.balance || account.balance.available == null) && account?.accountId) {
+        const detailResult = await wooviFetch(`/api/v1/account/${encodeURIComponent(account.accountId)}`);
+        account = (detailResult?.account && typeof detailResult.account === 'object')
+          ? detailResult.account
+          : detailResult;
+      }
+
       if (!account?.balance || account.balance.available == null || !Number.isFinite(Number(account.balance.available))) {
         const diagnostic = {
           responseType: result === null ? 'null' : Array.isArray(result) ? 'array' : typeof result,
@@ -42,7 +49,7 @@ module.exports = async function handler(req, res) {
         // Safe shape-only diagnostics: never return balances, tokens, IDs, or raw provider payloads.
         console.error('[Woovi balance] Unexpected account response shape', diagnostic);
         const summary = `Tipo: ${diagnostic.responseType}; chaves raiz: ${diagnostic.responseKeys.join(', ') || '(nenhuma)'}; chaves conta: ${diagnostic.accountKeys.join(', ') || '(nenhuma)'}; tipo saldo: ${diagnostic.balanceType}; chaves saldo: ${diagnostic.balanceKeys.join(', ') || '(nenhuma)'}.`;
-        return json(res, 502, { error: `A Woovi respondeu, mas o formato dos dados de saldo não foi reconhecido. ${summary}` });
+        return json(res, 502, { error: `A Woovi respondeu, mas não foi possível identificar o saldo da conta. ${summary}` });
       }
       return json(res, 200, {
         balance: {
