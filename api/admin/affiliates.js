@@ -21,10 +21,23 @@ module.exports = async function handler(req, res) {
     // stay within Vercel's serverless-function limit; the AppID remains server-side.
     if (req.method === 'GET' && String(req.query?.wooviBalance || '') === '1') {
       const result = await wooviFetch('/api/v1/account');
+      // Woovi account responses can be wrapped as { accounts: [...] } (list)
+      // or { account: {...} } (single account). Support both without exposing
+      // provider credentials or raw response data to the browser.
       const accounts = Array.isArray(result?.accounts) ? result.accounts : [];
-      const account = accounts.find(item => item?.isDefault) || accounts[0];
-      if (!account?.balance || !Number.isFinite(Number(account.balance.available))) {
-        return json(res, 502, { error: 'A Woovi não retornou o saldo disponível da conta.' });
+      const account =
+        (result?.account && typeof result.account === 'object' ? result.account : null) ||
+        accounts.find(item => item?.isDefault) ||
+        accounts[0] ||
+        (result?.balance && typeof result.balance === 'object' ? result : null);
+      if (!account?.balance || account.balance.available == null || !Number.isFinite(Number(account.balance.available))) {
+        console.error('[Woovi balance] Unexpected account response shape', {
+          responseKeys: result && typeof result === 'object' ? Object.keys(result) : [],
+          accountCount: accounts.length,
+          accountKeys: account && typeof account === 'object' ? Object.keys(account) : [],
+          balanceKeys: account?.balance && typeof account.balance === 'object' ? Object.keys(account.balance) : [],
+        });
+        return json(res, 502, { error: 'A Woovi respondeu, mas o formato dos dados de saldo não foi reconhecido. Verifique os Runtime Logs da função de administração.' });
       }
       return json(res, 200, {
         balance: {
