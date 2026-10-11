@@ -1030,19 +1030,6 @@ export default function AffiliateDashboard() {
               <p className="mt-1 text-sm text-zinc-500">Passe seu ID para novas afiliadas entrarem diretamente na sua equipe.</p>
               <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-pink-50 px-4 py-2"><span className="text-xs font-bold text-zinc-500">Seu ID</span><span className="text-lg font-black tracking-[.08em] text-pink-600">{affiliate.id}</span></div>
             </div>
-            <div className="grid gap-2 sm:min-w-[320px] sm:grid-cols-2">
-              <div className="rounded-2xl bg-zinc-50 px-4 py-3">
-                <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Vendas da equipe</p>
-                <p className="mt-1 text-xl font-black text-zinc-950">{team.sales || 0}</p>
-                <p className="mt-1 text-xs text-zinc-400">Somatória das vendas das afiliadas diretamente na sua equipe.</p>
-              </div>
-              <div className="rounded-2xl bg-zinc-50 px-4 py-3">
-                <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Comissão de equipe</p>
-                <p className="mt-1 text-xl font-black text-zinc-950">{brl(team.commissionPerSale)} / venda</p>
-                {team.classification && <p className="mt-1 text-[10px] font-black uppercase tracking-[.12em] text-pink-600">{team.classification} · {team.monthlyMembers || 0} integrantes · {team.monthlySales || 0} vendas no mês</p>}
-                <p className="mt-1 text-xs text-zinc-400">Gerada pelas afiliadas diretamente na sua equipe.</p>
-              </div>
-            </div>
           </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -1061,11 +1048,6 @@ export default function AffiliateDashboard() {
                   <h3 className="mt-1 text-2xl font-black tracking-tight text-zinc-950 sm:text-3xl">{teamHasAdvanced2 ? 'Equipe Avançada II' : teamHasAdvanced1 ? 'Equipe Avançada I' : 'Equipe Base'}</h3>
                   <p className="mt-1 text-sm text-zinc-600">{teamHasAdvanced2 ? 'Você alcançou o nível máximo de equipe deste mês. Parabéns!' : teamHasAdvanced1 ? 'Meta Avançada I conquistada! Continue crescendo para chegar à Avançada II.' : 'Cada afiliada ativa e cada venda aproximam você do próximo nível.'}</p>
                 </div>
-              </div>
-              <div className="rounded-2xl border border-white/90 bg-white/85 px-5 py-3 shadow-sm sm:min-w-[155px]">
-                <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Comissão por venda</p>
-                <p className="mt-1 text-2xl font-black text-pink-600">{brl(team.commissionPerSale)}</p>
-                <p className="text-xs font-semibold text-zinc-500">por venda da equipe</p>
               </div>
             </div>
             <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
