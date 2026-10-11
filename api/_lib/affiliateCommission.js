@@ -2,6 +2,8 @@ const DEFAULT_COMMISSION_CONFIG = {
   ticketThreshold: 170,
   ticketBonus: 5,
   teamCommissionPerSale: 10,
+  teamAdvanced1: { members: 10, sales: 20, commissionPerSale: 15 },
+  teamAdvanced2: { members: 20, sales: 40, commissionPerSale: 20 },
   commissions: {
     none: 30,
     bronze: 40,
@@ -38,6 +40,16 @@ function normalizeConfig(config = {}) {
     ticketThreshold: Number.isFinite(Number(config.ticketThreshold)) ? Number(config.ticketThreshold) : DEFAULT_COMMISSION_CONFIG.ticketThreshold,
     ticketBonus: Number.isFinite(Number(config.ticketBonus)) ? Number(config.ticketBonus) : DEFAULT_COMMISSION_CONFIG.ticketBonus,
     teamCommissionPerSale: Number.isFinite(Number(config.teamCommissionPerSale)) ? Number(config.teamCommissionPerSale) : DEFAULT_COMMISSION_CONFIG.teamCommissionPerSale,
+    teamAdvanced1: {
+      members: Number.isInteger(Number(config.teamAdvanced1?.members)) && Number(config.teamAdvanced1.members) > 0 ? Number(config.teamAdvanced1.members) : DEFAULT_COMMISSION_CONFIG.teamAdvanced1.members,
+      sales: Number.isInteger(Number(config.teamAdvanced1?.sales)) && Number(config.teamAdvanced1.sales) > 0 ? Number(config.teamAdvanced1.sales) : DEFAULT_COMMISSION_CONFIG.teamAdvanced1.sales,
+      commissionPerSale: Number.isFinite(Number(config.teamAdvanced1?.commissionPerSale)) && Number(config.teamAdvanced1.commissionPerSale) >= 0 ? Number(config.teamAdvanced1.commissionPerSale) : DEFAULT_COMMISSION_CONFIG.teamAdvanced1.commissionPerSale,
+    },
+    teamAdvanced2: {
+      members: Number.isInteger(Number(config.teamAdvanced2?.members)) && Number(config.teamAdvanced2.members) > 0 ? Number(config.teamAdvanced2.members) : DEFAULT_COMMISSION_CONFIG.teamAdvanced2.members,
+      sales: Number.isInteger(Number(config.teamAdvanced2?.sales)) && Number(config.teamAdvanced2.sales) > 0 ? Number(config.teamAdvanced2.sales) : DEFAULT_COMMISSION_CONFIG.teamAdvanced2.sales,
+      commissionPerSale: Number.isFinite(Number(config.teamAdvanced2?.commissionPerSale)) && Number(config.teamAdvanced2.commissionPerSale) >= 0 ? Number(config.teamAdvanced2.commissionPerSale) : DEFAULT_COMMISSION_CONFIG.teamAdvanced2.commissionPerSale,
+    },
     commissions: {
       none: Number.isFinite(Number(commissions.none)) ? Number(commissions.none) : DEFAULT_COMMISSION_CONFIG.commissions.none,
       bronze: Number.isFinite(Number(commissions.bronze)) ? Number(commissions.bronze) : DEFAULT_COMMISSION_CONFIG.commissions.bronze,
@@ -389,6 +401,50 @@ async function reconcileAffiliateOrderCommissions(supabaseFetch, affiliateId, co
   return { updated: updates.length, orders: paid };
 }
 
+
+function currentSaoPauloMonth(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).formatToParts(date);
+  return `${parts.find(part => part.type === 'year')?.value}-${parts.find(part => part.type === 'month')?.value}`;
+}
+
+/** Recalcula somente a comissão da equipe no mês corrente. Pedidos de meses
+ * anteriores permanecem congelados em team_commission_snapshot. */
+async function reconcileTeamMonthlyCommissions(supabaseFetch, parentId, members, orders, config = DEFAULT_COMMISSION_CONFIG) {
+  const normalized = normalizeConfig(config);
+  const month = currentSaoPauloMonth();
+  const memberCount = Array.isArray(members) ? members.length : 0;
+  const monthOrders = (orders || []).filter(order => isPaidOrder(order) && monthKey(order.created_at) === month);
+  const salesCount = monthOrders.length;
+  let level = 'Equipe Base';
+  let rate = Number(normalized.teamCommissionPerSale || 10);
+  if (memberCount >= normalized.teamAdvanced1.members && salesCount >= normalized.teamAdvanced1.sales) {
+    level = 'Equipe Avançada I';
+    rate = normalized.teamAdvanced1.commissionPerSale;
+  }
+  if (memberCount >= normalized.teamAdvanced2.members && salesCount >= normalized.teamAdvanced2.sales) {
+    level = 'Equipe Avançada II';
+    rate = normalized.teamAdvanced2.commissionPerSale;
+  }
+  const updates = [];
+  for (const order of monthOrders) {
+    const existing = Number(order.team_commission_snapshot);
+    if (!Number.isFinite(existing) || Math.abs(existing - rate) > 0.001) {
+      updates.push({ id: order.id, rate });
+    }
+  }
+  for (const item of updates) {
+    await supabaseFetch(`/rest/v1/affiliate_orders?id=eq.${Number(item.id)}`, {
+      method: 'PATCH', headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ team_commission_snapshot: item.rate }),
+    });
+    const local = (orders || []).find(order => Number(order.id) === Number(item.id));
+    if (local) local.team_commission_snapshot = item.rate;
+  }
+  return { month, memberCount, salesCount, level, commissionPerSale: rate, updated: updates.length };
+}
+
 function isPaidOrder(order) {
   return new Set(['payment_approved', 'paid', 'pagamento_aprovado']).has(
     String(order?.status || '').toLowerCase()
@@ -408,5 +464,6 @@ module.exports = {
   calculateMonthlyStats,
   commissionForOrders,
   reconcileAffiliateOrderCommissions,
+  reconcileTeamMonthlyCommissions,
   isPaidOrder,
 };

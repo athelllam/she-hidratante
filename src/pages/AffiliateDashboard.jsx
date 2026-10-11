@@ -1022,6 +1022,7 @@ export default function AffiliateDashboard() {
               <div className="rounded-2xl bg-zinc-50 px-4 py-3">
                 <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Comissão de equipe</p>
                 <p className="mt-1 text-xl font-black text-zinc-950">{brl(team.commissionPerSale)} / venda</p>
+                {team.classification && <p className="mt-1 text-[10px] font-black uppercase tracking-[.12em] text-pink-600">{team.classification} · {team.monthlyMembers || 0} integrantes · {team.monthlySales || 0} vendas no mês</p>}
                 <p className="mt-1 text-xs text-zinc-400">Gerada pelas afiliadas diretamente na sua equipe.</p>
               </div>
             </div>

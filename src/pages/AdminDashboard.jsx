@@ -127,7 +127,7 @@ export default function AdminDashboard() {
   const [deletePhrase, setDeletePhrase] = useState('')
   const [deletingIds, setDeletingIds] = useState([])
   const [settings, setSettings] = useState({ ticketThreshold: 170, ticketBonus: 5, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 }, monthlyLevels: { bronze: 10, silver: 50, gold: 101 }, fixedLevels: { bronze: 100, silver: 300, gold: 500 } })
-  const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', ticketBonus: '5', teamCommissionPerSale: '10', none: '30', bronze: '40', silver: '50', gold: '60', monthlyBronze: '10', monthlySilver: '50', monthlyGold: '101', fixedBronze: '100', fixedSilver: '300', fixedGold: '500', smallBoostPrice: '30', smallBoostConnections: '5', largeBoostPrice: '50', largeBoostConnections: '10', maxActiveBoosts: '3', resellerHydrant: '0', resellerHydrantBlister: '0', resellerStick: '0', resellerComplete: '0' })
+  const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', ticketBonus: '5', teamCommissionPerSale: '10', teamAdvanced1Members: '10', teamAdvanced1Sales: '20', teamAdvanced1Commission: '15', teamAdvanced2Members: '20', teamAdvanced2Sales: '40', teamAdvanced2Commission: '20', none: '30', bronze: '40', silver: '50', gold: '60', monthlyBronze: '10', monthlySilver: '50', monthlyGold: '101', fixedBronze: '100', fixedSilver: '300', fixedGold: '500', smallBoostPrice: '30', smallBoostConnections: '5', largeBoostPrice: '50', largeBoostConnections: '10', maxActiveBoosts: '3', resellerHydrant: '0', resellerHydrantBlister: '0', resellerStick: '0', resellerComplete: '0' })
   const [savingSettings, setSavingSettings] = useState(false)
   const [savingBonusLevels, setSavingBonusLevels] = useState(false)
   const [globalStatsData, setGlobalStatsData] = useState({ all: { sales: 0, revenue: 0, averageTicket: 0, accesses: 0 }, byMonth: {}, snapshots: {} })
@@ -172,6 +172,12 @@ export default function AdminDashboard() {
       ticketThreshold: String(nextSettings.ticketThreshold),
       ticketBonus: String(nextSettings.ticketBonus ?? 5),
       teamCommissionPerSale: String(nextSettings.teamCommissionPerSale ?? 10),
+      teamAdvanced1Members: String(nextSettings.teamAdvanced1?.members ?? 10),
+      teamAdvanced1Sales: String(nextSettings.teamAdvanced1?.sales ?? 20),
+      teamAdvanced1Commission: String(nextSettings.teamAdvanced1?.commissionPerSale ?? 15),
+      teamAdvanced2Members: String(nextSettings.teamAdvanced2?.members ?? 20),
+      teamAdvanced2Sales: String(nextSettings.teamAdvanced2?.sales ?? 40),
+      teamAdvanced2Commission: String(nextSettings.teamAdvanced2?.commissionPerSale ?? 20),
       none: String(nextSettings.commissions?.none ?? 30),
       bronze: String(nextSettings.commissions?.bronze ?? 40),
       silver: String(nextSettings.commissions?.silver ?? 50),
@@ -563,6 +569,8 @@ export default function AdminDashboard() {
         ticketThreshold: Number(String(settingsForm.ticketThreshold).replace(',', '.')),
         ticketBonus: Number(String(settingsForm.ticketBonus).replace(',', '.')),
         teamCommissionPerSale: Number(String(settingsForm.teamCommissionPerSale).replace(',', '.')),
+        teamAdvanced1: { members: Number(settingsForm.teamAdvanced1Members), sales: Number(settingsForm.teamAdvanced1Sales), commissionPerSale: Number(String(settingsForm.teamAdvanced1Commission).replace(',', '.')) },
+        teamAdvanced2: { members: Number(settingsForm.teamAdvanced2Members), sales: Number(settingsForm.teamAdvanced2Sales), commissionPerSale: Number(String(settingsForm.teamAdvanced2Commission).replace(',', '.')) },
         commissions: {
           none: Number(String(settingsForm.none).replace(',', '.')),
           bronze: Number(String(settingsForm.bronze).replace(',', '.')),
@@ -591,7 +599,7 @@ export default function AdminDashboard() {
           complete: Number(String(settingsForm.resellerComplete).replace(',', '.')),
         },
       }
-      if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || !Number.isFinite(payload.ticketBonus) || payload.ticketBonus < 0 || !Number.isFinite(payload.teamCommissionPerSale) || payload.teamCommissionPerSale < 0 || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0) || Object.values(payload.monthlyLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.fixedLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.resellerPrices).some(value => !Number.isFinite(value) || value < 0) || payload.boostPlans.small.price <= 0 || !Number.isInteger(payload.boostPlans.small.connections) || payload.boostPlans.small.connections <= 0 || payload.boostPlans.large.price <= 0 || !Number.isInteger(payload.boostPlans.large.connections) || payload.boostPlans.large.connections <= 0 || !Number.isInteger(payload.boostPlans.maxActive) || payload.boostPlans.maxActive <= 0 || !(payload.monthlyLevels.bronze < payload.monthlyLevels.silver && payload.monthlyLevels.silver < payload.monthlyLevels.gold) || !(payload.fixedLevels.bronze < payload.fixedLevels.silver && payload.fixedLevels.silver < payload.fixedLevels.gold)) {
+      if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || !Number.isFinite(payload.ticketBonus) || payload.ticketBonus < 0 || !Number.isFinite(payload.teamCommissionPerSale) || payload.teamCommissionPerSale < 0 || [payload.teamAdvanced1, payload.teamAdvanced2].some(t => !Number.isInteger(t.members) || t.members <= 0 || !Number.isInteger(t.sales) || t.sales <= 0 || !Number.isFinite(t.commissionPerSale) || t.commissionPerSale < 0) || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0) || Object.values(payload.monthlyLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.fixedLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.resellerPrices).some(value => !Number.isFinite(value) || value < 0) || payload.boostPlans.small.price <= 0 || !Number.isInteger(payload.boostPlans.small.connections) || payload.boostPlans.small.connections <= 0 || payload.boostPlans.large.price <= 0 || !Number.isInteger(payload.boostPlans.large.connections) || payload.boostPlans.large.connections <= 0 || !Number.isInteger(payload.boostPlans.maxActive) || payload.boostPlans.maxActive <= 0 || !(payload.monthlyLevels.bronze < payload.monthlyLevels.silver && payload.monthlyLevels.silver < payload.monthlyLevels.gold) || !(payload.fixedLevels.bronze < payload.fixedLevels.silver && payload.fixedLevels.silver < payload.fixedLevels.gold)) {
         throw new Error('Informe valores válidos. As metas devem ser números inteiros e crescentes: Bronze < Prata < Ouro.')
       }
       const result = await api('/api/admin/affiliates', {
@@ -603,6 +611,12 @@ export default function AdminDashboard() {
         ticketThreshold: String(result.settings.ticketThreshold),
         ticketBonus: String(result.settings.ticketBonus ?? 5),
         teamCommissionPerSale: String(result.settings.teamCommissionPerSale ?? 10),
+        teamAdvanced1Members: String(result.settings.teamAdvanced1?.members ?? 10),
+        teamAdvanced1Sales: String(result.settings.teamAdvanced1?.sales ?? 20),
+        teamAdvanced1Commission: String(result.settings.teamAdvanced1?.commissionPerSale ?? 15),
+        teamAdvanced2Members: String(result.settings.teamAdvanced2?.members ?? 20),
+        teamAdvanced2Sales: String(result.settings.teamAdvanced2?.sales ?? 40),
+        teamAdvanced2Commission: String(result.settings.teamAdvanced2?.commissionPerSale ?? 20),
         none: String(result.settings.commissions.none),
         bronze: String(result.settings.commissions.bronze),
         silver: String(result.settings.commissions.silver),
@@ -1221,6 +1235,21 @@ export default function AdminDashboard() {
               </div>
               <p className="mt-2 text-[10px] font-semibold text-pink-600">Valor pago por cada venda aprovada de uma afiliada direta da equipe.</p>
             </label>
+
+            <div className="md:col-span-2 xl:col-span-3 rounded-[1.5rem] border border-pink-200 bg-white p-4">
+              <p className="text-xs font-black uppercase tracking-[.16em] text-pink-700">Bônus de Equipe Avançada · metas mensais</p>
+              <p className="mt-1 text-[10px] text-zinc-500">A classificação mais alta atingida vale retroativamente para todas as vendas da equipe no mês. A contagem reinicia no mês seguinte.</p>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                {[{n:1,label:'Equipe Avançada I',members:'teamAdvanced1Members',sales:'teamAdvanced1Sales',commission:'teamAdvanced1Commission'},{n:2,label:'Equipe Avançada II',members:'teamAdvanced2Members',sales:'teamAdvanced2Sales',commission:'teamAdvanced2Commission'}].map(tier => <div key={tier.n} className="rounded-2xl border border-pink-100 bg-pink-50/60 p-4">
+                  <p className="font-black text-zinc-900">{tier.label}</p>
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <label><span className="text-[10px] font-black uppercase text-zinc-500">Integrantes</span><input value={settingsForm[tier.members]} onChange={e => setSettingsForm(v => ({...v,[tier.members]:e.target.value}))} inputMode="numeric" className="mt-1 w-full rounded-xl border border-pink-100 bg-white px-3 py-2.5 font-black" /></label>
+                    <label><span className="text-[10px] font-black uppercase text-zinc-500">Vendas/mês</span><input value={settingsForm[tier.sales]} onChange={e => setSettingsForm(v => ({...v,[tier.sales]:e.target.value}))} inputMode="numeric" className="mt-1 w-full rounded-xl border border-pink-100 bg-white px-3 py-2.5 font-black" /></label>
+                    <label><span className="text-[10px] font-black uppercase text-zinc-500">R$/venda</span><input value={settingsForm[tier.commission]} onChange={e => setSettingsForm(v => ({...v,[tier.commission]:e.target.value}))} inputMode="decimal" className="mt-1 w-full rounded-xl border border-pink-100 bg-white px-3 py-2.5 font-black" /></label>
+                  </div>
+                </div>)}
+              </div>
+            </div>
 
             {[['none', 'Início'], ['bronze', 'Bronze'], ['silver', 'Prata'], ['gold', 'Ouro']].map(([key, label]) => (
               <label key={key} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">

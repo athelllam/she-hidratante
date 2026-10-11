@@ -1,6 +1,6 @@
 const { supabaseFetch, json } = require('../_lib/supabase');
 const crypto = require('crypto');
-const { reconcileAffiliateOrderCommissions, normalizeConfig, DEFAULT_COMMISSION_CONFIG } = require('../_lib/affiliateCommission');
+const { reconcileAffiliateOrderCommissions, reconcileTeamMonthlyCommissions, normalizeConfig, DEFAULT_COMMISSION_CONFIG } = require('../_lib/affiliateCommission');
 const { getCreatedAt } = require('../_lib/yampi');
 
 function header(req, name) {
@@ -157,12 +157,14 @@ module.exports = async function handler(req, res) {
     // arrival time, so month boundaries and historical commission are correct.
     const saleCreatedAt = getCreatedAt(getOrder(payload));
 
-    const settingRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales&limit=1');
+    const settingRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,team_advanced1_members,team_advanced1_sales,team_advanced1_commission,team_advanced2_members,team_advanced2_sales,team_advanced2_commission,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales&limit=1');
     const row = settingRows?.[0];
     const commissionConfig = normalizeConfig(row ? {
       ticketThreshold: row.ticket_threshold,
       ticketBonus: row.ticket_bonus,
       teamCommissionPerSale: row.team_commission_per_sale,
+      teamAdvanced1: { members: row.team_advanced1_members, sales: row.team_advanced1_sales, commissionPerSale: row.team_advanced1_commission },
+      teamAdvanced2: { members: row.team_advanced2_members, sales: row.team_advanced2_sales, commissionPerSale: row.team_advanced2_commission },
       commissions: { none: row.commission_none, bronze: row.commission_bronze, silver: row.commission_silver, gold: row.commission_gold },
       monthlyLevels: { bronze: row.monthly_bronze_sales, silver: row.monthly_silver_sales, gold: row.monthly_gold_sales },
       fixedLevels: { bronze: row.fixed_bronze_sales, silver: row.fixed_silver_sales, gold: row.fixed_gold_sales },
@@ -198,6 +200,18 @@ module.exports = async function handler(req, res) {
       commissionConfig,
       { teamJoinedAt: affiliates[0].team_joined_at }
     );
+
+    // Se a venda pertence a uma equipe, recalcula retroativamente o valor de
+    // todas as vendas elegíveis do mês corrente para a líder dessa equipe.
+    const parentId = Number(affiliates[0].team_parent_id || 0);
+    if (parentId > 0) {
+      const [members, teamOrders] = await Promise.all([
+        supabaseFetch(`/rest/v1/affiliates?team_parent_id=eq.${parentId}&select=id&limit=1000`),
+        supabaseFetch(`/rest/v1/affiliate_orders?select=id,affiliate_id,status,team_commission_snapshot,created_at&order=created_at.asc&limit=20000`),
+      ]);
+      const memberIds = new Set((members || []).map(member => Number(member.id)));
+      await reconcileTeamMonthlyCommissions(supabaseFetch, parentId, members || [], (teamOrders || []).filter(order => memberIds.has(Number(order.affiliate_id))), commissionConfig).catch(() => null);
+    }
 
     return json(res, 200, { ok: true, orderId: yampiOrderId, affiliateId, status, commissionReconciled: reconciliation.updated || 0 });
   } catch (error) {
