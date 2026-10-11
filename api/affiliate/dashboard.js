@@ -431,6 +431,12 @@ module.exports = async function handler(req, res) {
     const teamOrders = teamIds.length
       ? await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=in.(${teamIds.join(',')})&select=affiliate_id,status,team_commission_snapshot,created_at&order=created_at.asc&limit=20000`)
       : [];
+    const currentMonthTeamOrders = (teamOrders || []).filter(order =>
+      isPaidOrder(order) && monthKeyInSaoPaulo(order.created_at) === defaultMonth
+    );
+    const currentMonthActiveMemberIds = new Set(currentMonthTeamOrders.map(order => Number(order.affiliate_id)).filter(Number.isFinite));
+    const currentMonthTeamMemberCount = currentMonthActiveMemberIds.size;
+    const currentMonthTeamSalesCount = currentMonthTeamOrders.length;
     const teamSalesByMonth = (teamOrders || []).filter(isPaidOrder).reduce((map, order) => {
       const key = monthKeyInSaoPaulo(order.created_at);
       if (key) map[key] = (map[key] || 0) + 1;
@@ -589,6 +595,8 @@ module.exports = async function handler(req, res) {
       code: String(affiliate.team_code || ''),
       lifetimeSales,
       sales: Array.from(teamSalesByAffiliate.values()).reduce((sum, sales) => sum + sales, 0),
+      monthlyMembers: currentMonthTeamMemberCount,
+      monthlySales: currentMonthTeamSalesCount,
       commissionPerSale: teamRate,
       earnedCommission: money(teamEarnedCommission),
       reservedWithdrawals: money(teamReserved),

@@ -435,9 +435,16 @@ module.exports = async function handler(req, res) {
       ? await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=in.(${teamIds.join(',')})&select=id,affiliate_id,status,team_commission_snapshot,created_at&order=created_at.asc&limit=20000`)
       : [];
     const teamRate = Number(settings.teamCommissionPerSale || 10);
-    const teamMonthlyLevel = teamMembers?.length
-      ? await reconcileTeamMonthlyCommissions(supabaseFetch, id, teamMembers, teamOrders || [], settings).catch(() => ({ level: 'Equipe Base', commissionPerSale: teamRate, memberCount: teamMembers.length, salesCount: 0 }))
-      : { level: 'Equipe Base', commissionPerSale: teamRate, memberCount: 0, salesCount: 0 };
+    // Os contadores do painel devem ser calculados diretamente dos pedidos aprovados
+    // do mês atual; não dependem do resultado da rotina de consolidação de comissão.
+    const currentMonthTeamOrders = (teamOrders || []).filter(order =>
+      isPaidOrder(order) && monthKeyInSaoPaulo(order.created_at) === defaultMonth
+    );
+    const currentMonthActiveMemberIds = new Set(currentMonthTeamOrders.map(order => Number(order.affiliate_id)).filter(Number.isFinite));
+    const currentMonthTeamMemberCount = currentMonthActiveMemberIds.size;
+    const currentMonthTeamSalesCount = currentMonthTeamOrders.length;
+    const teamMonthlyLevel = await reconcileTeamMonthlyCommissions(supabaseFetch, id, teamMembers || [], teamOrders || [], settings)
+      .catch(() => ({ level: 'Equipe Base', commissionPerSale: teamRate }));
     const teamSalesByMonth = (teamOrders || []).filter(isPaidOrder).reduce((map, order) => {
       const key = monthKeyInSaoPaulo(order.created_at);
       if (key) map[key] = (map[key] || 0) + 1;
@@ -597,8 +604,8 @@ module.exports = async function handler(req, res) {
       sales: Array.from(teamSalesByAffiliate.values()).reduce((sum, sales) => sum + sales, 0),
       commissionPerSale: teamMonthlyLevel.commissionPerSale,
       classification: teamMonthlyLevel.level,
-      monthlyMembers: teamMonthlyLevel.memberCount,
-      monthlySales: teamMonthlyLevel.salesCount,
+      monthlyMembers: currentMonthTeamMemberCount,
+      monthlySales: currentMonthTeamSalesCount,
       earnedCommission: money(teamEarnedCommission),
       reservedWithdrawals: money(teamReserved),
       availableCommission: money(teamAvailableCommission),
