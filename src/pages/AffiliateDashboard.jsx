@@ -96,6 +96,8 @@ export default function AffiliateDashboard() {
   const [teamBoost, setTeamBoost] = useState(null)
   const [teamBoostBusy, setTeamBoostBusy] = useState(false)
   const [teamBoostMessage, setTeamBoostMessage] = useState('')
+  const [boostConfirmPlan, setBoostConfirmPlan] = useState(null)
+  const [boostTermsAccepted, setBoostTermsAccepted] = useState(false)
   const [teamReservation, setTeamReservation] = useState(null)
   const [teamLookup, setTeamLookup] = useState(null)
   const [teamLookupBusy, setTeamLookupBusy] = useState(false)
@@ -463,8 +465,10 @@ export default function AffiliateDashboard() {
       const [refreshed, boostData] = await Promise.all([api(`/api/affiliate/dashboard?month=${encodeURIComponent(selectedMonth || 'all')}`), api('/api/affiliate/dashboard?boost=1')])
       setDashboard(refreshed)
       setTeamBoost(boostData)
+      return true
     } catch (e) {
       setTeamBoostMessage(e.message || 'Não foi possível contratar o impulso.')
+      return false
     } finally {
       setTeamBoostBusy(false)
     }
@@ -1127,7 +1131,7 @@ export default function AffiliateDashboard() {
                 const visuallyQueued = capacityFull || insufficient || blockedByActive
                 return <div key={plan.key} className={`rounded-2xl border p-4 ${visuallyQueued ? 'border-zinc-200 bg-zinc-100/80 text-zinc-400' : 'border-pink-100 bg-pink-50/50'}`}>
                   <div className="flex items-start justify-between gap-3"><div><p className={`text-sm font-black ${visuallyQueued ? 'text-zinc-500' : 'text-zinc-950'}`}>{plan.connections} conexões</p><p className="mt-1 text-xs text-zinc-400">Impulsionamento automático</p></div><p className={`text-xl font-black ${visuallyQueued ? 'text-zinc-500' : 'text-pink-600'}`}>{brl(plan.price)}</p></div>
-                  <button type="button" onClick={() => purchaseBoost(plan.key)} disabled={teamBoostBusy || insufficient || blockedByActive} className="mt-4 w-full rounded-xl bg-zinc-950 py-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-zinc-300">{blockedByActive ? (teamBoost?.boost?.status === 'queued' ? 'Já está na fila' : 'Impulso ativo') : insufficient ? 'Saldo insuficiente' : capacityFull ? 'Entrar na fila' : 'Impulsionar equipe'}</button>
+                  <button type="button" onClick={() => { setBoostConfirmPlan(plan); setBoostTermsAccepted(false) }} disabled={teamBoostBusy || insufficient || blockedByActive} className="mt-4 w-full rounded-xl bg-zinc-950 py-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-zinc-300">{blockedByActive ? (teamBoost?.boost?.status === 'queued' ? 'Já está na fila' : 'Impulso ativo') : insufficient ? 'Saldo insuficiente' : capacityFull ? 'Entrar na fila' : 'Impulsionar equipe'}</button>
                 </div>
               })}
             </div>
@@ -1386,6 +1390,35 @@ export default function AffiliateDashboard() {
             </div>
 
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" disabled={teamJoinBusy} onClick={closeTeamConfirmation} className="rounded-xl border border-zinc-200 px-5 py-3 text-sm font-black text-zinc-600 disabled:opacity-50">Voltar</button><button type="button" disabled={teamJoinBusy} onClick={confirmTeamJoin} className="rounded-xl bg-pink-500 px-5 py-3 text-sm font-black text-white shadow-md shadow-pink-100 transition hover:bg-pink-600 disabled:cursor-not-allowed disabled:opacity-40">{teamJoinBusy ? 'Confirmando…' : 'Aceitar e entrar na equipe'}</button></div>
+          </div>
+        </div>
+      )}
+
+      {boostConfirmPlan && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 px-4 py-6 backdrop-blur-[2px]" onMouseDown={() => { if (!teamBoostBusy) { setBoostConfirmPlan(null); setBoostTermsAccepted(false) } }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="boost-confirm-title" className="w-full max-w-lg rounded-[1.7rem] bg-white p-6 shadow-[0_30px_100px_rgba(0,0,0,.25)]" onMouseDown={event => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Confirmação de contratação</p>
+                <h3 id="boost-confirm-title" className="mt-1 text-xl font-black text-zinc-950">Confirmar Impulso de Equipe</h3>
+                <p className="mt-2 text-sm text-zinc-500">Plano de {boostConfirmPlan.connections} conexões · <strong className="text-pink-600">{brl(boostConfirmPlan.price)}</strong></p>
+              </div>
+              <button type="button" aria-label="Fechar" onClick={() => { setBoostConfirmPlan(null); setBoostTermsAccepted(false) }} disabled={teamBoostBusy} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-sm font-black text-zinc-500 disabled:opacity-50">×</button>
+            </div>
+            <div className="mt-5 space-y-3 rounded-2xl border border-pink-100 bg-pink-50/60 p-4 text-sm leading-6 text-zinc-700">
+              <p>Ao contratar o Impulso, o valor será reservado do seu saldo e você entrará na fila. Quando houver capacidade, o sistema ativará o plano e direcionará novas afiliadas para você conforme elas procurarem uma equipe.</p>
+              <p>Quando novas afiliadas entrarem na sua equipe, você poderá entrar em contato com elas para dar boas-vindas, apresentar a oportunidade e incentivá-las a desenvolver as vendas.</p>
+              <p><strong className="text-zinc-900">Cancelamento:</strong> enquanto estiver na fila, você pode sair e receber o valor reservado de volta. Depois que o impulso for ativado, não há cancelamento nem reembolso.</p>
+              <p>As conexões representam novas entradas confirmadas na equipe, e o impulso termina quando todas as conexões contratadas forem utilizadas.</p>
+            </div>
+            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl border border-zinc-200 p-4 text-sm leading-5 text-zinc-700">
+              <input type="checkbox" checked={boostTermsAccepted} onChange={event => setBoostTermsAccepted(event.target.checked)} className="mt-1 h-4 w-4 accent-pink-500" />
+              <span>Li e aceito os termos do Impulso de Equipe, incluindo as regras de reserva do saldo, fila, cancelamento e reembolso.</span>
+            </label>
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button type="button" disabled={teamBoostBusy} onClick={() => { setBoostConfirmPlan(null); setBoostTermsAccepted(false) }} className="rounded-xl border border-zinc-200 px-5 py-3 text-sm font-black text-zinc-600 disabled:opacity-50">Voltar</button>
+              <button type="button" disabled={!boostTermsAccepted || teamBoostBusy} onClick={async () => { const planKey = boostConfirmPlan.key; const success = await purchaseBoost(planKey); if (success) { setBoostConfirmPlan(null); setBoostTermsAccepted(false) } }} className="rounded-xl bg-pink-500 px-5 py-3 text-sm font-black text-white shadow-md shadow-pink-100 transition hover:bg-pink-600 disabled:cursor-not-allowed disabled:bg-zinc-300">{teamBoostBusy ? 'Processando…' : 'Aceitar termos e contratar'}</button>
+            </div>
           </div>
         </div>
       )}
