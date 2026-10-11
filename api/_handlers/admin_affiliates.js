@@ -670,10 +670,29 @@ module.exports = async function handler(req, res) {
             reseller_complete_price: Number(nextSettings.resellerPrices?.complete || 0),
           }),
         });
-
-
+        let savedRow = rows?.[0] || null;
+        if (!savedRow) {
+          // Some installations may not have the singleton settings row yet. Create it instead of silently returning defaults.
+          const inserted = await supabaseFetch('/rest/v1/affiliate_settings', {
+            method: 'POST',
+            headers: { Prefer: 'return=representation,resolution=merge-duplicates' },
+            body: JSON.stringify({
+              id: 1, ticket_threshold: nextSettings.ticketThreshold, ticket_bonus: nextSettings.ticketBonus,
+              team_commission_per_sale: nextSettings.teamCommissionPerSale,
+              team_advanced1_members: nextSettings.teamAdvanced1.members, team_advanced1_sales: nextSettings.teamAdvanced1.sales, team_advanced1_commission: nextSettings.teamAdvanced1.commissionPerSale,
+              team_advanced2_members: nextSettings.teamAdvanced2.members, team_advanced2_sales: nextSettings.teamAdvanced2.sales, team_advanced2_commission: nextSettings.teamAdvanced2.commissionPerSale,
+              commission_none: nextSettings.commissions.none, commission_bronze: nextSettings.commissions.bronze, commission_silver: nextSettings.commissions.silver, commission_gold: nextSettings.commissions.gold,
+              monthly_bronze_sales: nextSettings.monthlyLevels.bronze, monthly_silver_sales: nextSettings.monthlyLevels.silver, monthly_gold_sales: nextSettings.monthlyLevels.gold,
+              fixed_bronze_sales: nextSettings.fixedLevels.bronze, fixed_silver_sales: nextSettings.fixedLevels.silver, fixed_gold_sales: nextSettings.fixedLevels.gold,
+              team_boost_small_price: Number(boost.small.price), team_boost_small_connections: Number(boost.small.connections), team_boost_large_price: Number(boost.large.price), team_boost_large_connections: Number(boost.large.connections), team_boost_max_active: Number(boost.maxActive),
+              reseller_hydrant_price: Number(nextSettings.resellerPrices?.hydrant || 0), reseller_hydrant_blister_price: Number(nextSettings.resellerPrices?.hydrantBlister || 0), reseller_stick_price: Number(nextSettings.resellerPrices?.stick || 0), reseller_complete_price: Number(nextSettings.resellerPrices?.complete || 0),
+            }),
+          });
+          savedRow = inserted?.[0] || null;
+        }
+        if (!savedRow) throw new Error('As configurações não foram confirmadas pelo Supabase. Verifique se existe a linha id=1 em affiliate_settings e tente novamente.');
         await supabaseFetch('/rest/v1/rpc/she_team_boost_activate_waiting', { method: 'POST', body: '{}' }).catch(() => null);
-        return json(res, 200, { settings: nextSettings, row: rows?.[0] || null });
+        return json(res, 200, { settings: nextSettings, row: savedRow });
       }
 
       if (!id) return json(res, 400, { error: 'ID obrigatório.' });

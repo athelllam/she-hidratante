@@ -1038,6 +1038,11 @@ export default function AffiliateDashboard() {
             </div>
           </div>
 
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-pink-100 bg-white px-4 py-3 shadow-sm"><p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Afiliadas totais na equipe</p><p className="mt-1 text-2xl font-black text-zinc-950">{(team.members || []).length}</p><p className="mt-1 text-xs text-zinc-500">Total de afiliadas diretas cadastradas na sua rede.</p></div>
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 px-4 py-3 shadow-sm"><p className="text-[10px] font-black uppercase tracking-[.15em] text-emerald-700">Afiliadas ativas neste mês</p><p className="mt-1 text-2xl font-black text-zinc-950">{teamActiveMembers}</p><p className="mt-1 text-xs text-zinc-500">Afiliadas diretas com pelo menos 1 venda aprovada neste mês.</p></div>
+          </div>
+
           <div className="mt-5 overflow-hidden rounded-[1.6rem] border border-pink-200 bg-gradient-to-br from-[#fff0f6] via-white to-[#fff7ed] shadow-sm">
             <div className="flex flex-col gap-4 border-b border-pink-100 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
               <div className="flex items-center gap-4">
