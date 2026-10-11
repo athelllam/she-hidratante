@@ -1013,7 +1013,14 @@ export default function AffiliateDashboard() {
           {team.joined && team.parent && (
             <div className="mb-5 rounded-2xl border border-pink-100 bg-pink-50/60 p-4">
               <p className="text-[10px] font-black uppercase tracking-[.18em] text-pink-500">Sua afiliada mãe</p>
-              <div className="mt-2"><p className="text-lg font-black text-zinc-950">{team.parent.name}</p></div>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-lg font-black text-zinc-950">{team.parent.name}</p>
+                {team.parent.whatsapp && (() => {
+                  const parentWhatsApp = String(team.parent.whatsapp).replace(/\D/g, '')
+                  const whatsappNumber = parentWhatsApp.startsWith('55') ? parentWhatsApp : `55${parentWhatsApp}`
+                  return <a href={`https://wa.me/${whatsappNumber}`} target="_blank" rel="noreferrer" aria-label={`Conversar com ${team.parent.name} pelo WhatsApp`} className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-black text-white shadow-sm transition hover:bg-emerald-600"><svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="currentColor"><path d="M20.52 3.48A11.86 11.86 0 0 0 12.08 0C5.47 0 .1 5.37.1 11.98c0 2.11.55 4.17 1.6 5.99L0 24l6.2-1.63a11.94 11.94 0 0 0 5.88 1.5h.01c6.61 0 11.98-5.37 11.98-11.98 0-3.2-1.25-6.2-3.55-8.41ZM12.09 21.8a9.9 9.9 0 0 1-5.04-1.38l-.36-.21-3.68.97.98-3.59-.23-.37a9.83 9.83 0 0 1-1.51-5.24c0-5.44 4.43-9.87 9.88-9.87a9.8 9.8 0 0 1 6.98 2.89 9.8 9.8 0 0 1 2.89 6.99c0 5.44-4.43 9.87-9.89 9.87Zm5.42-7.39c-.3-.15-1.77-.87-2.05-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.47-.89-.79-1.49-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.49s1.07 2.89 1.22 3.09c.15.2 2.1 3.21 5.09 4.5.71.31 1.27.49 1.7.63.71.23 1.36.2 1.87.12.57-.08 1.77-.72 2.02-1.42.25-.7.25-1.3.17-1.42-.07-.13-.27-.2-.57-.35Z"/></svg>WhatsApp</a>
+                })()}
+              </div>
             </div>
           )}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
