@@ -668,6 +668,16 @@ export default function AffiliateDashboard() {
   const currentMonthPersonalSales = Number(dashboard?.metrics?.currentMonthPersonalSales || 0)
   const canWithdrawThisMonth = currentMonthPersonalSales >= 1
   const team = dashboard?.team || { code: affiliate.team_code || '', joined: false, canJoin: false, commissionPerSale: 10, earnedCommission: 0, availableCommission: 0, members: [], parent: null }
+  const teamAdvanced1 = config.teamAdvanced1 || { members: 10, sales: 20, commissionPerSale: 15 }
+  const teamAdvanced2 = config.teamAdvanced2 || { members: 20, sales: 40, commissionPerSale: 20 }
+  const teamActiveMembers = Number(team.monthlyMembers || 0)
+  const teamMonthSales = Number(team.monthlySales || 0)
+  const teamHasAdvanced1 = teamActiveMembers >= Number(teamAdvanced1.members) && teamMonthSales >= Number(teamAdvanced1.sales)
+  const teamHasAdvanced2 = teamActiveMembers >= Number(teamAdvanced2.members) && teamMonthSales >= Number(teamAdvanced2.sales)
+  const teamMemberTarget = teamActiveMembers >= Number(teamAdvanced1.members) ? Number(teamAdvanced2.members) : Number(teamAdvanced1.members)
+  const teamSalesTarget = teamMonthSales >= Number(teamAdvanced1.sales) ? Number(teamAdvanced2.sales) : Number(teamAdvanced1.sales)
+  const teamMemberTargetLabel = teamActiveMembers >= Number(teamAdvanced1.members) ? 'para Equipe Avançada II' : 'para Equipe Avançada I'
+  const teamSalesTargetLabel = teamMonthSales >= Number(teamAdvanced1.sales) ? 'para Equipe Avançada II' : 'para Equipe Avançada I'
   const teamBonusExpiresAt = dashboard?.teamBonus?.active && dashboard?.teamBonus?.expiresAt
     ? new Date(dashboard.teamBonus.expiresAt).getTime()
     : null
@@ -1025,6 +1035,43 @@ export default function AffiliateDashboard() {
                 {team.classification && <p className="mt-1 text-[10px] font-black uppercase tracking-[.12em] text-pink-600">{team.classification} · {team.monthlyMembers || 0} integrantes · {team.monthlySales || 0} vendas no mês</p>}
                 <p className="mt-1 text-xs text-zinc-400">Gerada pelas afiliadas diretamente na sua equipe.</p>
               </div>
+            </div>
+          </div>
+
+          <div className="mt-5 overflow-hidden rounded-[1.6rem] border border-pink-200 bg-gradient-to-br from-[#fff0f6] via-white to-[#fff7ed] shadow-sm">
+            <div className="flex flex-col gap-4 border-b border-pink-100 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+              <div className="flex items-center gap-4">
+                <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl shadow-sm ${teamHasAdvanced2 ? 'bg-gradient-to-br from-amber-300 to-yellow-500 text-white' : teamHasAdvanced1 ? 'bg-gradient-to-br from-fuchsia-500 to-pink-600 text-white' : 'bg-white text-pink-500 ring-1 ring-pink-100'}`}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true" className="h-7 w-7 fill-none stroke-current stroke-[1.8]"><path strokeLinecap="round" strokeLinejoin="round" d="M12 3.5 14.6 8.8l5.9.9-4.25 4.15 1 5.85L12 16.9l-5.25 2.8 1-5.85L3.5 9.7l5.9-.9L12 3.5Z"/><path strokeLinecap="round" d="M8.8 11.8 11 14l4.4-4.5"/></svg>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Sua classificação mensal</p>
+                  <h3 className="mt-1 text-2xl font-black tracking-tight text-zinc-950 sm:text-3xl">{teamHasAdvanced2 ? 'Equipe Avançada II' : teamHasAdvanced1 ? 'Equipe Avançada I' : 'Equipe Base'}</h3>
+                  <p className="mt-1 text-sm text-zinc-600">{teamHasAdvanced2 ? 'Você alcançou o nível máximo de equipe deste mês. Parabéns!' : teamHasAdvanced1 ? 'Meta Avançada I conquistada! Continue crescendo para chegar à Avançada II.' : 'Cada afiliada ativa e cada venda aproximam você do próximo nível.'}</p>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-white/90 bg-white/85 px-5 py-3 shadow-sm sm:min-w-[155px]">
+                <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Comissão por venda</p>
+                <p className="mt-1 text-2xl font-black text-pink-600">{brl(team.commissionPerSale)}</p>
+                <p className="text-xs font-semibold text-zinc-500">por venda da equipe</p>
+              </div>
+            </div>
+            <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
+              <div className="rounded-2xl border border-white bg-white/90 p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.12em] text-zinc-500">Afiliadas ativas</p><p className="mt-1 text-2xl font-black text-zinc-950">{teamActiveMembers}/{teamMemberTarget}</p></div><span className="rounded-full bg-pink-50 px-3 py-1.5 text-[10px] font-black text-pink-600">{teamHasAdvanced2 ? 'Meta final' : teamMemberTargetLabel}</span></div>
+                <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-pink-100"><div className="h-full rounded-full bg-gradient-to-r from-pink-400 to-fuchsia-600 transition-all duration-500" style={{ width: `${Math.min(100, teamMemberTarget > 0 ? teamActiveMembers / teamMemberTarget * 100 : 0)}%` }} /></div>
+                <p className="mt-2 text-xs leading-5 text-zinc-500">Só contam afiliadas diretas com pelo menos 1 venda aprovada neste mês.</p>
+              </div>
+              <div className="rounded-2xl border border-white bg-white/90 p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.12em] text-zinc-500">Vendas de equipe</p><p className="mt-1 text-2xl font-black text-zinc-950">{teamMonthSales}/{teamSalesTarget}</p></div><span className="rounded-full bg-fuchsia-50 px-3 py-1.5 text-[10px] font-black text-fuchsia-700">{teamHasAdvanced2 ? 'Meta final' : teamSalesTargetLabel}</span></div>
+                <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-fuchsia-100"><div className="h-full rounded-full bg-gradient-to-r from-fuchsia-500 to-pink-500 transition-all duration-500" style={{ width: `${Math.min(100, teamSalesTarget > 0 ? teamMonthSales / teamSalesTarget * 100 : 0)}%` }} /></div>
+                <p className="mt-2 text-xs leading-5 text-zinc-500">A classificação considera as vendas aprovadas da equipe direta neste mês.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-2 border-t border-pink-100 bg-white/60 p-4 sm:grid-cols-3 sm:p-5">
+              <div className={`rounded-xl px-3 py-3 ${!teamHasAdvanced1 ? 'bg-pink-100 ring-1 ring-pink-200' : 'bg-white'}`}><p className="text-xs font-black text-zinc-800">Equipe Base</p><p className="mt-1 text-sm font-bold text-pink-600">{brl(config.teamCommissionPerSale || 10)} por venda</p><p className="mt-1 text-[10px] text-zinc-500">Nível inicial</p></div>
+              <div className={`rounded-xl px-3 py-3 ${teamHasAdvanced1 && !teamHasAdvanced2 ? 'bg-pink-100 ring-1 ring-pink-200' : 'bg-white'}`}><p className="text-xs font-black text-zinc-800">Equipe Avançada I</p><p className="mt-1 text-sm font-bold text-pink-600">{brl(teamAdvanced1.commissionPerSale)} por venda</p><p className="mt-1 text-[10px] text-zinc-500">{teamAdvanced1.members} afiliadas ativas + {teamAdvanced1.sales} vendas</p></div>
+              <div className={`rounded-xl px-3 py-3 ${teamHasAdvanced2 ? 'bg-amber-50 ring-1 ring-amber-200' : 'bg-white'}`}><p className="text-xs font-black text-zinc-800">Equipe Avançada II</p><p className="mt-1 text-sm font-bold text-pink-600">{brl(teamAdvanced2.commissionPerSale)} por venda</p><p className="mt-1 text-[10px] text-zinc-500">{teamAdvanced2.members} afiliadas ativas + {teamAdvanced2.sales} vendas</p></div>
             </div>
           </div>
 

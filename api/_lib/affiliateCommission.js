@@ -414,9 +414,15 @@ function currentSaoPauloMonth(value = new Date()) {
 async function reconcileTeamMonthlyCommissions(supabaseFetch, parentId, members, orders, config = DEFAULT_COMMISSION_CONFIG) {
   const normalized = normalizeConfig(config);
   const month = currentSaoPauloMonth();
-  const memberCount = Array.isArray(members) ? members.length : 0;
   const monthOrders = (orders || []).filter(order => isPaidOrder(order) && monthKey(order.created_at) === month);
   const salesCount = monthOrders.length;
+  // Para a qualificação avançada, contam somente integrantes diretos que
+  // fizeram ao menos uma venda paga no mesmo mês da apuração.
+  const activeMemberIds = new Set(monthOrders
+    .map(order => Number(order.affiliate_id))
+    .filter(id => Number.isInteger(id) && id > 0));
+  const memberCount = (Array.isArray(members) ? members : [])
+    .filter(member => activeMemberIds.has(Number(member.id))).length;
   let level = 'Equipe Base';
   let rate = Number(normalized.teamCommissionPerSale || 10);
   if (memberCount >= normalized.teamAdvanced1.members && salesCount >= normalized.teamAdvanced1.sales) {
@@ -442,7 +448,7 @@ async function reconcileTeamMonthlyCommissions(supabaseFetch, parentId, members,
     const local = (orders || []).find(order => Number(order.id) === Number(item.id));
     if (local) local.team_commission_snapshot = item.rate;
   }
-  return { month, memberCount, salesCount, level, commissionPerSale: rate, updated: updates.length };
+  return { month, memberCount, activeMemberCount: memberCount, totalMemberCount: Array.isArray(members) ? members.length : 0, salesCount, level, commissionPerSale: rate, updated: updates.length };
 }
 
 function isPaidOrder(order) {
