@@ -184,6 +184,39 @@ function affiliateWithdrawalApprovedEmail({ name, amount, status = 'paid' }) {
   `);
 }
 
+
+function affiliateTeamAdvancedEmail({ name, level, commissionPerSale, month, dashboardUrl }) {
+  const safeName = escapeHtml(String(name || '').trim().split(/\s+/)[0] || 'afiliada');
+  const advanced2 = String(level || '').toLowerCase().includes('ii');
+  const title = advanced2 ? 'Você chegou à Equipe Avançada II! 🏆' : 'Parabéns! Equipe Avançada I alcançada! 🎉';
+  const levelName = advanced2 ? 'Equipe Avançada II' : 'Equipe Avançada I';
+  const message = advanced2
+    ? 'Sua equipe cresceu e alcançou um novo patamar. Essa conquista reconhece seu trabalho em desenvolver e incentivar sua rede.'
+    : 'Sua equipe alcançou uma nova classificação! Essa conquista é resultado do seu esforço em desenvolver sua rede e incentivar suas afiliadas.';
+  const nextStep = advanced2
+    ? 'Continue fortalecendo sua equipe e mantendo o bom trabalho. Estamos felizes em acompanhar sua evolução!'
+    : 'Continue fortalecendo sua equipe para avançar à Equipe Avançada II, com comissão de R$ 20,00 por venda elegível da equipe.';
+  const cta = dashboardUrl || (APP_BASE_URL ? `${APP_BASE_URL}/afiliado` : '');
+  return shell(title, `
+    <div style="margin:0 0 24px;padding:26px 22px;border-radius:20px;background:linear-gradient(135deg,#fdf2f8 0%,#fce7f3 55%,#fff7ed 100%);text-align:center;border:1px solid #fbcfe8">
+      <div style="display:inline-block;padding:7px 12px;border-radius:999px;background:#fff;color:#be185d;font-size:10px;font-weight:900;letter-spacing:.15em">CONQUISTA DA EQUIPE</div>
+      <div style="font-size:35px;line-height:1;margin:17px 0 12px;color:#db2777">${advanced2 ? '✦ ♡ 🏆' : '✦ ♡ ✦'}</div>
+      <h2 style="margin:0;color:#831843;font-size:25px;line-height:1.25">Parabéns, ${safeName}!</h2>
+      <p style="margin:12px auto 0;max-width:430px;color:#52525b;font-size:14px;line-height:1.75">${escapeHtml(message)}</p>
+    </div>
+    <div style="margin:20px 0;padding:20px;border-radius:16px;background:#fff1f7;border:1px solid #fbcfe8;text-align:center">
+      <div style="font-size:11px;font-weight:900;letter-spacing:.13em;color:#9d174d;text-transform:uppercase">Sua nova classificação</div>
+      <div style="margin:8px 0;color:#831843;font-size:24px;font-weight:900">${levelName}</div>
+      <div style="color:#be185d;font-size:20px;font-weight:900">R$ ${Number(commissionPerSale || 0).toFixed(2).replace('.', ',')} por venda da equipe</div>
+      <div style="margin-top:8px;color:#71717a;font-size:12px">Competência: ${escapeHtml(month || '')}</div>
+    </div>
+    <p style="font-size:15px;line-height:1.8;color:#52525b">A nova comissão é aplicada retroativamente às vendas elegíveis da equipe neste mês, conforme as regras do programa.</p>
+    <p style="font-size:15px;line-height:1.8;color:#52525b">${escapeHtml(nextStep)}</p>
+    ${cta ? `<div style="margin:28px 0;text-align:center">${buttonHtml('Acessar meu painel', cta)}</div>` : ''}
+    <p style="font-size:14px;line-height:1.7;color:#52525b">Com carinho,<br><strong>Equipe She Coisa de Mulher</strong> 💗</p>
+  `);
+}
+
 module.exports = {
   sendEmail,
   adminRecipients,
@@ -194,5 +227,6 @@ module.exports = {
   adminVideoEmail,
   affiliateBoostJoinEmail,
   affiliateWithdrawalApprovedEmail,
+  affiliateTeamAdvancedEmail,
   escapeHtml,
 };

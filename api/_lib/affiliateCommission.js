@@ -1,3 +1,4 @@
+const { sendEmail, affiliateTeamAdvancedEmail } = require('./email');
 const DEFAULT_COMMISSION_CONFIG = {
   ticketThreshold: 170,
   ticketBonus: 5,
@@ -433,6 +434,61 @@ async function reconcileTeamMonthlyCommissions(supabaseFetch, parentId, members,
     level = 'Equipe Avançada II';
     rate = normalized.teamAdvanced2.commissionPerSale;
   }
+  // Envia os e-mails de conquista uma única vez por afiliada, nível e mês.
+  // O registro idempotente é persistido no Supabase; se o envio falhar, ele é removido para permitir nova tentativa.
+  try {
+    const milestones = [];
+    if (memberCount >= normalized.teamAdvanced1.members && salesCount >= normalized.teamAdvanced1.sales) {
+      milestones.push({ key: 'advanced_1', label: 'Equipe Avançada I', commission: normalized.teamAdvanced1.commissionPerSale });
+    }
+    if (memberCount >= normalized.teamAdvanced2.members && salesCount >= normalized.teamAdvanced2.sales) {
+      milestones.push({ key: 'advanced_2', label: 'Equipe Avançada II', commission: normalized.teamAdvanced2.commissionPerSale });
+    }
+    if (milestones.length) {
+      const parentRows = await supabaseFetch(`/rest/v1/affiliates?id=eq.${Number(parentId)}&select=id,name,email&limit=1`);
+      const parent = parentRows?.[0];
+      if (parent?.email) {
+        for (const milestone of milestones) {
+          let claimed = false;
+          try {
+            await supabaseFetch('/rest/v1/affiliate_team_level_notifications', {
+              method: 'POST',
+              headers: { Prefer: 'return=minimal' },
+              body: JSON.stringify({ affiliate_id: Number(parentId), month_key: month, level_key: milestone.key, status: 'sending' }),
+            });
+            claimed = true;
+          } catch (claimError) {
+            // Unique constraint means this level/month was already claimed or sent.
+            if (claimError?.statusCode === 409 || /duplicate|unique/i.test(String(claimError?.message || ''))) continue;
+            throw claimError;
+          }
+          if (!claimed) continue;
+          try {
+            const result = await sendEmail({
+              to: parent.email,
+              subject: milestone.key === 'advanced_2' ? '🏆 Você chegou à Equipe Avançada II!' : '🎉 Parabéns! Sua equipe alcançou a Avançada I!',
+              html: affiliateTeamAdvancedEmail({ name: parent.name, level: milestone.label, commissionPerSale: milestone.commission, month, dashboardUrl: process.env.SITE_URL ? `${String(process.env.SITE_URL).replace(/\/$/, '')}/afiliado` : undefined }),
+              tags: [{ name: 'type', value: 'team-advanced-milestone' }, { name: 'level', value: milestone.key }],
+            });
+            if (result?.skipped) {
+              await supabaseFetch(`/rest/v1/affiliate_team_level_notifications?affiliate_id=eq.${Number(parentId)}&month_key=eq.${encodeURIComponent(month)}&level_key=eq.${milestone.key}`, { method: 'DELETE' });
+            } else {
+              await supabaseFetch(`/rest/v1/affiliate_team_level_notifications?affiliate_id=eq.${Number(parentId)}&month_key=eq.${encodeURIComponent(month)}&level_key=eq.${milestone.key}`, {
+                method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status: 'sent', sent_at: new Date().toISOString() }),
+              });
+            }
+          } catch (sendError) {
+            await supabaseFetch(`/rest/v1/affiliate_team_level_notifications?affiliate_id=eq.${Number(parentId)}&month_key=eq.${encodeURIComponent(month)}&level_key=eq.${milestone.key}`, { method: 'DELETE' }).catch(() => null);
+            throw sendError;
+          }
+        }
+      }
+    }
+  } catch (notificationError) {
+    // E-mail não deve interromper a apuração das comissões; o erro fica no log do Vercel.
+    console.error('[team-level-email] Falha ao enviar notificação de classificação:', notificationError?.message || notificationError);
+  }
+
   const updates = [];
   for (const order of monthOrders) {
     const existing = Number(order.team_commission_snapshot);
