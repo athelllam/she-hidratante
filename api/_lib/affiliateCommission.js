@@ -452,9 +452,15 @@ async function reconcileTeamMonthlyCommissions(supabaseFetch, parentId, members,
 }
 
 function isPaidOrder(order) {
-  return new Set(['payment_approved', 'paid', 'pagamento_aprovado']).has(
-    String(order?.status || '').toLowerCase()
-  );
+  // Alinhar os status aceitos pelo contador da equipe aos status de pagamento
+  // reconhecidos pela integração Yampi/webhook. A Yampi pode gravar approved/aprovado.
+  return new Set([
+    'payment_approved',
+    'pagamento_aprovado',
+    'paid',
+    'approved',
+    'aprovado',
+  ]).has(String(order?.status || '').toLowerCase().trim().replace(/\s+/g, '_'));
 }
 
 module.exports = {
