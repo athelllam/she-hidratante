@@ -1080,11 +1080,6 @@ export default function AffiliateDashboard() {
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4"><p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Comissão gerada</p><p className="mt-1 text-2xl font-black text-zinc-950">{brl(team.earnedCommission)}</p></div>
-            <div className="rounded-2xl border border-pink-100 bg-pink-50/60 p-4"><p className="text-[10px] font-black uppercase tracking-[.15em] text-pink-500">Saldo de Equipe</p><p className="mt-1 text-2xl font-black text-zinc-950">{brl(team.availableCommission)}</p></div>
-          </div>
-
           <div className="mt-5">
             <label htmlFor="team-member-search" className="mb-2 block text-xs font-black uppercase tracking-[.12em] text-zinc-500">Pesquisar afiliada por nome ou ID</label>
             <input
@@ -1106,6 +1101,11 @@ export default function AffiliateDashboard() {
           </div>
 
 
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4"><p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Comissão gerada</p><p className="mt-1 text-2xl font-black text-zinc-950">{brl(team.earnedCommission)}</p></div>
+            <div className="rounded-2xl border border-pink-100 bg-pink-50/60 p-4"><p className="text-[10px] font-black uppercase tracking-[.15em] text-pink-500">Saldo de Equipe</p><p className="mt-1 text-2xl font-black text-zinc-950">{brl(team.availableCommission)}</p></div>
+          </div>
 
           <div className="mt-5 rounded-2xl border border-pink-100 bg-white p-4">
             <p className="text-sm font-black text-zinc-900">Sacar comissão de equipe</p>

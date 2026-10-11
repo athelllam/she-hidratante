@@ -1226,24 +1226,6 @@ export default function AdminDashboard() {
               </div>
               <p className="mt-2 text-[10px] font-semibold text-fuchsia-700">Valor adicional por pedido quando o ticket médio supera a meta.</p>
             </label>
-            <div className="md:col-span-2 xl:col-span-4 rounded-[1.5rem] border border-pink-200 bg-white p-4">
-              <p className="text-xs font-black uppercase tracking-[.16em] text-pink-700">Bônus de Equipe Avançada · metas mensais</p>
-              <p className="mt-1 text-[10px] text-zinc-500">A classificação mais alta atingida vale retroativamente para todas as vendas da equipe no mês. A contagem reinicia no mês seguinte.</p>
-              <div className="mt-3 max-w-xs rounded-2xl border border-pink-200 bg-pink-50 p-3">
-                <label className="block"><span className="text-[10px] font-black uppercase tracking-[.14em] text-pink-700">Equipe Base · comissão por venda</span><div className="mt-2 flex items-center gap-2"><span className="font-black text-zinc-500">R$</span><input value={settingsForm.teamCommissionPerSale} onChange={e => setSettingsForm(v => ({ ...v, teamCommissionPerSale: e.target.value }))} inputMode="decimal" className="w-full rounded-xl border border-pink-200 bg-white px-3 py-2.5 text-lg font-black outline-none focus:border-pink-400" /></div><p className="mt-2 text-[10px] font-semibold text-pink-700">Comissão base por venda aprovada da equipe direta, antes das metas avançadas.</p></label>
-              </div>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                {[{n:1,label:'Equipe Avançada I',members:'teamAdvanced1Members',sales:'teamAdvanced1Sales',commission:'teamAdvanced1Commission'},{n:2,label:'Equipe Avançada II',members:'teamAdvanced2Members',sales:'teamAdvanced2Sales',commission:'teamAdvanced2Commission'}].map(tier => <div key={tier.n} className="rounded-2xl border border-pink-100 bg-pink-50/60 p-4">
-                  <p className="font-black text-zinc-900">{tier.label}</p>
-                  <div className="mt-3 grid grid-cols-3 gap-2">
-                    <label><span className="text-[10px] font-black uppercase text-zinc-500">Integrantes</span><input value={settingsForm[tier.members]} onChange={e => setSettingsForm(v => ({...v,[tier.members]:e.target.value}))} inputMode="numeric" className="mt-1 w-full rounded-xl border border-pink-100 bg-white px-3 py-2.5 font-black" /></label>
-                    <label><span className="text-[10px] font-black uppercase text-zinc-500">Vendas/mês</span><input value={settingsForm[tier.sales]} onChange={e => setSettingsForm(v => ({...v,[tier.sales]:e.target.value}))} inputMode="numeric" className="mt-1 w-full rounded-xl border border-pink-100 bg-white px-3 py-2.5 font-black" /></label>
-                    <label><span className="text-[10px] font-black uppercase text-zinc-500">R$/venda</span><input value={settingsForm[tier.commission]} onChange={e => setSettingsForm(v => ({...v,[tier.commission]:e.target.value}))} inputMode="decimal" className="mt-1 w-full rounded-xl border border-pink-100 bg-white px-3 py-2.5 font-black" /></label>
-                  </div>
-                </div>)}
-              </div>
-            </div>
-
             {[['none', 'Início'], ['bronze', 'Bronze'], ['silver', 'Prata'], ['gold', 'Ouro']].map(([key, label]) => (
               <label key={key} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
                 <span className="text-[10px] font-black uppercase tracking-[.14em] text-zinc-500">{label} · por pedido</span>
@@ -1266,6 +1248,24 @@ export default function AdminDashboard() {
               <p className="mt-1 text-[10px] text-amber-700">Ao atingir cada meta, o nível vira um piso permanente do Bônus Mensal.</p>
               <div className="mt-3 grid grid-cols-3 gap-2">
                 {[['fixedBronze','Bronze'],['fixedSilver','Prata'],['fixedGold','Ouro']].map(([key,label]) => <label key={key}><span className="text-[10px] font-black uppercase text-zinc-500">{label}</span><input value={settingsForm[key]} onChange={e => setSettingsForm(v => ({...v,[key]:e.target.value}))} inputMode="numeric" className="mt-1 w-full rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-lg font-black outline-none focus:border-amber-400" /></label>)}
+              </div>
+            </div>
+
+            <div className="md:col-span-2 xl:col-span-4 rounded-[1.5rem] border border-pink-200 bg-white p-4">
+              <p className="text-xs font-black uppercase tracking-[.16em] text-pink-700">Bônus de Equipe Avançada · metas mensais</p>
+              <p className="mt-1 text-[10px] text-zinc-500">A classificação mais alta atingida vale retroativamente para todas as vendas da equipe no mês. A contagem reinicia no mês seguinte.</p>
+              <div className="mt-3 max-w-xs rounded-2xl border border-pink-200 bg-pink-50 p-3">
+                <label className="block"><span className="text-[10px] font-black uppercase tracking-[.14em] text-pink-700">Equipe Base · comissão por venda</span><div className="mt-2 flex items-center gap-2"><span className="font-black text-zinc-500">R$</span><input value={settingsForm.teamCommissionPerSale} onChange={e => setSettingsForm(v => ({ ...v, teamCommissionPerSale: e.target.value }))} inputMode="decimal" className="w-full rounded-xl border border-pink-200 bg-white px-3 py-2.5 text-lg font-black outline-none focus:border-pink-400" /></div><p className="mt-2 text-[10px] font-semibold text-pink-700">Comissão base por venda aprovada da equipe direta, antes das metas avançadas.</p></label>
+              </div>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                {[{n:1,label:'Equipe Avançada I',members:'teamAdvanced1Members',sales:'teamAdvanced1Sales',commission:'teamAdvanced1Commission'},{n:2,label:'Equipe Avançada II',members:'teamAdvanced2Members',sales:'teamAdvanced2Sales',commission:'teamAdvanced2Commission'}].map(tier => <div key={tier.n} className="rounded-2xl border border-pink-100 bg-pink-50/60 p-4">
+                  <p className="font-black text-zinc-900">{tier.label}</p>
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <label><span className="text-[10px] font-black uppercase text-zinc-500">Integrantes</span><input value={settingsForm[tier.members]} onChange={e => setSettingsForm(v => ({...v,[tier.members]:e.target.value}))} inputMode="numeric" className="mt-1 w-full rounded-xl border border-pink-100 bg-white px-3 py-2.5 font-black" /></label>
+                    <label><span className="text-[10px] font-black uppercase text-zinc-500">Vendas/mês</span><input value={settingsForm[tier.sales]} onChange={e => setSettingsForm(v => ({...v,[tier.sales]:e.target.value}))} inputMode="numeric" className="mt-1 w-full rounded-xl border border-pink-100 bg-white px-3 py-2.5 font-black" /></label>
+                    <label><span className="text-[10px] font-black uppercase text-zinc-500">R$/venda</span><input value={settingsForm[tier.commission]} onChange={e => setSettingsForm(v => ({...v,[tier.commission]:e.target.value}))} inputMode="decimal" className="mt-1 w-full rounded-xl border border-pink-100 bg-white px-3 py-2.5 font-black" /></label>
+                  </div>
+                </div>)}
               </div>
             </div>
 
