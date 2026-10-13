@@ -4,6 +4,7 @@ const adminData = require('./_handlers/admin_data');
 const adminWithdrawals = require('./_handlers/admin_withdrawals');
 const affiliateAuth = require('./_handlers/affiliate_auth');
 const affiliateDashboard = require('./_handlers/affiliate_dashboard');
+const affiliatePushSubscription = require('./_handlers/affiliate_push_subscription');
 const affiliateTrack = require('./_handlers/affiliate_track');
 const affiliateWithdraw = require('./_handlers/affiliate_withdraw');
 const affiliateYampiSync = require('./_handlers/affiliate_yampi_sync');
@@ -53,6 +54,7 @@ module.exports = async function router(req, res) {
   else if (path === '/api/affiliate/forgot-password') { req.query.action = 'forgot'; handler = affiliateAuth; }
   else if (path === '/api/affiliate/reset-password') { req.query.action = 'reset'; handler = affiliateAuth; }
   else if (path === '/api/affiliate/dashboard') handler = affiliateDashboard;
+  else if (path === '/api/affiliate/push-subscription') handler = affiliatePushSubscription;
   else if (path === '/api/affiliate/track') handler = affiliateTrack;
   else if (path === '/api/affiliate/withdraw') handler = affiliateWithdraw;
   else if (path === '/api/affiliate/yampi-sync') handler = affiliateYampiSync;

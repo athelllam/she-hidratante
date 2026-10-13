@@ -73,6 +73,10 @@ export default function AffiliateDashboard() {
   const [installPrompt, setInstallPrompt] = useState(null)
   const [isIosDevice, setIsIosDevice] = useState(false)
   const [isStandaloneApp, setIsStandaloneApp] = useState(false)
+  const [pushPromptOpen, setPushPromptOpen] = useState(false)
+  const [pushBusy, setPushBusy] = useState(false)
+  const [pushMessage, setPushMessage] = useState('')
+  const [pushDismissed, setPushDismissed] = useState(false)
   const [dashboard, setDashboard] = useState(null)
   const [selectedMonth, setSelectedMonth] = useState('all')
   const [registerMode, setRegisterMode] = useState(false)
@@ -228,7 +232,7 @@ export default function AffiliateDashboard() {
   useEffect(() => {
     const ua = window.navigator.userAgent || ''
     const ios = /iPad|iPhone|iPod/.test(ua) || (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1)
-    const standalone = window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true
+    const standalone = window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true || new URLSearchParams(window.location.search).get('source') === 'pwa'
     setIsIosDevice(ios)
     setIsStandaloneApp(Boolean(standalone))
     const onBeforeInstall = (event) => {
@@ -248,6 +252,60 @@ export default function AffiliateDashboard() {
       window.removeEventListener('appinstalled', onInstalled)
     }
   }, [])
+
+  useEffect(() => {
+    if (!affiliate?.id || !isStandaloneApp || pushDismissed) return
+    if (!('Notification' in window) || Notification.permission !== 'default') return
+    // Não bloqueia a exibição do convite por uma detecção prematura de PushManager;
+    // a compatibilidade completa é verificada quando a afiliada toca em Ativar.
+    const key = `she-push-prompt-dismissed-${affiliate.id}`
+    try { if (window.sessionStorage.getItem(key) === '1') return } catch {}
+    const timer = window.setTimeout(() => setPushPromptOpen(true), 1400)
+    return () => window.clearTimeout(timer)
+  }, [affiliate?.id, isStandaloneApp, pushDismissed])
+
+  const base64UrlToUint8Array = (value) => {
+    const padding = '='.repeat((4 - value.length % 4) % 4)
+    const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/')
+    const raw = window.atob(base64)
+    return Uint8Array.from([...raw].map(char => char.charCodeAt(0)))
+  }
+
+  const enablePushNotifications = async () => {
+    setPushBusy(true)
+    setPushMessage('')
+    try {
+      if (!isStandaloneApp) throw new Error('Adicione a She à Tela de Início e abra pelo ícone para ativar as notificações no iPhone.')
+      if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) throw new Error('Este dispositivo ou navegador não oferece suporte a notificações push.')
+      const config = await api('/api/affiliate/push-subscription')
+      if (!config.publicKey) throw new Error('As notificações ainda estão sendo configuradas. Tente novamente mais tarde.')
+      const permission = await Notification.requestPermission()
+      if (permission !== 'granted') {
+        setPushPromptOpen(false)
+        setPushDismissed(true)
+        window.sessionStorage.setItem(`she-push-prompt-dismissed-${affiliate.id}`, '1')
+        setPushMessage('As notificações não foram autorizadas. Você poderá ativá-las nas configurações do dispositivo.')
+        return
+      }
+      const registration = await navigator.serviceWorker.ready
+      let subscription = await registration.pushManager.getSubscription()
+      if (!subscription) subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: base64UrlToUint8Array(config.publicKey) })
+      await api('/api/affiliate/push-subscription', { method: 'POST', body: JSON.stringify({ subscription: subscription.toJSON() }) })
+      setPushPromptOpen(false)
+      setPushDismissed(true)
+      setPushMessage('Notificações ativadas! Você receberá novidades importantes da sua equipe.')
+    } catch (err) {
+      setPushMessage(err.message || 'Não foi possível ativar as notificações.')
+    } finally {
+      setPushBusy(false)
+    }
+  }
+
+  const dismissPushPrompt = () => {
+    setPushPromptOpen(false)
+    setPushDismissed(true)
+    if (affiliate?.id) window.sessionStorage.setItem(`she-push-prompt-dismissed-${affiliate.id}`, '1')
+  }
 
   const handleInstallApp = async () => {
     if (installPrompt && !isIosDevice) {
@@ -734,6 +792,12 @@ export default function AffiliateDashboard() {
 
   return (
     <main className="min-h-screen bg-[#fffafc] px-5 py-8 md:px-10">
+      {pushPromptOpen && <div className="fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto bg-zinc-950/60 p-4" role="dialog" aria-modal="true" aria-labelledby="push-prompt-title">
+        <div className="my-auto w-full max-w-md overflow-hidden rounded-[2rem] border border-pink-100 bg-white shadow-2xl">
+          <div className="bg-gradient-to-br from-pink-500 via-rose-400 to-fuchsia-500 px-6 pb-7 pt-8 text-center text-white"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-white/40 bg-white/20 text-3xl shadow-lg">🔔</div><p className="mt-4 text-[10px] font-black uppercase tracking-[.25em] text-white/80">She Afiliadas</p><h2 id="push-prompt-title" className="mt-2 text-2xl font-black">Não perca as novidades da sua equipe</h2><p className="mt-2 text-sm leading-6 text-white/90">Ative as notificações para receber avisos importantes diretamente no seu iPhone.</p></div>
+          <div className="space-y-3 p-5 sm:p-6"><div className="flex gap-3 rounded-2xl bg-pink-50 p-3"><span className="text-xl">🏆</span><p className="text-xs leading-5 text-zinc-700"><strong>Conquistas e classificação</strong><br/>Saiba quando sua equipe alcançar novas metas.</p></div><div className="flex gap-3 rounded-2xl bg-pink-50 p-3"><span className="text-xl">💗</span><p className="text-xs leading-5 text-zinc-700"><strong>Novidades importantes</strong><br/>Receba atualizações relevantes do programa de afiliadas.</p></div>{pushMessage && <p className="rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">{pushMessage}</p>}<button type="button" disabled={pushBusy} onClick={enablePushNotifications} className="w-full rounded-xl bg-pink-600 px-4 py-3.5 text-sm font-black text-white shadow-lg shadow-pink-200 disabled:opacity-60">{pushBusy ? 'Ativando…' : 'Ativar notificações'}</button><button type="button" onClick={dismissPushPrompt} className="w-full rounded-xl px-4 py-2.5 text-xs font-bold text-zinc-500 hover:bg-zinc-50">Agora não</button><p className="text-center text-[10px] leading-4 text-zinc-400">Você controla essa permissão nas configurações do iPhone.</p></div>
+        </div>
+      </div>}
       {installHelpOpen && <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-zinc-950/55 p-4" role="dialog" aria-modal="true" aria-labelledby="install-help-title">
         <div className="my-auto w-full max-w-lg rounded-[2rem] border border-pink-100 bg-white p-5 shadow-2xl sm:p-7">
           <div className="flex items-start gap-3">
@@ -742,9 +806,10 @@ export default function AffiliateDashboard() {
             <button type="button" onClick={() => setInstallHelpOpen(false)} aria-label="Fechar" className="rounded-full p-2 text-xl leading-none text-zinc-400 hover:bg-zinc-100">×</button>
           </div>
           {isIosDevice ? <div className="mt-5 space-y-3">
-            <div className="flex gap-3 rounded-2xl border border-zinc-100 bg-[#fffafc] p-3.5"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">↥</div><div><p className="text-sm font-extrabold text-zinc-900">1. Toque em Compartilhar</p><p className="mt-1 text-xs leading-5 text-zinc-600">No Safari, toque no ícone de compartilhar na barra inferior (quadrado com uma seta para cima).</p><div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-[11px] font-bold text-zinc-500 shadow-sm"><span className="text-lg text-sky-600">□↑</span> Compartilhar</div></div></div>
-            <div className="flex gap-3 rounded-2xl border border-zinc-100 bg-[#fffafc] p-3.5"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">＋</div><div><p className="text-sm font-extrabold text-zinc-900">2. Escolha “Adicionar à Tela de Início”</p><p className="mt-1 text-xs leading-5 text-zinc-600">Talvez seja necessário rolar as opções para encontrar essa opção.</p><div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-[11px] font-bold text-zinc-600 shadow-sm"><span className="flex h-5 w-5 items-center justify-center rounded-md bg-pink-100 text-pink-600">＋</span> Adicionar à Tela de Início</div></div></div>
-            <div className="flex gap-3 rounded-2xl border border-pink-100 bg-pink-50/70 p-3.5"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">✓</div><div><p className="text-sm font-extrabold text-zinc-900">3. Confirme em “Adicionar”</p><p className="mt-1 text-xs leading-5 text-zinc-600">O ícone oficial da She aparecerá na tela inicial do iPhone. Na próxima vez, abra por esse ícone.</p></div></div>
+            <div className="flex gap-3 rounded-2xl border border-zinc-100 bg-[#fffafc] p-3.5"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-2xl font-black shadow-sm">···</div><div><p className="text-sm font-extrabold text-zinc-900">1. Toque nos três pontinhos (···)</p><p className="mt-1 text-xs leading-5 text-zinc-600">No Safari do iPhone, toque no menu de três pontinhos na parte inferior da tela para abrir as opções da página.</p><div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-[11px] font-bold text-zinc-500 shadow-sm"><span className="text-lg">···</span> Menu do Safari</div></div></div>
+            <div className="flex gap-3 rounded-2xl border border-zinc-100 bg-[#fffafc] p-3.5"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">↥</div><div><p className="text-sm font-extrabold text-zinc-900">2. Toque em “Compartilhar”</p><p className="mt-1 text-xs leading-5 text-zinc-600">No menu que abrir, escolha Compartilhar (ícone de um quadrado com uma seta para cima), se essa opção aparecer.</p><div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-[11px] font-bold text-zinc-500 shadow-sm"><span className="text-lg text-sky-600">□↑</span> Compartilhar</div></div></div>
+            <div className="flex gap-3 rounded-2xl border border-zinc-100 bg-[#fffafc] p-3.5"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">＋</div><div><p className="text-sm font-extrabold text-zinc-900">3. Escolha “Adicionar à Tela de Início”</p><p className="mt-1 text-xs leading-5 text-zinc-600">Talvez seja necessário rolar as opções para encontrar essa opção.</p><div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-[11px] font-bold text-zinc-600 shadow-sm"><span className="flex h-5 w-5 items-center justify-center rounded-md bg-pink-100 text-pink-600">＋</span> Adicionar à Tela de Início</div></div></div>
+            <div className="flex gap-3 rounded-2xl border border-pink-100 bg-pink-50/70 p-3.5"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">✓</div><div><p className="text-sm font-extrabold text-zinc-900">4. Confirme em “Adicionar”</p><p className="mt-1 text-xs leading-5 text-zinc-600">O ícone oficial da She Afiliadas aparecerá na tela inicial do iPhone. Na próxima vez, abra por esse ícone.</p></div></div>
             <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">Importante: no iPhone, faça isso pelo Safari. Outros navegadores podem não mostrar a mesma opção.</p>
           </div> : <div className="mt-5 space-y-3"><div className="rounded-2xl bg-[#fffafc] p-4"><p className="text-sm font-extrabold text-zinc-900">Instale a She no seu dispositivo</p><p className="mt-1 text-sm leading-6 text-zinc-600">Use a opção de instalação do navegador. Se ela não aparecer, abra o menu do navegador e procure “Instalar app” ou “Adicionar à tela inicial”.</p></div>{installPrompt && <button type="button" onClick={handleInstallApp} className="w-full rounded-xl bg-pink-600 px-4 py-3 text-sm font-black text-white hover:bg-pink-700">Instalar agora</button>}</div>}
           <button type="button" onClick={() => setInstallHelpOpen(false)} className="mt-5 w-full rounded-xl bg-zinc-950 px-4 py-3 text-sm font-black text-white transition hover:bg-zinc-800">Entendi</button>
