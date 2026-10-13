@@ -1,0 +1,15 @@
+{
+  "id": "/",
+  "name": "She Afiliadas",
+  "short_name": "She",
+  "description": "Seu painel de afiliada She Coisa de Mulher",
+  "start_url": "/afiliado?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fffafc",
+  "theme_color": "#fffafc",
+  "icons": [
+    { "src": "/pwa-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

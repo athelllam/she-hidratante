@@ -69,6 +69,10 @@ function levelAccent(key) {
 
 export default function AffiliateDashboard() {
   const [affiliate, setAffiliate] = useState(null)
+  const [installHelpOpen, setInstallHelpOpen] = useState(false)
+  const [installPrompt, setInstallPrompt] = useState(null)
+  const [isIosDevice, setIsIosDevice] = useState(false)
+  const [isStandaloneApp, setIsStandaloneApp] = useState(false)
   const [dashboard, setDashboard] = useState(null)
   const [selectedMonth, setSelectedMonth] = useState('all')
   const [registerMode, setRegisterMode] = useState(false)
@@ -220,6 +224,40 @@ export default function AffiliateDashboard() {
       clearTimeout(timeout)
     }
   }, [teamCode, teamReservation, affiliate?.id])
+
+  useEffect(() => {
+    const ua = window.navigator.userAgent || ''
+    const ios = /iPad|iPhone|iPod/.test(ua) || (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1)
+    const standalone = window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true
+    setIsIosDevice(ios)
+    setIsStandaloneApp(Boolean(standalone))
+    const onBeforeInstall = (event) => {
+      event.preventDefault()
+      setInstallPrompt(event)
+    }
+    const onInstalled = () => {
+      setInstallPrompt(null)
+      setInstallHelpOpen(false)
+      setIsStandaloneApp(true)
+    }
+    window.addEventListener('beforeinstallprompt', onBeforeInstall)
+    window.addEventListener('appinstalled', onInstalled)
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {})
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onBeforeInstall)
+      window.removeEventListener('appinstalled', onInstalled)
+    }
+  }, [])
+
+  const handleInstallApp = async () => {
+    if (installPrompt && !isIosDevice) {
+      installPrompt.prompt()
+      try { await installPrompt.userChoice } catch {}
+      setInstallPrompt(null)
+      return
+    }
+    setInstallHelpOpen(true)
+  }
 
   useEffect(() => { load({ sync: true }) }, [])
 
@@ -696,6 +734,22 @@ export default function AffiliateDashboard() {
 
   return (
     <main className="min-h-screen bg-[#fffafc] px-5 py-8 md:px-10">
+      {installHelpOpen && <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-zinc-950/55 p-4" role="dialog" aria-modal="true" aria-labelledby="install-help-title">
+        <div className="my-auto w-full max-w-lg rounded-[2rem] border border-pink-100 bg-white p-5 shadow-2xl sm:p-7">
+          <div className="flex items-start gap-3">
+            <img src="/apple-touch-icon-180.png" alt="Ícone do app She" className="h-16 w-16 rounded-2xl shadow-sm" />
+            <div className="min-w-0 flex-1"><p className="text-[10px] font-black uppercase tracking-[.22em] text-pink-500">She Afiliadas</p><h2 id="install-help-title" className="mt-1 text-xl font-black text-zinc-950">Adicione a She à tela inicial</h2><p className="mt-1 text-sm leading-5 text-zinc-500">Acesse seu painel como um aplicativo, direto pelo ícone da She.</p></div>
+            <button type="button" onClick={() => setInstallHelpOpen(false)} aria-label="Fechar" className="rounded-full p-2 text-xl leading-none text-zinc-400 hover:bg-zinc-100">×</button>
+          </div>
+          {isIosDevice ? <div className="mt-5 space-y-3">
+            <div className="flex gap-3 rounded-2xl border border-zinc-100 bg-[#fffafc] p-3.5"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">↥</div><div><p className="text-sm font-extrabold text-zinc-900">1. Toque em Compartilhar</p><p className="mt-1 text-xs leading-5 text-zinc-600">No Safari, toque no ícone de compartilhar na barra inferior (quadrado com uma seta para cima).</p><div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-[11px] font-bold text-zinc-500 shadow-sm"><span className="text-lg text-sky-600">□↑</span> Compartilhar</div></div></div>
+            <div className="flex gap-3 rounded-2xl border border-zinc-100 bg-[#fffafc] p-3.5"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">＋</div><div><p className="text-sm font-extrabold text-zinc-900">2. Escolha “Adicionar à Tela de Início”</p><p className="mt-1 text-xs leading-5 text-zinc-600">Talvez seja necessário rolar as opções para encontrar essa opção.</p><div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-[11px] font-bold text-zinc-600 shadow-sm"><span className="flex h-5 w-5 items-center justify-center rounded-md bg-pink-100 text-pink-600">＋</span> Adicionar à Tela de Início</div></div></div>
+            <div className="flex gap-3 rounded-2xl border border-pink-100 bg-pink-50/70 p-3.5"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">✓</div><div><p className="text-sm font-extrabold text-zinc-900">3. Confirme em “Adicionar”</p><p className="mt-1 text-xs leading-5 text-zinc-600">O ícone oficial da She aparecerá na tela inicial do iPhone. Na próxima vez, abra por esse ícone.</p></div></div>
+            <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">Importante: no iPhone, faça isso pelo Safari. Outros navegadores podem não mostrar a mesma opção.</p>
+          </div> : <div className="mt-5 space-y-3"><div className="rounded-2xl bg-[#fffafc] p-4"><p className="text-sm font-extrabold text-zinc-900">Instale a She no seu dispositivo</p><p className="mt-1 text-sm leading-6 text-zinc-600">Use a opção de instalação do navegador. Se ela não aparecer, abra o menu do navegador e procure “Instalar app” ou “Adicionar à tela inicial”.</p></div>{installPrompt && <button type="button" onClick={handleInstallApp} className="w-full rounded-xl bg-pink-600 px-4 py-3 text-sm font-black text-white hover:bg-pink-700">Instalar agora</button>}</div>}
+          <button type="button" onClick={() => setInstallHelpOpen(false)} className="mt-5 w-full rounded-xl bg-zinc-950 px-4 py-3 text-sm font-black text-white transition hover:bg-zinc-800">Entendi</button>
+        </div>
+      </div>}
       <div className="mx-auto max-w-7xl">
         <header className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -705,6 +759,7 @@ export default function AffiliateDashboard() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {syncMessage && <span className="text-xs font-semibold text-zinc-400">{syncMessage}</span>}
+            {!isStandaloneApp && <button type="button" onClick={handleInstallApp} className="inline-flex items-center gap-1.5 rounded-xl border border-pink-200 bg-pink-50 px-3 py-2.5 text-xs font-black text-pink-700 shadow-sm transition hover:border-pink-300 hover:bg-pink-100"><span aria-hidden="true">↓</span> Baixar App</button>}
             <button type="button" onClick={openProfile} className="rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-xs font-black text-zinc-700 shadow-sm transition hover:border-pink-300 hover:text-pink-600">
               Meus Dados
             </button>
