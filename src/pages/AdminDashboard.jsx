@@ -236,16 +236,6 @@ export default function AdminDashboard() {
       .finally(() => setLoading(false))
   }, [])
 
-  // Atualiza a página inteira a cada minuto somente enquanto o painel admin
-  // está autenticado. Não dispara reload em segundo plano para evitar gasto inútil.
-  useEffect(() => {
-    if (!authenticated) return undefined
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') window.location.reload()
-    }, 60_000)
-    return () => window.clearInterval(timer)
-  }, [authenticated])
-
   useEffect(() => {
     if (!previewAffiliate) return
     let cancelled = false
@@ -1036,9 +1026,9 @@ export default function AdminDashboard() {
               <p className="mt-2 text-2xl font-black text-zinc-950">
                 {wooviBalanceLoading ? 'Consultando…' : wooviBalance ? brl(wooviBalance.available) : 'Indisponível'}
               </p>
-              <p className={`mt-1 text-xs font-medium ${!wooviBalance ? 'text-zinc-500' : wooviBalance.available < stats.totalBalance ? 'text-red-800/80' : 'text-emerald-800/80'}`}>
-                {wooviBalance ? `Disponível para pagamentos · Total: ${brl(wooviBalance.total)}${wooviBalance.blocked > 0 ? ` · Bloqueado: ${brl(wooviBalance.blocked)}` : ''}` : (wooviBalanceError || 'Não foi possível consultar o saldo.')}
-              </p>
+              {!wooviBalance && wooviBalanceError && (
+                <p className="mt-1 text-xs font-medium text-zinc-500">{wooviBalanceError}</p>
+              )}
               <button
                 type="button"
                 onClick={async () => {

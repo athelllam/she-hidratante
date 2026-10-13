@@ -352,16 +352,6 @@ export default function AffiliateDashboard() {
   useEffect(() => { load({ sync: !isAdminPreview }) }, [])
 
 
-  // Atualiza a página inteira a cada minuto apenas no painel autenticado da afiliada.
-  // A carga inicial já sincroniza vendas; o reload mantém esse fallback automático.
-  useEffect(() => {
-    if (isAdminPreview || !affiliate?.id || !dashboard) return undefined
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') window.location.reload()
-    }, 60_000)
-    return () => window.clearInterval(timer)
-  }, [affiliate?.id, dashboard])
-
   const submitLogin = async (event) => {
     event.preventDefault()
     setBusy(true); setError('')
