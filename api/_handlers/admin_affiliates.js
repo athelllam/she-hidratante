@@ -1,18 +1,10 @@
 const { requireAdmin, supabaseFetch } = require('../_lib/admin');
 const { wooviFetch } = require('../_lib/woovi');
 const { sendEmail, affiliateVideoReviewEmail } = require('../_lib/email');
-const { getLevel, commissionForOrders, reconcileAffiliateOrderCommissions, reconcileTeamMonthlyCommissions, isPaidOrder, DEFAULT_COMMISSION_CONFIG, normalizeConfig, LEVEL_ORDER } = require('../_lib/affiliateCommission');
+const { commissionForOrders, reconcileAffiliateOrderCommissions, reconcileTeamMonthlyCommissions, isPaidOrder, DEFAULT_COMMISSION_CONFIG, normalizeConfig, getLevel, LEVEL_ORDER, monthKey } = require('../_lib/affiliateCommission');
 
 function json(res, status, body) { res.status(status).json(body); }
 function money(value) { return Math.round((Number(value) || 0) * 100) / 100; }
-function monthKeyInSaoPaulo(value) {
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).formatToParts(date);
-  const year = parts.find(part => part.type === 'year')?.value;
-  const month = parts.find(part => part.type === 'month')?.value;
-  return year && month ? `${year}-${month}` : null;
-}
 
 module.exports = async function handler(req, res) {
   try {
@@ -78,7 +70,7 @@ module.exports = async function handler(req, res) {
         supabaseFetch('/rest/v1/affiliate_admin_status_history?select=affiliate_id,admin_active,effective_at&order=effective_at.asc&limit=20000').catch(() => []),
         supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,team_advanced1_members,team_advanced1_sales,team_advanced1_commission,team_advanced2_members,team_advanced2_sales,team_advanced2_commission,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active,reseller_hydrant_price,reseller_hydrant_blister_price,reseller_stick_price,reseller_complete_price,average_sale_cost&limit=1'),
         supabaseFetch('/rest/v1/rpc/she_team_boost_admin_state', { method: 'POST', body: '{}' }).catch(() => ({ activeCount: 0, queueCount: 0, completedCount: 0, active: [] })),
-        supabaseFetch('/rest/v1/affiliate_team_boosts?select=affiliate_id,price,status&limit=20000').catch(() => []),
+        supabaseFetch('/rest/v1/affiliate_team_boosts?status=neq.cancelled&select=affiliate_id,price&limit=20000').catch(() => []),
         supabaseFetch('/rest/v1/affiliate_push_subscriptions?active=eq.true&select=affiliate_id&limit=10000').catch(() => []),
       ]);
 
@@ -134,6 +126,57 @@ module.exports = async function handler(req, res) {
         ordersByAffiliate.get(id).push(order);
       }
 
+      // Reconciliar as comissões pessoais exatamente com o contexto usado no
+      // painel da afiliada: nível mensal atual, bônus fixo/equipe e vendas da equipe.
+      // Depois recarregamos os pedidos do Supabase para que a lista use os snapshots persistidos.
+      const monthNow = new Date();
+      const saoPauloParts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).formatToParts(monthNow);
+      const currentMonthStart = new Date(`${saoPauloParts.find(p => p.type === 'year')?.value}-${saoPauloParts.find(p => p.type === 'month')?.value}-01T00:00:00-03:00`);
+      const nextMonthStart = new Date(currentMonthStart);
+      nextMonthStart.setUTCMonth(nextMonthStart.getUTCMonth() + 1);
+      const paidOrdersAll = (orders || []).filter(isPaidOrder);
+      const affiliateByIdForReconcile = new Map((affiliates || []).map(a => [Number(a.id), a]));
+      for (const affiliate of (affiliates || [])) {
+        const aid = Number(affiliate.id);
+        const ownOrders = paidOrdersAll.filter(order => Number(order.affiliate_id) === aid);
+        const teamOrdersForAffiliate = paidOrdersAll.filter(order => Number(affiliateByIdForReconcile.get(Number(order.affiliate_id))?.team_parent_id || 0) === aid);
+        const teamSalesByMonth = teamOrdersForAffiliate.reduce((map, order) => {
+          const key = monthKey(order.created_at);
+          if (key) map[key] = (map[key] || 0) + 1;
+          return map;
+        }, {});
+        const lifetimeSales = ownOrders.length;
+        const ownCurrentMonthSales = ownOrders.filter(order => {
+          const d = new Date(order.created_at); return d >= currentMonthStart && d < nextMonthStart;
+        }).length;
+        const teamCurrentMonthSales = teamOrdersForAffiliate.filter(order => {
+          const d = new Date(order.created_at); return d >= currentMonthStart && d < nextMonthStart;
+        }).length;
+        const fixedLevel = getLevel(lifetimeSales, settings, 'fixed');
+        const joined = affiliate.team_joined_at ? new Date(affiliate.team_joined_at) : null;
+        const teamBonusActive = Boolean(joined && !Number.isNaN(joined.getTime()) && monthNow >= joined && monthNow < new Date(joined.getTime() + 30 * 24 * 60 * 60 * 1000));
+        const baseLevelKey = teamBonusActive && LEVEL_ORDER.bronze > LEVEL_ORDER[fixedLevel.key] ? 'bronze' : fixedLevel.key;
+        const basePoints = baseLevelKey === 'gold' ? Number(settings.monthlyLevels?.gold || 101)
+          : baseLevelKey === 'silver' ? Number(settings.monthlyLevels?.silver || 50)
+          : baseLevelKey === 'bronze' ? Number(settings.monthlyLevels?.bronze || 10) : 0;
+        const currentLevelKey = getLevel(basePoints + ownCurrentMonthSales + teamCurrentMonthSales, settings, 'monthly').key;
+        await reconcileAffiliateOrderCommissions(supabaseFetch, aid, settings, {
+          teamJoinedAt: affiliate.team_joined_at,
+          levelKey: currentLevelKey,
+          teamSalesByMonth,
+        }).catch(error => console.error('[She Admin Commission] reconciliation failed', { affiliateId: aid, message: error?.message }));
+      }
+      const refreshedOrders = await supabaseFetch('/rest/v1/affiliate_orders?select=id,affiliate_id,status,total,commission,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot,created_at&order=created_at.desc&limit=20000').catch(() => null);
+      if (Array.isArray(refreshedOrders)) {
+        orders.splice(0, orders.length, ...refreshedOrders);
+        ordersByAffiliate.clear();
+        for (const order of orders) {
+          const id = Number(order.affiliate_id);
+          if (!ordersByAffiliate.has(id)) ordersByAffiliate.set(id, []);
+          ordersByAffiliate.get(id).push(order);
+        }
+      }
+
       const cutoff = Date.now() - (7 * 24 * 60 * 60 * 1000);
       const staleAffiliateIds = [];
 
@@ -176,84 +219,21 @@ module.exports = async function handler(req, res) {
       }
 
       const stats = new Map();
-      const affiliateByIdForPersonalBalance = new Map((affiliates || []).map(item => [Number(item.id), item]));
-      const nowForBalance = new Date();
-      const currentMonthKey = monthKeyInSaoPaulo(nowForBalance);
-      const currentMonthStart = currentMonthKey ? new Date(`${currentMonthKey}-01T00:00:00-03:00`) : new Date(nowForBalance.getFullYear(), nowForBalance.getMonth(), 1);
-      const nextMonthDate = new Date(currentMonthStart);
-      nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
-
       for (const affiliate of affiliates || []) {
-        const affiliateId = Number(affiliate.id);
-        let affiliateOrders = ordersByAffiliate.get(affiliateId) || [];
-        let baseCommissionData = commissionForOrders(affiliateOrders, settings, { teamJoinedAt: affiliate.team_joined_at });
-        const paidOrdersBeforeReconcile = baseCommissionData.orders || affiliateOrders.filter(isPaidOrder);
-        const lifetimeSalesForLevel = paidOrdersBeforeReconcile.length;
-        const ownCurrentMonthSales = paidOrdersBeforeReconcile.filter(order => {
-          const date = new Date(order.created_at);
-          return date >= currentMonthStart && date < nextMonthDate;
-        }).length;
-        const teamMembersForLevel = (affiliates || []).filter(member => Number(member.team_parent_id || 0) === affiliateId);
-        const teamMemberIdsForLevel = new Set(teamMembersForLevel.map(member => Number(member.id)));
-        const teamOrdersForLevel = (orders || []).filter(order => teamMemberIdsForLevel.has(Number(order.affiliate_id)) && isPaidOrder(order));
-        const teamSalesByMonth = teamOrdersForLevel.reduce((map, order) => {
-          const key = monthKeyInSaoPaulo(order.created_at);
-          if (key) map[key] = (map[key] || 0) + 1;
-          return map;
-        }, {});
-        const teamCurrentMonthSales = teamOrdersForLevel.filter(order => {
-          const date = new Date(order.created_at);
-          return date >= currentMonthStart && date < nextMonthDate;
-        }).length;
-        const teamBonusStart = affiliate.team_joined_at ? new Date(affiliate.team_joined_at) : null;
-        const teamBonusEnd = teamBonusStart && !Number.isNaN(teamBonusStart.getTime())
-          ? new Date(teamBonusStart.getTime() + 30 * 24 * 60 * 60 * 1000)
-          : null;
-        const teamBonusActive = Boolean(teamBonusStart && teamBonusEnd && nowForBalance >= teamBonusStart && nowForBalance < teamBonusEnd);
-        const fixedLevel = getLevel(lifetimeSalesForLevel, settings, 'fixed');
-        const teamBonusLevel = teamBonusActive ? getLevel(settings.monthlyLevels.bronze, settings, 'monthly') : null;
-        const baseCandidates = [fixedLevel.key, teamBonusLevel?.key || 'none'];
-        const baseLevelKey = baseCandidates.reduce((best, candidate) =>
-          LEVEL_ORDER[candidate] > LEVEL_ORDER[best] ? candidate : best, 'none');
-        const basePoints = baseLevelKey === 'gold'
-          ? Number(settings.monthlyLevels?.gold || 101)
-          : baseLevelKey === 'silver'
-            ? Number(settings.monthlyLevels?.silver || 50)
-            : baseLevelKey === 'bronze'
-              ? Number(settings.monthlyLevels?.bronze || 10)
-              : 0;
-        const currentLevelKey = getLevel(basePoints + ownCurrentMonthSales + teamCurrentMonthSales, settings, 'monthly').key;
-
-        // Reproduz a reconciliação do painel da afiliada: nível atual, bônus de equipe
-        // e vendas da equipe por mês são enviados antes de recalcular as comissões.
-        await reconcileAffiliateOrderCommissions(supabaseFetch, affiliateId, settings, {
-          teamJoinedAt: affiliate.team_joined_at,
-          levelKey: currentLevelKey,
-          teamSalesByMonth,
-        }).catch(error => console.error('[She Admin Balance] Falha ao reconciliar comissão pessoal:', { affiliateId, message: error?.message }));
-
-        const refreshedOrders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${affiliateId}&select=id,affiliate_id,status,total,commission,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot,created_at,updated_at&order=created_at.desc&limit=5000`).catch(() => null);
-        if (Array.isArray(refreshedOrders)) {
-          affiliateOrders = refreshedOrders;
-          ordersByAffiliate.set(affiliateId, refreshedOrders);
-        }
-        const commissionData = commissionForOrders(affiliateOrders, settings, {
-          teamJoinedAt: affiliate.team_joined_at,
-          levelKey: currentLevelKey,
-          teamSalesByMonth,
-        });
+        const affiliateOrders = ordersByAffiliate.get(Number(affiliate.id)) || [];
         const paidOrders = affiliateOrders.filter(isPaidOrder);
         const lastSaleAt = paidOrders.reduce((latest, order) => {
           const value = order.created_at ? new Date(order.created_at).getTime() : 0;
           return value > latest ? value : latest;
         }, 0);
+        const commissionData = commissionForOrders(affiliateOrders, settings, { teamJoinedAt: affiliate.team_joined_at });
         const revenue = paidOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
-        stats.set(affiliateId, {
+        stats.set(Number(affiliate.id), {
           sales: paidOrders.length,
           revenue,
           commission: commissionData.total,
           withdrawals: 0,
-          accesses: accessesByAffiliate.get(affiliateId) || 0,
+          accesses: accessesByAffiliate.get(Number(affiliate.id)) || 0,
           lastSaleAt: lastSaleAt ? new Date(lastSaleAt).toISOString() : null,
           autoInactive: lastSaleAt > 0 && lastSaleAt < cutoff,
         });
@@ -263,14 +243,13 @@ module.exports = async function handler(req, res) {
         const id = Number(withdrawal.affiliate_id);
         const bucket = stats.get(id);
         if (!bucket) continue;
-        if (String(withdrawal.source || 'personal') === 'personal' && !['rejected', 'failed'].includes(String(withdrawal.status || '').toLowerCase())) {
+        if (String(withdrawal.source || 'personal') === 'personal' && ['pending', 'approved', 'paid'].includes(String(withdrawal.status || '').toLowerCase())) {
           bucket.withdrawals += Number(withdrawal.amount || 0);
         }
       }
 
       const boostSpentByAffiliate = new Map();
       for (const boost of boostRows || []) {
-        if (!['queued', 'active', 'completed'].includes(String(boost.status || ''))) continue;
         const aid = Number(boost.affiliate_id);
         boostSpentByAffiliate.set(aid, (boostSpentByAffiliate.get(aid) || 0) + Number(boost.price || 0));
       }
