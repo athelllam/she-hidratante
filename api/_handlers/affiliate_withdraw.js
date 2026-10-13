@@ -87,32 +87,19 @@ module.exports = async function handler(req, res) {
     let earned = 0;
 
     if (source === 'personal') {
-      // Use the same team-sales context as the dashboard. Monthly qualification
-      // includes personal + team sales, so omitting team sales here can calculate
-      // a lower commission than the amount shown in the affiliate dashboard.
-      const ordersPath = `/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=status,total,commission,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot,created_at&order=created_at.asc&limit=10000`;
+      // Keep the withdrawal balance calculation identical to the affiliate dashboard.
+      // Passing teamSalesByMonth here changes historical commission levels and can make
+      // the API reject a withdrawal even when the dashboard shows enough available balance.
+      const ordersPath = `/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=yampi_order_id,status,total,commission,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot,created_at,updated_at&order=created_at.desc&limit=5000`;
       const orders = await supabaseFetch(ordersPath);
-
-      const teamMembers = await supabaseFetch(`/rest/v1/affiliates?team_parent_id=eq.${Number(affiliate.id)}&select=id&limit=1000`);
-      const teamIds = (teamMembers || []).map(row => Number(row.id)).filter(id => Number.isInteger(id) && id > 0);
-      const teamOrders = teamIds.length
-        ? await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=in.(${teamIds.join(',')})&select=status,created_at&order=created_at.asc&limit=20000`)
-        : [];
-      const teamSalesByMonth = (teamOrders || []).filter(isPaidOrder).reduce((map, order) => {
-        const key = monthKeySaoPaulo(order.created_at);
-        if (key) map[key] = (map[key] || 0) + 1;
-        return map;
-      }, {});
 
       await reconcileAffiliateOrderCommissions(supabaseFetch, affiliate.id, settings, {
         teamJoinedAt: affiliate.team_joined_at,
-        teamSalesByMonth,
       }).catch(() => null);
 
       const refreshedOrders = await supabaseFetch(ordersPath);
       earned = commissionForOrders(refreshedOrders || orders || [], settings, {
         teamJoinedAt: affiliate.team_joined_at,
-        teamSalesByMonth,
       }).total;
     } else {
       const children = await supabaseFetch(`/rest/v1/affiliates?team_parent_id=eq.${affiliate.id}&select=id&limit=1000`);
@@ -126,7 +113,7 @@ module.exports = async function handler(req, res) {
       }, 0);
     }
 
-    const reserved = (withdrawals || []).filter(w => !['rejected', 'failed', 'cancelled'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
+    const reserved = (withdrawals || []).filter(w => !['rejected', 'failed'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
     let reservedBoosts = 0;
     if (source === 'personal') {
       const boosts = await supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${affiliate.id}&select=price,status&limit=5000`).catch(() => []);
