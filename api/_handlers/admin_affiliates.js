@@ -63,14 +63,14 @@ module.exports = async function handler(req, res) {
 
     if (req.method === 'GET') {
       const [affiliates, orders, withdrawals, events, statusHistory, settingRows, boostState, boostRows, pushSubscriptions] = await Promise.all([
-        supabaseFetch('/rest/v1/affiliates?select=id,slug,name,email,cpf,whatsapp,pix_key,active,admin_active,commission_rate,created_at,team_parent_id&order=created_at.desc'),
+        supabaseFetch('/rest/v1/affiliates?select=id,slug,name,email,cpf,whatsapp,pix_key,active,admin_active,commission_rate,created_at,team_parent_id,team_joined_at&order=created_at.desc'),
         supabaseFetch('/rest/v1/affiliate_orders?select=id,affiliate_id,status,total,commission,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot,created_at&order=created_at.desc&limit=20000'),
         supabaseFetch('/rest/v1/affiliate_withdrawals?select=affiliate_id,amount,status,source,requested_at&order=requested_at.desc&limit=10000'),
         supabaseFetch('/rest/v1/affiliate_events?select=affiliate_id,type,created_at&order=created_at.desc&limit=20000'),
         supabaseFetch('/rest/v1/affiliate_admin_status_history?select=affiliate_id,admin_active,effective_at&order=effective_at.asc&limit=20000').catch(() => []),
         supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,team_advanced1_members,team_advanced1_sales,team_advanced1_commission,team_advanced2_members,team_advanced2_sales,team_advanced2_commission,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active,reseller_hydrant_price,reseller_hydrant_blister_price,reseller_stick_price,reseller_complete_price,average_sale_cost&limit=1'),
         supabaseFetch('/rest/v1/rpc/she_team_boost_admin_state', { method: 'POST', body: '{}' }).catch(() => ({ activeCount: 0, queueCount: 0, completedCount: 0, active: [] })),
-        supabaseFetch('/rest/v1/affiliate_team_boosts?status=neq.cancelled&select=affiliate_id,price&limit=20000').catch(() => []),
+        supabaseFetch('/rest/v1/affiliate_team_boosts?status=neq.cancelled&select=affiliate_id,price,status,created_at,queue_created_at&limit=20000').catch(() => []),
         supabaseFetch('/rest/v1/affiliate_push_subscriptions?active=eq.true&select=affiliate_id&limit=10000').catch(() => []),
       ]);
 
@@ -102,6 +102,25 @@ module.exports = async function handler(req, res) {
       settings.resellerPrices = { hydrant: Number(settingRows?.[0]?.reseller_hydrant_price ?? 0), hydrantBlister: Number(settingRows?.[0]?.reseller_hydrant_blister_price ?? 0), stick: Number(settingRows?.[0]?.reseller_stick_price ?? 0), complete: Number(settingRows?.[0]?.reseller_complete_price ?? 0) };
       settings.averageSaleCost = Number(settingRows?.[0]?.average_sale_cost ?? 0);
 
+      // Use the same commission reconciliation as the affiliate dashboard before
+      // calculating the admin-list balance. This persists retroactive tier/bonus
+      // adjustments (for example, when an affiliate reaches Bronze) first.
+      await Promise.all((affiliates || []).map(affiliate =>
+        reconcileAffiliateOrderCommissions(supabaseFetch, Number(affiliate.id), settings, {
+          teamJoinedAt: affiliate.team_joined_at,
+        }).catch(error => {
+          console.error('[Admin affiliate balance] commission reconciliation failed', {
+            affiliateId: Number(affiliate.id), message: error?.message || String(error),
+          });
+          return null;
+        })
+      ));
+
+      // Re-read orders after reconciliation so the list uses the same persisted
+      // commission snapshots as the affiliate's "Saldo disponível" card.
+      const reconciledAdminOrders = await supabaseFetch('/rest/v1/affiliate_orders?select=id,affiliate_id,status,total,commission,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot,created_at&order=created_at.desc&limit=20000').catch(() => orders || []);
+      const effectiveAdminOrders = Array.isArray(reconciledAdminOrders) ? reconciledAdminOrders : (orders || []);
+
       const directMembersByParent = new Map();
       for (const affiliate of affiliates || []) {
         const parentId = Number(affiliate.team_parent_id || 0);
@@ -112,7 +131,7 @@ module.exports = async function handler(req, res) {
       }
       for (const [parentId, members] of directMembersByParent.entries()) {
         const memberIds = new Set(members.map(member => Number(member.id)));
-        const teamOrders = (orders || []).filter(order => memberIds.has(Number(order.affiliate_id)));
+        const teamOrders = effectiveAdminOrders.filter(order => memberIds.has(Number(order.affiliate_id)));
         await reconcileTeamMonthlyCommissions(supabaseFetch, parentId, members, teamOrders, settings).catch(() => null);
       }
 
@@ -120,7 +139,7 @@ module.exports = async function handler(req, res) {
       const detailMonth = String(req.query?.month || 'all');
 
       const ordersByAffiliate = new Map();
-      for (const order of orders || []) {
+      for (const order of effectiveAdminOrders) {
         const id = Number(order.affiliate_id);
         if (!ordersByAffiliate.has(id)) ordersByAffiliate.set(id, []);
         ordersByAffiliate.get(id).push(order);
@@ -175,7 +194,7 @@ module.exports = async function handler(req, res) {
           const value = order.created_at ? new Date(order.created_at).getTime() : 0;
           return value > latest ? value : latest;
         }, 0);
-        const commissionData = commissionForOrders(affiliateOrders, settings);
+        const commissionData = commissionForOrders(affiliateOrders, settings, { teamJoinedAt: affiliate.team_joined_at });
         const revenue = paidOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
         stats.set(Number(affiliate.id), {
           sales: paidOrders.length,
@@ -192,7 +211,7 @@ module.exports = async function handler(req, res) {
         const id = Number(withdrawal.affiliate_id);
         const bucket = stats.get(id);
         if (!bucket) continue;
-        if (String(withdrawal.source || 'personal') === 'personal' && ['pending', 'approved', 'paid'].includes(String(withdrawal.status || '').toLowerCase())) {
+        if (String(withdrawal.source || 'personal') === 'personal' && !['rejected', 'failed'].includes(String(withdrawal.status || '').toLowerCase())) {
           bucket.withdrawals += Number(withdrawal.amount || 0);
         }
       }
