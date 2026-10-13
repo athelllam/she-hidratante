@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { getRememberedAffiliate, clearRememberedAffiliate } from '../utils/affiliateTracking'
 
 function brl(value) {
   return `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`
@@ -395,7 +396,8 @@ export default function AffiliateDashboard() {
   const acceptRegisterTermsAndCreate = async () => {
     setBusy(true); setError('')
     try {
-      await api('/api/affiliate/register', { method: 'POST', body: JSON.stringify(form) })
+      await api('/api/affiliate/register', { method: 'POST', body: JSON.stringify({ ...form, referralSlug: getRememberedAffiliate() }) })
+      clearRememberedAffiliate()
       setRegisterTermsCardOpen(false)
       setRegisterTermsOpen(false)
       await load({ sync: true })
