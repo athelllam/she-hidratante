@@ -97,6 +97,7 @@ export default function AdminDashboard() {
   const [wooviBalance, setWooviBalance] = useState(null)
   const [wooviBalanceError, setWooviBalanceError] = useState('')
   const [wooviBalanceLoading, setWooviBalanceLoading] = useState(false)
+  const [wooviPixKeyCopied, setWooviPixKeyCopied] = useState(false)
   const [withdrawals, setWithdrawals] = useState([])
   const [videoSubmissions, setVideoSubmissions] = useState([])
   const [videoFilter, setVideoFilter] = useState('pending')
@@ -1038,6 +1039,41 @@ export default function AdminDashboard() {
               <p className={`mt-1 text-xs font-medium ${!wooviBalance ? 'text-zinc-500' : wooviBalance.available < stats.totalBalance ? 'text-red-800/80' : 'text-emerald-800/80'}`}>
                 {wooviBalance ? `Disponível para pagamentos · Total: ${brl(wooviBalance.total)}${wooviBalance.blocked > 0 ? ` · Bloqueado: ${brl(wooviBalance.blocked)}` : ''}` : (wooviBalanceError || 'Não foi possível consultar o saldo.')}
               </p>
+              <button
+                type="button"
+                onClick={async () => {
+                  const pixKey = 'b2145008-648c-460c-a31b-cb022db8b669'
+                  try {
+                    if (navigator.clipboard?.writeText) {
+                      await navigator.clipboard.writeText(pixKey)
+                    } else {
+                      const field = document.createElement('textarea')
+                      field.value = pixKey
+                      field.setAttribute('readonly', '')
+                      field.style.position = 'fixed'
+                      field.style.opacity = '0'
+                      document.body.appendChild(field)
+                      field.select()
+                      const copied = document.execCommand('copy')
+                      field.remove()
+                      if (!copied) throw new Error('Não foi possível copiar a chave Pix.')
+                    }
+                    setWooviPixKeyCopied(true)
+                    window.setTimeout(() => setWooviPixKeyCopied(false), 1800)
+                  } catch {
+                    setMessage('Não foi possível copiar a chave Pix. Verifique a permissão de área de transferência do navegador.')
+                  }
+                }}
+                title="Copiar chave Pix da Woovi"
+                aria-label="Copiar chave Pix da Woovi"
+                className="mt-3 inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-black text-zinc-700 shadow-sm transition hover:border-pink-300 hover:bg-pink-50"
+              >
+                {wooviPixKeyCopied ? (
+                  <><svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.2 7.26a1 1 0 0 1-1.42.003L3.29 9.202a1 1 0 1 1 1.415-1.414l4.08 4.08 6.493-6.572a1 1 0 0 1 1.426-.006Z" clipRule="evenodd" /></svg>Copiado!</>
+                ) : (
+                  <><svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true"><path d="M6 2.75A1.75 1.75 0 0 1 7.75 1h8.5A1.75 1.75 0 0 1 18 2.75v10.5A1.75 1.75 0 0 1 16.25 15h-8.5A1.75 1.75 0 0 1 6 13.25V2.75Z"/><path d="M3.75 5A1.75 1.75 0 0 0 2 6.75v10.5A1.75 1.75 0 0 0 3.75 19h8.5A1.75 1.75 0 0 0 14 17.25V17H7.75A3.75 3.75 0 0 1 4 13.25V5h-.25Z"/></svg>Copiar chave Pix</>
+                )}
+              </button>
             </div>
           </div>
         </section>

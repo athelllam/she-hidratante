@@ -73,7 +73,7 @@ module.exports = async function handler(req, res) {
       return json(res, 400, { error: 'Você precisa ter pelo menos 1 venda pessoal contabilizada neste mês para solicitar um saque.' });
     }
 
-    const settingRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,team_advanced1_members,team_advanced1_sales,team_advanced1_commission,team_advanced2_members,team_advanced2_sales,team_advanced2_commission,commission_none,commission_bronze,commission_silver,commission_gold&limit=1');
+    const settingRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,team_advanced1_members,team_advanced1_sales,team_advanced1_commission,team_advanced2_members,team_advanced2_sales,team_advanced2_commission,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales&limit=1');
     const settings = normalizeConfig(settingRows?.[0] ? {
       ticketThreshold: settingRows[0].ticket_threshold,
       ticketBonus: settingRows[0].ticket_bonus,
@@ -81,6 +81,8 @@ module.exports = async function handler(req, res) {
       teamAdvanced1: { members: settingRows[0].team_advanced1_members, sales: settingRows[0].team_advanced1_sales, commissionPerSale: settingRows[0].team_advanced1_commission },
       teamAdvanced2: { members: settingRows[0].team_advanced2_members, sales: settingRows[0].team_advanced2_sales, commissionPerSale: settingRows[0].team_advanced2_commission },
       commissions: { none: settingRows[0].commission_none, bronze: settingRows[0].commission_bronze, silver: settingRows[0].commission_silver, gold: settingRows[0].commission_gold },
+      monthlyLevels: { bronze: settingRows[0].monthly_bronze_sales, silver: settingRows[0].monthly_silver_sales, gold: settingRows[0].monthly_gold_sales },
+      fixedLevels: { bronze: settingRows[0].fixed_bronze_sales, silver: settingRows[0].fixed_silver_sales, gold: settingRows[0].fixed_gold_sales },
     } : DEFAULT_COMMISSION_CONFIG);
 
     const withdrawals = await supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${affiliate.id}&source=eq.${source}&select=amount,status&limit=5000`);
