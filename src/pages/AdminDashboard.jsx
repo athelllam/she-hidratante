@@ -999,10 +999,9 @@ export default function AdminDashboard() {
 
           <div className="my-5 h-px w-full bg-zinc-200/70" aria-hidden="true" />
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {[
               ['Afiliadas', stats.affiliates],
-              ['Com notificações', pushEnabledAffiliates],
               ['Ativas', stats.active],
               ['Inativas', stats.inactive],
               ['Saldo das afiliadas', brl(stats.totalBalance)],
@@ -1015,9 +1014,6 @@ export default function AdminDashboard() {
                 <p className="mt-2 text-2xl font-black text-zinc-950">{value}</p>
                 {label === 'Saldo das afiliadas' && (
                   <p className="mt-1 text-xs font-medium text-pink-700/80">Saldo total Afiliadas + Equipes</p>
-                )}
-                {label === 'Com notificações' && (
-                  <p className="mt-1 text-xs font-medium text-emerald-700/80">Afiliadas com push ativo no app</p>
                 )}
               </div>
             ))}
