@@ -145,6 +145,23 @@ export default function AdminDashboard() {
   const [adminDataForm, setAdminDataForm] = useState({ loginUsername: '', loginEmail: '', notificationEmails: [''] })
   const [adminNewPassword, setAdminNewPassword] = useState('')
   const [adminConfirmPassword, setAdminConfirmPassword] = useState('')
+  const [pushBroadcastTitle, setPushBroadcastTitle] = useState('Aviso da She Afiliadas')
+  const [pushBroadcastBody, setPushBroadcastBody] = useState('')
+  const [pushBroadcastBusy, setPushBroadcastBusy] = useState(false)
+
+  const sendPushBroadcast = async (event) => {
+    event.preventDefault()
+    if (!pushBroadcastBody.trim()) { setMessage('Escreva a mensagem do aviso.'); return }
+    if (!window.confirm('Enviar esta notificação para todos os dispositivos com notificações ativas?')) return
+    setPushBroadcastBusy(true)
+    setMessage('')
+    try {
+      const result = await api('/api/admin/withdrawals', { method: 'POST', body: JSON.stringify({ action: 'push-broadcast', title: pushBroadcastTitle, body: pushBroadcastBody }) })
+      setMessage(result.message || `Notificação enviada para ${result.sent || 0} dispositivo(s).`)
+      setPushBroadcastBody('')
+    } catch (e) { setMessage(e.message || 'Não foi possível enviar o aviso push.') }
+    finally { setPushBroadcastBusy(false) }
+  }
 
   const loadPanel = async () => {
     setWooviBalanceLoading(true)
@@ -1200,6 +1217,18 @@ export default function AdminDashboard() {
             ))}
             {!videoSubmissions.filter(video => videoFilter === 'all' || video.status === videoFilter).length && <div className="rounded-2xl border border-dashed border-zinc-200 px-4 py-8 text-center text-sm text-zinc-400">Nenhuma solicitação de vídeo neste filtro.</div>}
           </div>
+        </section>
+
+        <section className="mt-6 rounded-[1.5rem] border border-pink-200 bg-white p-6 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-pink-100 text-pink-700">🔔</div>
+            <div><h2 className="text-xl font-black text-zinc-950">Avisos administrativos por push</h2><p className="mt-1 text-sm text-zinc-500">Escreva um aviso e envie para todos os dispositivos com notificações ativas no app She Afiliadas.</p></div>
+          </div>
+          <form onSubmit={sendPushBroadcast} className="mt-4 grid gap-3">
+            <label className="grid gap-1 text-xs font-bold text-zinc-600">Título da notificação<input maxLength={80} value={pushBroadcastTitle} onChange={e => setPushBroadcastTitle(e.target.value)} className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-semibold text-zinc-900 outline-none focus:border-pink-400" /></label>
+            <label className="grid gap-1 text-xs font-bold text-zinc-600">Mensagem<textarea required maxLength={500} rows={3} value={pushBroadcastBody} onChange={e => setPushBroadcastBody(e.target.value)} placeholder="Escreva o aviso que todas as afiliadas receberão..." className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-medium text-zinc-900 outline-none focus:border-pink-400" /></label>
+            <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-zinc-400">Envia apenas para inscrições ativas. Use com moderação.</p><button type="submit" disabled={pushBroadcastBusy || !pushBroadcastBody.trim()} className="rounded-xl bg-pink-600 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{pushBroadcastBusy ? 'Enviando…' : 'Enviar para todos os apps'}</button></div>
+          </form>
         </section>
 
         <section className="mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">

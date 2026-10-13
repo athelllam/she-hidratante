@@ -2,6 +2,7 @@ const { supabaseFetch, json } = require('../_lib/supabase');
 const crypto = require('crypto');
 const { reconcileAffiliateOrderCommissions, reconcileTeamMonthlyCommissions, normalizeConfig, DEFAULT_COMMISSION_CONFIG } = require('../_lib/affiliateCommission');
 const { getCreatedAt } = require('../_lib/yampi');
+const { sendToAffiliate } = require('../_lib/push');
 
 function header(req, name) {
   return req.headers[name.toLowerCase()] || req.headers[name] || '';
@@ -211,6 +212,12 @@ module.exports = async function handler(req, res) {
       ]);
       const memberIds = new Set((members || []).map(member => Number(member.id)));
       await reconcileTeamMonthlyCommissions(supabaseFetch, parentId, members || [], (teamOrders || []).filter(order => memberIds.has(Number(order.affiliate_id))), commissionConfig).catch(() => null);
+    }
+
+    const wasAlreadyApproved = ['payment_approved', 'pagamento_aprovado', 'paid', 'approved', 'aprovado'].includes(String(previousStatus || '').toLowerCase());
+    if (!wasAlreadyApproved) {
+      await sendToAffiliate(affiliateId, { title: 'Nova venda confirmada!', body: 'Uma venda foi aprovada e sua comissão foi atualizada. 💗', url: '/afiliado', tag: `sale-${yampiOrderId}` }).catch(() => null);
+      if (parentId > 0) await sendToAffiliate(parentId, { title: 'Nova venda na sua equipe!', body: 'Uma venda da sua equipe foi aprovada e sua comissão de equipe foi atualizada. 💗', url: '/afiliado', tag: `team-sale-${yampiOrderId}` }).catch(() => null);
     }
 
     return json(res, 200, { ok: true, orderId: yampiOrderId, affiliateId, status, commissionReconciled: reconciliation.updated || 0 });
