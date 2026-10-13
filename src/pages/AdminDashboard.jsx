@@ -1168,7 +1168,7 @@ export default function AdminDashboard() {
                     <td className="py-4 pr-4">
                       <button
                         type="button"
-                        onClick={() => { setDetailAffiliate(affiliate); setDetailMonth('all') }}
+                        onClick={() => { setPreviewAffiliate(affiliate); setPreviewMonth('all'); setPreviewData(null); setPreviewError('') }}
                         className="rounded-xl bg-zinc-950 px-3 py-2 text-xs font-black text-white transition hover:bg-pink-500"
                       >
                         Ver desempenho
@@ -1185,7 +1185,7 @@ export default function AdminDashboard() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => { setPreviewAffiliate(affiliate); setPreviewMonth('all'); setPreviewData(null); setPreviewError('') }}
+                          onClick={() => { setDetailAffiliate(affiliate); setDetailMonth('all'); setDetailData(null) }}
                           aria-label={`Visualizar painel de ${affiliate.name}`}
                           title={`Visualizar painel de ${affiliate.name}`}
                           className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-pink-200 bg-pink-50 px-3 py-2 text-xs font-black text-pink-700 transition hover:border-pink-400 hover:bg-pink-100"
@@ -1540,9 +1540,9 @@ export default function AdminDashboard() {
           <div className="max-h-[94vh] w-full max-w-6xl overflow-y-auto rounded-[2rem] bg-zinc-50 p-4 shadow-[0_30px_100px_rgba(0,0,0,.35)] sm:p-7">
             <div className="flex flex-col gap-4 border-b border-zinc-200 pb-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Visualização administrativa · somente leitura</p>
-                <h3 className="mt-1 text-2xl font-black text-zinc-950">Painel de {previewAffiliate.name}</h3>
-                <p className="mt-1 text-sm text-zinc-500">ID #{previewAffiliate.id}{previewAffiliate.slug ? ` · /${previewAffiliate.slug}` : ''}. Esta visualização não entra na conta da afiliada nem permite executar ações em nome dela.</p>
+                <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Resumo de desempenho</p>
+                <h3 className="mt-1 text-2xl font-black text-zinc-950">Desempenho de {previewAffiliate.name}</h3>
+                <p className="mt-1 text-sm text-zinc-500">ID #{previewAffiliate.id}{previewAffiliate.slug ? ` · /${previewAffiliate.slug}` : ''}. Indicadores e histórico de vendas pessoais e da equipe.</p>
               </div>
               <div className="flex items-center gap-2">
                 <select value={previewMonth} onChange={event => setPreviewMonth(event.target.value)} className="min-w-0 rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm font-black text-zinc-700 outline-none focus:border-pink-400">
@@ -1602,7 +1602,7 @@ export default function AdminDashboard() {
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Desempenho detalhado</p>
                 <h3 className="mt-1 text-2xl font-black text-zinc-950">{detailAffiliate.name}</h3>
-                <p className="mt-1 text-sm text-zinc-400">Vendas da afiliada em rosa e vendas da equipe em preto, no mesmo período.</p>
+                <p className="mt-1 text-sm text-zinc-400">Modo de visualização administrativa. Os dados abaixo são um resumo de desempenho; ações da conta não são executadas nesta janela.</p>
               </div>
               <div className="flex items-center gap-2">
                 <select value={detailMonth} onChange={event => setDetailMonth(event.target.value)} className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-black text-zinc-700 outline-none focus:border-pink-400">
