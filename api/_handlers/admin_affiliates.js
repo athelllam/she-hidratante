@@ -198,7 +198,12 @@ module.exports = async function handler(req, res) {
       }
 
       const boostSpentByAffiliate = new Map();
+      // Deve usar a mesma regra do painel da afiliada: somente impulsos
+      // enfileirados, ativos ou concluídos consomem o saldo pessoal.
+      // Impulsos cancelados/falhos/outros estados não podem reduzir o saldo.
       for (const boost of boostRows || []) {
+        const status = String(boost.status || '').toLowerCase();
+        if (!['queued', 'active', 'completed'].includes(status)) continue;
         const aid = Number(boost.affiliate_id);
         boostSpentByAffiliate.set(aid, (boostSpentByAffiliate.get(aid) || 0) + Number(boost.price || 0));
       }

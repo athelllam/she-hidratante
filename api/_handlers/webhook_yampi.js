@@ -9,7 +9,27 @@ function header(req, name) {
 }
 
 function getOrder(payload) {
-  return payload?.data?.order || payload?.order || payload?.data || payload;
+  // A Yampi pode enviar o pedido inteiro, um envelope `data.order`,
+  // ou somente os dados do recurso alterado.
+  const candidates = [
+    payload?.data?.order,
+    payload?.order,
+    payload?.data?.data?.order,
+    payload?.data?.resource,
+    payload?.resource?.data,
+    payload?.resource,
+    payload?.data,
+    payload?.payload?.data?.order,
+    payload?.payload?.order,
+    payload?.payload?.data,
+    payload?.payload,
+    payload,
+  ];
+  return candidates.find(value => value && typeof value === 'object' && !Array.isArray(value)) || {};
+}
+
+function getFirstValue(...values) {
+  return values.find(value => value !== undefined && value !== null && String(value).trim() !== '') ?? null;
 }
 
 function metadataEntries(order) {
@@ -41,7 +61,14 @@ function getMetadata(payload, key = 'affiliate_id') {
 
 function getOrderId(payload) {
   const order = getOrder(payload);
-  return order?.id ?? order?.number ?? order?.order_id ?? order?.code ?? null;
+  return getFirstValue(
+    order?.id, order?.order_id, order?.orderId, order?.number, order?.code,
+    payload?.data?.order_id, payload?.data?.orderId, payload?.data?.id,
+    payload?.data?.resource_id, payload?.resource_id, payload?.resourceId,
+    payload?.order_id, payload?.orderId, payload?.id,
+    payload?.payload?.data?.id, payload?.payload?.data?.resource_id,
+    payload?.payload?.order_id, payload?.payload?.id
+  );
 }
 
 function normalizeStatus(value) {
@@ -65,7 +92,6 @@ function getStatus(payload) {
     order?.transactions?.data?.status?.slug ||
     order?.transactions?.data?.status?.name ||
     order?.transactions?.data?.status ||
-    payload?.event ||
     ''
   );
 }
@@ -146,7 +172,9 @@ module.exports = async function handler(req, res) {
       orderId: yampiOrderId || null,
       affiliateId: affiliateId || null,
       status: getStatus(payload) || null,
-      keys: Object.keys(payload || {}).slice(0, 20),
+      keys: payload && typeof payload === 'object' ? Object.keys(payload).slice(0, 30) : [],
+      dataKeys: payload?.data && typeof payload.data === 'object' ? Object.keys(payload.data).slice(0, 30) : [],
+      resource: payload?.resource || payload?.data?.resource || null,
     }));
 
     if (yampiOrderId && (!affiliateId || !isPaymentApproved(payload))) {
@@ -156,7 +184,9 @@ module.exports = async function handler(req, res) {
         if (fetchedOrder && typeof fetchedOrder === 'object') {
           // Mantém o evento original e usa o pedido consultado para campos ausentes.
           const originalOrder = getOrder(payload) || {};
-          const mergedOrder = { ...fetchedOrder, ...originalOrder };
+          // Os dados completos da API são a fonte de verdade para status,
+          // metadata e transações. Campos do evento só preenchem lacunas.
+          const mergedOrder = { ...originalOrder, ...fetchedOrder };
           payload = { ...payload, data: { ...(payload.data && typeof payload.data === 'object' ? payload.data : {}), order: mergedOrder } };
           yampiOrderId = String(getOrderId(payload) || yampiOrderId);
           affiliateId = Number(getMetadata(payload, 'affiliate_id'));
