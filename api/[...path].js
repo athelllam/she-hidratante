@@ -12,7 +12,6 @@ const affiliatePublicSlug = require('./_handlers/affiliate_public_slug');
 const resellerSettings = require('./_handlers/reseller_settings');
 const webhookWoovi = require('./_handlers/webhook_woovi');
 const webhookYampi = require('./_handlers/webhook_yampi');
-const cronYampiSync = require('./_handlers/cron_yampi_sync');
 
 function pathname(req) {
   let current = '/';
@@ -68,7 +67,6 @@ module.exports = async function router(req, res) {
   else if (path === '/api/reseller/settings') handler = resellerSettings;
   else if (path === '/api/webhooks/woovi') handler = webhookWoovi;
   else if (path === '/api/webhooks/yampi') handler = webhookYampi;
-  else if (path === '/api/cron/yampi-sync') handler = cronYampiSync;
 
   if (!handler) return res.status(404).json({ error: 'Rota da API não encontrada.' });
   return handler(req, res);
