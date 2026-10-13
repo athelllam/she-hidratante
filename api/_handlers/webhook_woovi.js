@@ -132,8 +132,19 @@ module.exports = async function handler(req, res) {
     });
 
     const updated = updatedRows?.[0];
-    if (updated && ['paid', 'failed'].includes(finalStatus)) {
-      await sendToAffiliate(withdrawal.affiliate_id, { title: finalStatus === 'paid' ? 'Saque pago' : 'Saque falhou', body: finalStatus === 'paid' ? `Seu saque de R$ ${Number(withdrawal.amount || 0).toFixed(2).replace('.', ',')} foi pago.` : `Seu saque de R$ ${Number(withdrawal.amount || 0).toFixed(2).replace('.', ',')} falhou. Confira o painel para mais detalhes.`, url: '/afiliado', tag: `withdrawal-${withdrawal.id}-${finalStatus}` }).catch(() => null);
+    if (updated && finalStatus === 'paid') {
+      try {
+        console.log('[She Push Withdrawal] start', JSON.stringify({ withdrawalId: Number(withdrawal.id), affiliateId: Number(withdrawal.affiliate_id), status: finalStatus }));
+        const pushResult = await sendToAffiliate(withdrawal.affiliate_id, {
+          title: 'Saque realizado!',
+          body: `Seu saque de R$ ${Number(withdrawal.amount || 0).toFixed(2).replace('.', ',')} foi realizado com sucesso.`,
+          url: '/afiliado',
+          tag: `withdrawal-${withdrawal.id}-paid`,
+        });
+        console.log('[She Push Withdrawal] result', JSON.stringify({ withdrawalId: Number(withdrawal.id), affiliateId: Number(withdrawal.affiliate_id), result: pushResult || null }));
+      } catch (pushError) {
+        console.error('[She Push Withdrawal] failed', JSON.stringify({ withdrawalId: Number(withdrawal.id), affiliateId: Number(withdrawal.affiliate_id), statusCode: pushError.statusCode || null, message: pushError.message || 'sem detalhes' }));
+      }
     }
     if (updated && withdrawal.affiliates?.email && ['paid', 'failed'].includes(finalStatus)) {
       const { sendEmail, affiliateWithdrawalApprovedEmail } = require('../_lib/email');

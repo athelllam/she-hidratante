@@ -1,7 +1,7 @@
 const { requireAdmin, supabaseFetch } = require('../_lib/admin');
 const { createPixPayment, normalizeWooviPixType } = require('../_lib/woovi');
 const { sendEmail, affiliateWithdrawalApprovedEmail } = require('../_lib/email');
-const { sendToAffiliate, sendToAll } = require('../_lib/push');
+const { sendToAll } = require('../_lib/push');
 
 function json(res, status, body) { res.status(status).json(body); }
 
@@ -12,11 +12,7 @@ function normalizePixKeyType(value) {
 async function notifyAffiliate({ withdrawal, affiliate, status }) {
   if (!affiliate?.id || !['approved', 'paid', 'failed', 'rejected'].includes(status)) return;
   const subjectStatus = status === 'failed' ? 'falhou' : status === 'rejected' ? 'foi recusado' : status === 'paid' ? 'foi pago' : 'foi aprovado';
-  await sendToAffiliate(affiliate.id, {
-    title: status === 'paid' ? 'Saque pago' : status === 'approved' ? 'Saque aprovado' : 'Saque não concluído',
-    body: status === 'paid' ? `Seu saque de R$ ${Number(withdrawal.amount || 0).toFixed(2).replace('.', ',')} foi pago.` : status === 'approved' ? `Seu saque de R$ ${Number(withdrawal.amount || 0).toFixed(2).replace('.', ',')} foi aprovado.` : `Seu saque de R$ ${Number(withdrawal.amount || 0).toFixed(2).replace('.', ',')} ${status === 'rejected' ? 'foi recusado' : 'falhou'}. Confira o painel para mais detalhes.`,
-    url: '/afiliado', tag: `withdrawal-${withdrawal.id}-${status}`
-  }).catch(() => null);
+  // Push de saque é enviado exclusivamente pelo webhook da Woovi quando o pagamento é confirmado.
   if (affiliate.email) {
     await sendEmail({
       to: affiliate.email,

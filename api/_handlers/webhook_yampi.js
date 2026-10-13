@@ -215,12 +215,43 @@ module.exports = async function handler(req, res) {
     }
 
     const wasAlreadyApproved = ['payment_approved', 'pagamento_aprovado', 'paid', 'approved', 'aprovado'].includes(String(previousStatus || '').toLowerCase());
+    const pushDiagnostics = { skipped: wasAlreadyApproved, personal: null };
+
+    console.log('[She Push Sale] webhook accepted', JSON.stringify({
+      orderId: yampiOrderId,
+      affiliateId,
+      parentId,
+      status,
+      previousStatus,
+      wasAlreadyApproved,
+    }));
+
     if (!wasAlreadyApproved) {
-      await sendToAffiliate(affiliateId, { title: 'Nova venda confirmada!', body: 'Uma venda foi aprovada e sua comissão foi atualizada. 💗', url: '/afiliado', tag: `sale-${yampiOrderId}` }).catch(() => null);
-      if (parentId > 0) await sendToAffiliate(parentId, { title: 'Nova venda na sua equipe!', body: 'Uma venda da sua equipe foi aprovada e sua comissão de equipe foi atualizada. 💗', url: '/afiliado', tag: `team-sale-${yampiOrderId}` }).catch(() => null);
+      try {
+        pushDiagnostics.personal = await sendToAffiliate(affiliateId, {
+          title: 'Nova venda confirmada!',
+          body: 'Uma venda foi aprovada e sua comissão foi atualizada. 💗',
+          url: '/afiliado',
+          tag: `sale-${yampiOrderId}`,
+        });
+        console.log('[She Push Sale] personal result', JSON.stringify({ orderId: yampiOrderId, affiliateId, result: pushDiagnostics.personal }));
+      } catch (pushError) {
+        pushDiagnostics.personal = { error: pushError.message || 'Falha sem detalhes', statusCode: pushError.statusCode || null };
+        console.error('[She Push Sale] personal failed', JSON.stringify({ orderId: yampiOrderId, affiliateId, ...pushDiagnostics.personal }));
+      }
+
+    } else {
+      console.log('[She Push Sale] skipped because order was already approved', JSON.stringify({ orderId: yampiOrderId, previousStatus }));
     }
 
-    return json(res, 200, { ok: true, orderId: yampiOrderId, affiliateId, status, commissionReconciled: reconciliation.updated || 0 });
+    return json(res, 200, {
+      ok: true,
+      orderId: yampiOrderId,
+      affiliateId,
+      status,
+      commissionReconciled: reconciliation.updated || 0,
+      pushDiagnostics,
+    });
   } catch (error) {
     return json(res, error.statusCode || 500, { error: error.message || 'Erro no webhook.' });
   }
