@@ -1,5 +1,5 @@
 const { requireAffiliate, supabaseFetch, json } = require('../_lib/supabase');
-const { commissionForOrders, reconcileAffiliateOrderCommissions, DEFAULT_COMMISSION_CONFIG, normalizeConfig, isPaidOrder } = require('../_lib/affiliateCommission');
+const { commissionForOrders, reconcileAffiliateOrderCommissions, DEFAULT_COMMISSION_CONFIG, normalizeConfig, isPaidOrder, getLevel, LEVEL_ORDER } = require('../_lib/affiliateCommission');
 
 function monthKeySaoPaulo(value) {
   if (!value) return null;
@@ -85,20 +85,44 @@ module.exports = async function handler(req, res) {
     let earned = 0;
 
     if (source === 'personal') {
-      // Keep the withdrawal balance calculation identical to the affiliate dashboard.
-      // Passing teamSalesByMonth here changes historical commission levels and can make
-      // the API reject a withdrawal even when the dashboard shows enough available balance.
+      // Saque pessoal: contabiliza SOMENTE as comissões dos pedidos da própria afiliada.
+      // A equipe pode influenciar o nível mensal (e, portanto, a taxa das vendas pessoais),
+      // mas nenhuma comissão de equipe é somada ao saldo pessoal.
       const ordersPath = `/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=yampi_order_id,status,total,commission,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot,created_at,updated_at&order=created_at.desc&limit=5000`;
       const orders = await supabaseFetch(ordersPath);
+      const children = await supabaseFetch(`/rest/v1/affiliates?team_parent_id=eq.${affiliate.id}&select=id&limit=1000`);
+      const childIds = (children || []).map(row => Number(row.id)).filter(Boolean);
+      const childOrders = childIds.length
+        ? await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=in.(${childIds.join(',')})&select=affiliate_id,status,created_at&limit=20000`)
+        : [];
+      const teamSalesByMonth = (childOrders || []).filter(isPaidOrder).reduce((map, order) => {
+        const key = monthKeySaoPaulo(order.created_at);
+        if (key) map[key] = (map[key] || 0) + 1;
+        return map;
+      }, {});
 
-      await reconcileAffiliateOrderCommissions(supabaseFetch, affiliate.id, settings, {
-        teamJoinedAt: affiliate.team_joined_at,
-      }).catch(() => null);
+      const now = new Date();
+      const currentMonth = monthKeySaoPaulo(now);
+      const ownSalesByMonth = (orders || []).filter(isPaidOrder).reduce((map, order) => {
+        const key = monthKeySaoPaulo(order.created_at);
+        if (key) map[key] = (map[key] || 0) + 1;
+        return map;
+      }, {});
+      const fixedLevel = getLevel((orders || []).filter(isPaidOrder).length, settings, 'fixed');
+      const joinedAt = affiliate.team_joined_at ? new Date(affiliate.team_joined_at) : null;
+      const teamBonusActive = Boolean(joinedAt && !Number.isNaN(joinedAt.getTime()) && now >= joinedAt && now < new Date(joinedAt.getTime() + 30 * 24 * 60 * 60 * 1000));
+      const baseLevelKey = teamBonusActive && LEVEL_ORDER.bronze > LEVEL_ORDER[fixedLevel.key] ? 'bronze' : fixedLevel.key;
+      const basePoints = baseLevelKey === 'gold' ? Number(settings.monthlyLevels?.gold || 101)
+        : baseLevelKey === 'silver' ? Number(settings.monthlyLevels?.silver || 50)
+        : baseLevelKey === 'bronze' ? Number(settings.monthlyLevels?.bronze || 10) : 0;
+      const monthlyPoints = basePoints + Number(ownSalesByMonth[currentMonth] || 0) + Number(teamSalesByMonth[currentMonth] || 0);
+      const currentLevelKey = getLevel(monthlyPoints, settings, 'monthly').key;
+      const commissionOptions = { teamJoinedAt: affiliate.team_joined_at, levelKey: currentLevelKey, teamSalesByMonth };
 
+      await reconcileAffiliateOrderCommissions(supabaseFetch, affiliate.id, settings, commissionOptions).catch(() => null);
       const refreshedOrders = await supabaseFetch(ordersPath);
-      earned = commissionForOrders(refreshedOrders || orders || [], settings, {
-        teamJoinedAt: affiliate.team_joined_at,
-      }).total;
+      // Somente pedidos pessoais entram em earned, espelhando o card de saldo disponível.
+      earned = commissionForOrders(refreshedOrders || orders || [], settings, commissionOptions).total;
     } else {
       const children = await supabaseFetch(`/rest/v1/affiliates?team_parent_id=eq.${affiliate.id}&select=id&limit=1000`);
       const ids = (children || []).map(row => Number(row.id)).filter(Boolean);
