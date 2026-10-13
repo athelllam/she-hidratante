@@ -1,0 +1,4 @@
+#Tue Oct 13 00:37:11 GMT-03:00 2026
+base.0=C\:\\Users\\ADMIN\\Desktop\\SHE AFILIADOS\\android-app\\app\\build\\intermediates\\dex\\debugAndroidTest\\mergeProjectDexDebugAndroidTest\\0\\classes.dex
+path.0=0/classes.dex
+renamed.0=classes.dex

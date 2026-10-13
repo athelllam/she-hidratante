@@ -48,14 +48,8 @@ async function api(path, options = {}) {
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     ...options,
   })
-  const raw = await response.text().catch(() => '')
-  let data = {}
-  try { data = raw ? JSON.parse(raw) : {} } catch { data = {} }
-  if (!response.ok) {
-    const detail = data.error || data.message || data.msg || (raw && raw.slice(0, 180))
-    throw new Error(detail ? `Falha na operação (HTTP ${response.status}): ${detail}` : `Falha na operação (HTTP ${response.status}).`)
-  }
-  if (!raw) return {}
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(data.error || 'Não foi possível concluir a operação.')
   return data
 }
 
@@ -75,14 +69,6 @@ function levelAccent(key) {
 
 export default function AffiliateDashboard() {
   const [affiliate, setAffiliate] = useState(null)
-  const [installHelpOpen, setInstallHelpOpen] = useState(false)
-  const [installPrompt, setInstallPrompt] = useState(null)
-  const [isIosDevice, setIsIosDevice] = useState(false)
-  const [isStandaloneApp, setIsStandaloneApp] = useState(false)
-  const [pushPromptOpen, setPushPromptOpen] = useState(false)
-  const [pushBusy, setPushBusy] = useState(false)
-  const [pushMessage, setPushMessage] = useState('')
-  const [pushDismissed, setPushDismissed] = useState(false)
   const [dashboard, setDashboard] = useState(null)
   const [selectedMonth, setSelectedMonth] = useState('all')
   const [registerMode, setRegisterMode] = useState(false)
@@ -110,8 +96,6 @@ export default function AffiliateDashboard() {
   const [teamBoost, setTeamBoost] = useState(null)
   const [teamBoostBusy, setTeamBoostBusy] = useState(false)
   const [teamBoostMessage, setTeamBoostMessage] = useState('')
-  const [boostConfirmPlan, setBoostConfirmPlan] = useState(null)
-  const [boostTermsAccepted, setBoostTermsAccepted] = useState(false)
   const [teamReservation, setTeamReservation] = useState(null)
   const [teamLookup, setTeamLookup] = useState(null)
   const [teamLookupBusy, setTeamLookupBusy] = useState(false)
@@ -234,94 +218,6 @@ export default function AffiliateDashboard() {
       clearTimeout(timeout)
     }
   }, [teamCode, teamReservation, affiliate?.id])
-
-  useEffect(() => {
-    const ua = window.navigator.userAgent || ''
-    const ios = /iPad|iPhone|iPod/.test(ua) || (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1)
-    const standalone = window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true || new URLSearchParams(window.location.search).get('source') === 'pwa'
-    setIsIosDevice(ios)
-    setIsStandaloneApp(Boolean(standalone))
-    const onBeforeInstall = (event) => {
-      event.preventDefault()
-      setInstallPrompt(event)
-    }
-    const onInstalled = () => {
-      setInstallPrompt(null)
-      setInstallHelpOpen(false)
-      setIsStandaloneApp(true)
-    }
-    window.addEventListener('beforeinstallprompt', onBeforeInstall)
-    window.addEventListener('appinstalled', onInstalled)
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {})
-    return () => {
-      window.removeEventListener('beforeinstallprompt', onBeforeInstall)
-      window.removeEventListener('appinstalled', onInstalled)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!affiliate?.id || !isStandaloneApp || pushDismissed) return
-    if (!('Notification' in window) || Notification.permission !== 'default') return
-    // Não bloqueia a exibição do convite por uma detecção prematura de PushManager;
-    // a compatibilidade completa é verificada quando a afiliada toca em Ativar.
-    const key = `she-push-prompt-dismissed-${affiliate.id}`
-    try { if (window.sessionStorage.getItem(key) === '1') return } catch {}
-    const timer = window.setTimeout(() => setPushPromptOpen(true), 1400)
-    return () => window.clearTimeout(timer)
-  }, [affiliate?.id, isStandaloneApp, pushDismissed])
-
-  const base64UrlToUint8Array = (value) => {
-    const padding = '='.repeat((4 - value.length % 4) % 4)
-    const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/')
-    const raw = window.atob(base64)
-    return Uint8Array.from([...raw].map(char => char.charCodeAt(0)))
-  }
-
-  const enablePushNotifications = async () => {
-    setPushBusy(true)
-    setPushMessage('')
-    try {
-      if (!isStandaloneApp) throw new Error('Adicione a She à Tela de Início e abra pelo ícone para ativar as notificações no iPhone.')
-      if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) throw new Error('Este dispositivo ou navegador não oferece suporte a notificações push.')
-      const config = await api('/api/affiliate/push-subscription')
-      if (!config.publicKey) throw new Error('As notificações ainda estão sendo configuradas. Tente novamente mais tarde.')
-      const permission = await Notification.requestPermission()
-      if (permission !== 'granted') {
-        setPushPromptOpen(false)
-        setPushDismissed(true)
-        window.sessionStorage.setItem(`she-push-prompt-dismissed-${affiliate.id}`, '1')
-        setPushMessage('As notificações não foram autorizadas. Você poderá ativá-las nas configurações do dispositivo.')
-        return
-      }
-      const registration = await navigator.serviceWorker.ready
-      let subscription = await registration.pushManager.getSubscription()
-      if (!subscription) subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: base64UrlToUint8Array(config.publicKey) })
-      await api('/api/affiliate/push-subscription', { method: 'POST', body: JSON.stringify({ subscription: subscription.toJSON() }) })
-      setPushPromptOpen(false)
-      setPushDismissed(true)
-      setPushMessage('Notificações ativadas! Você receberá novidades importantes da sua equipe.')
-    } catch (err) {
-      setPushMessage(err.message || 'Não foi possível ativar as notificações.')
-    } finally {
-      setPushBusy(false)
-    }
-  }
-
-  const dismissPushPrompt = () => {
-    setPushPromptOpen(false)
-    setPushDismissed(true)
-    if (affiliate?.id) window.sessionStorage.setItem(`she-push-prompt-dismissed-${affiliate.id}`, '1')
-  }
-
-  const handleInstallApp = async () => {
-    if (installPrompt && !isIosDevice) {
-      installPrompt.prompt()
-      try { await installPrompt.userChoice } catch {}
-      setInstallPrompt(null)
-      return
-    }
-    setInstallHelpOpen(true)
-  }
 
   useEffect(() => { load({ sync: true }) }, [])
 
@@ -567,10 +463,8 @@ export default function AffiliateDashboard() {
       const [refreshed, boostData] = await Promise.all([api(`/api/affiliate/dashboard?month=${encodeURIComponent(selectedMonth || 'all')}`), api('/api/affiliate/dashboard?boost=1')])
       setDashboard(refreshed)
       setTeamBoost(boostData)
-      return true
     } catch (e) {
       setTeamBoostMessage(e.message || 'Não foi possível contratar o impulso.')
-      return false
     } finally {
       setTeamBoostBusy(false)
     }
@@ -774,16 +668,6 @@ export default function AffiliateDashboard() {
   const currentMonthPersonalSales = Number(dashboard?.metrics?.currentMonthPersonalSales || 0)
   const canWithdrawThisMonth = currentMonthPersonalSales >= 1
   const team = dashboard?.team || { code: affiliate.team_code || '', joined: false, canJoin: false, commissionPerSale: 10, earnedCommission: 0, availableCommission: 0, members: [], parent: null }
-  const teamAdvanced1 = config.teamAdvanced1 || { members: 10, sales: 20, commissionPerSale: 15 }
-  const teamAdvanced2 = config.teamAdvanced2 || { members: 20, sales: 40, commissionPerSale: 20 }
-  const teamActiveMembers = Number(team.monthlyMembers || 0)
-  const teamMonthSales = Number(team.monthlySales || 0)
-  const teamHasAdvanced1 = teamActiveMembers >= Number(teamAdvanced1.members) && teamMonthSales >= Number(teamAdvanced1.sales)
-  const teamHasAdvanced2 = teamActiveMembers >= Number(teamAdvanced2.members) && teamMonthSales >= Number(teamAdvanced2.sales)
-  const teamMemberTarget = teamActiveMembers >= Number(teamAdvanced1.members) ? Number(teamAdvanced2.members) : Number(teamAdvanced1.members)
-  const teamSalesTarget = teamMonthSales >= Number(teamAdvanced1.sales) ? Number(teamAdvanced2.sales) : Number(teamAdvanced1.sales)
-  const teamMemberTargetLabel = teamActiveMembers >= Number(teamAdvanced1.members) ? 'para Equipe Avançada II' : 'para Equipe Avançada I'
-  const teamSalesTargetLabel = teamMonthSales >= Number(teamAdvanced1.sales) ? 'para Equipe Avançada II' : 'para Equipe Avançada I'
   const teamBonusExpiresAt = dashboard?.teamBonus?.active && dashboard?.teamBonus?.expiresAt
     ? new Date(dashboard.teamBonus.expiresAt).getTime()
     : null
@@ -798,30 +682,6 @@ export default function AffiliateDashboard() {
 
   return (
     <main className="min-h-screen bg-[#fffafc] px-5 py-8 md:px-10">
-      {pushPromptOpen && <div className="fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto bg-zinc-950/60 p-4" role="dialog" aria-modal="true" aria-labelledby="push-prompt-title">
-        <div className="my-auto w-full max-w-md overflow-hidden rounded-[2rem] border border-pink-100 bg-white shadow-2xl">
-          <div className="bg-gradient-to-br from-pink-500 via-rose-400 to-fuchsia-500 px-6 pb-7 pt-8 text-center text-white"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-white/40 bg-white/20 text-3xl shadow-lg">🔔</div><p className="mt-4 text-[10px] font-black uppercase tracking-[.25em] text-white/80">She Afiliadas</p><h2 id="push-prompt-title" className="mt-2 text-2xl font-black">Não perca as novidades da sua equipe</h2><p className="mt-2 text-sm leading-6 text-white/90">Ative as notificações para receber avisos importantes diretamente no seu iPhone.</p></div>
-          <div className="space-y-3 p-5 sm:p-6"><div className="flex gap-3 rounded-2xl bg-pink-50 p-3"><span className="text-xl">🏆</span><p className="text-xs leading-5 text-zinc-700"><strong>Conquistas e classificação</strong><br/>Saiba quando sua equipe alcançar novas metas.</p></div><div className="flex gap-3 rounded-2xl bg-pink-50 p-3"><span className="text-xl">💗</span><p className="text-xs leading-5 text-zinc-700"><strong>Novidades importantes</strong><br/>Receba atualizações relevantes do programa de afiliadas.</p></div>{pushMessage && <p className="rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">{pushMessage}</p>}<button type="button" disabled={pushBusy} onClick={enablePushNotifications} className="w-full rounded-xl bg-pink-600 px-4 py-3.5 text-sm font-black text-white shadow-lg shadow-pink-200 disabled:opacity-60">{pushBusy ? 'Ativando…' : 'Ativar notificações'}</button><button type="button" onClick={dismissPushPrompt} className="w-full rounded-xl px-4 py-2.5 text-xs font-bold text-zinc-500 hover:bg-zinc-50">Agora não</button><p className="text-center text-[10px] leading-4 text-zinc-400">Você controla essa permissão nas configurações do iPhone.</p></div>
-        </div>
-      </div>}
-      {installHelpOpen && <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-zinc-950/55 p-4" role="dialog" aria-modal="true" aria-labelledby="install-help-title">
-        <div className="my-auto w-full max-w-lg rounded-[2rem] border border-pink-100 bg-white p-5 shadow-2xl sm:p-7">
-          <div className="flex items-start gap-3">
-            <img src="/apple-touch-icon-180.png" alt="Ícone do app She" className="h-16 w-16 rounded-2xl shadow-sm" />
-            <div className="min-w-0 flex-1"><p className="text-[10px] font-black uppercase tracking-[.22em] text-pink-500">She Afiliadas</p><h2 id="install-help-title" className="mt-1 text-xl font-black text-zinc-950">Adicione a She à tela inicial</h2><p className="mt-1 text-sm leading-5 text-zinc-500">Acesse seu painel como um aplicativo, direto pelo ícone da She.</p></div>
-            <button type="button" onClick={() => setInstallHelpOpen(false)} aria-label="Fechar" className="rounded-full p-2 text-xl leading-none text-zinc-400 hover:bg-zinc-100">×</button>
-          </div>
-          {isIosDevice ? <div className="mt-5 space-y-3">
-            <div className="flex gap-3 rounded-2xl border border-zinc-100 bg-[#fffafc] p-3.5"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-2xl font-black shadow-sm">···</div><div><p className="text-sm font-extrabold text-zinc-900">1. Toque nos três pontinhos (···)</p><p className="mt-1 text-xs leading-5 text-zinc-600">No Safari do iPhone, toque no menu de três pontinhos na parte inferior da tela para abrir as opções da página.</p><div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-[11px] font-bold text-zinc-500 shadow-sm"><span className="text-lg">···</span> Menu do Safari</div></div></div>
-            <div className="flex gap-3 rounded-2xl border border-zinc-100 bg-[#fffafc] p-3.5"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">↥</div><div><p className="text-sm font-extrabold text-zinc-900">2. Toque em “Compartilhar”</p><p className="mt-1 text-xs leading-5 text-zinc-600">No menu que abrir, escolha Compartilhar (ícone de um quadrado com uma seta para cima), se essa opção aparecer.</p><div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-[11px] font-bold text-zinc-500 shadow-sm"><span className="text-lg text-sky-600">□↑</span> Compartilhar</div></div></div>
-            <div className="flex gap-3 rounded-2xl border border-zinc-100 bg-[#fffafc] p-3.5"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">⌄</div><div><p className="text-sm font-extrabold text-zinc-900">3. Toque na setinha de “Ver Mais”</p><p className="mt-1 text-xs leading-5 text-zinc-600">Na tela de Compartilhar, toque na seta para baixo ao lado de “Ver Mais” para expandir a lista completa de opções.</p><div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-[11px] font-bold text-zinc-600 shadow-sm"><span className="text-lg">Ver Mais⌄</span> Mostrar opções</div></div></div>
-            <div className="flex gap-3 rounded-2xl border border-zinc-100 bg-[#fffafc] p-3.5"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">＋</div><div><p className="text-sm font-extrabold text-zinc-900">4. Escolha “Adicionar à Tela de Início”</p><p className="mt-1 text-xs leading-5 text-zinc-600">Depois de expandir “Ver Mais”, procure e toque em “Adicionar à Tela de Início”.</p><div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-[11px] font-bold text-zinc-600 shadow-sm"><span className="flex h-5 w-5 items-center justify-center rounded-md bg-pink-100 text-pink-600">＋</span> Adicionar à Tela de Início</div></div></div>
-            <div className="flex gap-3 rounded-2xl border border-pink-100 bg-pink-50/70 p-3.5"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">✓</div><div><p className="text-sm font-extrabold text-zinc-900">5. Confirme em “Adicionar”</p><p className="mt-1 text-xs leading-5 text-zinc-600">O ícone oficial da She Afiliadas aparecerá na tela inicial do iPhone. Na próxima vez, abra por esse ícone.</p></div></div>
-            <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">Importante: no iPhone, faça isso pelo Safari. Outros navegadores podem não mostrar a mesma opção.</p>
-          </div> : <div className="mt-5 space-y-3"><div className="rounded-2xl bg-[#fffafc] p-4"><p className="text-sm font-extrabold text-zinc-900">Instale a She no seu dispositivo</p><p className="mt-1 text-sm leading-6 text-zinc-600">Use a opção de instalação do navegador. Se ela não aparecer, abra o menu do navegador e procure “Instalar app” ou “Adicionar à tela inicial”.</p></div>{installPrompt && <button type="button" onClick={handleInstallApp} className="w-full rounded-xl bg-pink-600 px-4 py-3 text-sm font-black text-white hover:bg-pink-700">Instalar agora</button>}</div>}
-          <button type="button" onClick={() => setInstallHelpOpen(false)} className="mt-5 w-full rounded-xl bg-zinc-950 px-4 py-3 text-sm font-black text-white transition hover:bg-zinc-800">Entendi</button>
-        </div>
-      </div>}
       <div className="mx-auto max-w-7xl">
         <header className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -831,7 +691,6 @@ export default function AffiliateDashboard() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {syncMessage && <span className="text-xs font-semibold text-zinc-400">{syncMessage}</span>}
-            {!isStandaloneApp && <button type="button" onClick={handleInstallApp} className="inline-flex items-center gap-1.5 rounded-xl border border-pink-200 bg-pink-50 px-3 py-2.5 text-xs font-black text-pink-700 shadow-sm transition hover:border-pink-300 hover:bg-pink-100"><span aria-hidden="true">↓</span> Baixar App</button>}
             <button type="button" onClick={openProfile} className="rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-xs font-black text-zinc-700 shadow-sm transition hover:border-pink-300 hover:text-pink-600">
               Meus Dados
             </button>
@@ -1144,14 +1003,7 @@ export default function AffiliateDashboard() {
           {team.joined && team.parent && (
             <div className="mb-5 rounded-2xl border border-pink-100 bg-pink-50/60 p-4">
               <p className="text-[10px] font-black uppercase tracking-[.18em] text-pink-500">Sua afiliada mãe</p>
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-lg font-black text-zinc-950">{team.parent.name}</p>
-                {team.parent.whatsapp && (() => {
-                  const parentWhatsApp = String(team.parent.whatsapp).replace(/\D/g, '')
-                  const whatsappNumber = parentWhatsApp.startsWith('55') ? parentWhatsApp : `55${parentWhatsApp}`
-                  return <a href={`https://wa.me/${whatsappNumber}`} target="_blank" rel="noreferrer" aria-label={`Conversar com ${team.parent.name} pelo WhatsApp`} className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-black text-white shadow-sm transition hover:bg-emerald-600"><svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="currentColor"><path d="M20.52 3.48A11.86 11.86 0 0 0 12.08 0C5.47 0 .1 5.37.1 11.98c0 2.11.55 4.17 1.6 5.99L0 24l6.2-1.63a11.94 11.94 0 0 0 5.88 1.5h.01c6.61 0 11.98-5.37 11.98-11.98 0-3.2-1.25-6.2-3.55-8.41ZM12.09 21.8a9.9 9.9 0 0 1-5.04-1.38l-.36-.21-3.68.97.98-3.59-.23-.37a9.83 9.83 0 0 1-1.51-5.24c0-5.44 4.43-9.87 9.88-9.87a9.8 9.8 0 0 1 6.98 2.89 9.8 9.8 0 0 1 2.89 6.99c0 5.44-4.43 9.87-9.89 9.87Zm5.42-7.39c-.3-.15-1.77-.87-2.05-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.47-.89-.79-1.49-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.49s1.07 2.89 1.22 3.09c.15.2 2.1 3.21 5.09 4.5.71.31 1.27.49 1.7.63.71.23 1.36.2 1.87.12.57-.08 1.77-.72 2.02-1.42.25-.7.25-1.3.17-1.42-.07-.13-.27-.2-.57-.35Z"/></svg>WhatsApp</a>
-                })()}
-              </div>
+              <div className="mt-2"><p className="text-lg font-black text-zinc-950">{team.parent.name}</p></div>
             </div>
           )}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -1161,43 +1013,23 @@ export default function AffiliateDashboard() {
               <p className="mt-1 text-sm text-zinc-500">Passe seu ID para novas afiliadas entrarem diretamente na sua equipe.</p>
               <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-pink-50 px-4 py-2"><span className="text-xs font-bold text-zinc-500">Seu ID</span><span className="text-lg font-black tracking-[.08em] text-pink-600">{affiliate.id}</span></div>
             </div>
+            <div className="grid gap-2 sm:min-w-[320px] sm:grid-cols-2">
+              <div className="rounded-2xl bg-zinc-50 px-4 py-3">
+                <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Vendas da equipe</p>
+                <p className="mt-1 text-xl font-black text-zinc-950">{team.sales || 0}</p>
+                <p className="mt-1 text-xs text-zinc-400">Somatória das vendas das afiliadas diretamente na sua equipe.</p>
+              </div>
+              <div className="rounded-2xl bg-zinc-50 px-4 py-3">
+                <p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Comissão de equipe</p>
+                <p className="mt-1 text-xl font-black text-zinc-950">{brl(team.commissionPerSale)} / venda</p>
+                <p className="mt-1 text-xs text-zinc-400">Gerada pelas afiliadas diretamente na sua equipe.</p>
+              </div>
+            </div>
           </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-pink-100 bg-white px-4 py-3 shadow-sm"><p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Afiliadas totais na equipe</p><p className="mt-1 text-2xl font-black text-zinc-950">{(team.members || []).length}</p><p className="mt-1 text-xs text-zinc-500">Total de afiliadas diretas cadastradas na sua rede.</p></div>
-            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 px-4 py-3 shadow-sm"><p className="text-[10px] font-black uppercase tracking-[.15em] text-emerald-700">Afiliadas ativas neste mês</p><p className="mt-1 text-2xl font-black text-zinc-950">{teamActiveMembers}</p><p className="mt-1 text-xs text-zinc-500">Afiliadas diretas com pelo menos 1 venda aprovada neste mês.</p></div>
-          </div>
-
-          <div className="mt-5 overflow-hidden rounded-[1.6rem] border border-pink-200 bg-gradient-to-br from-[#fff0f6] via-white to-[#fff7ed] shadow-sm">
-            <div className="flex flex-col gap-4 border-b border-pink-100 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-              <div className="flex items-center gap-4">
-                <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl shadow-sm ${teamHasAdvanced2 ? 'bg-gradient-to-br from-amber-300 to-yellow-500 text-white' : teamHasAdvanced1 ? 'bg-gradient-to-br from-fuchsia-500 to-pink-600 text-white' : 'bg-white text-pink-500 ring-1 ring-pink-100'}`}>
-                  <svg viewBox="0 0 24 24" aria-hidden="true" className="h-7 w-7 fill-none stroke-current stroke-[1.8]"><path strokeLinecap="round" strokeLinejoin="round" d="M12 3.5 14.6 8.8l5.9.9-4.25 4.15 1 5.85L12 16.9l-5.25 2.8 1-5.85L3.5 9.7l5.9-.9L12 3.5Z"/><path strokeLinecap="round" d="M8.8 11.8 11 14l4.4-4.5"/></svg>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Sua classificação mensal</p>
-                  <h3 className="mt-1 text-2xl font-black tracking-tight text-zinc-950 sm:text-3xl">{teamHasAdvanced2 ? 'Equipe Avançada II' : teamHasAdvanced1 ? 'Equipe Avançada I' : 'Equipe Base'}</h3>
-                  <p className="mt-1 text-sm text-zinc-600">{teamHasAdvanced2 ? 'Você alcançou o nível máximo de equipe deste mês. Parabéns!' : teamHasAdvanced1 ? 'Meta Avançada I conquistada! Continue crescendo para chegar à Avançada II.' : 'Cada afiliada ativa e cada venda aproximam você do próximo nível.'}</p>
-                </div>
-              </div>
-            </div>
-            <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
-              <div className="rounded-2xl border border-white bg-white/90 p-4 shadow-sm">
-                <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.12em] text-zinc-500">Afiliadas ativas</p><p className="mt-1 text-2xl font-black text-zinc-950">{teamActiveMembers}/{teamMemberTarget}</p></div><span className="rounded-full bg-pink-50 px-3 py-1.5 text-[10px] font-black text-pink-600">{teamHasAdvanced2 ? 'Meta final' : teamMemberTargetLabel}</span></div>
-                <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-pink-100"><div className="h-full rounded-full bg-gradient-to-r from-pink-400 to-fuchsia-600 transition-all duration-500" style={{ width: `${Math.min(100, teamMemberTarget > 0 ? teamActiveMembers / teamMemberTarget * 100 : 0)}%` }} /></div>
-                <p className="mt-2 text-xs leading-5 text-zinc-500">Só contam afiliadas diretas com pelo menos 1 venda aprovada neste mês.</p>
-              </div>
-              <div className="rounded-2xl border border-white bg-white/90 p-4 shadow-sm">
-                <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.12em] text-zinc-500">Vendas de equipe</p><p className="mt-1 text-2xl font-black text-zinc-950">{teamMonthSales}/{teamSalesTarget}</p></div><span className="rounded-full bg-fuchsia-50 px-3 py-1.5 text-[10px] font-black text-fuchsia-700">{teamHasAdvanced2 ? 'Meta final' : teamSalesTargetLabel}</span></div>
-                <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-fuchsia-100"><div className="h-full rounded-full bg-gradient-to-r from-fuchsia-500 to-pink-500 transition-all duration-500" style={{ width: `${Math.min(100, teamSalesTarget > 0 ? teamMonthSales / teamSalesTarget * 100 : 0)}%` }} /></div>
-                <p className="mt-2 text-xs leading-5 text-zinc-500">A classificação considera as vendas aprovadas da equipe direta neste mês.</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-2 border-t border-pink-100 bg-white/60 p-4 sm:grid-cols-3 sm:p-5">
-              <div className={`rounded-xl px-3 py-3 ${!teamHasAdvanced1 ? 'bg-pink-100 ring-1 ring-pink-200' : 'bg-white'}`}><p className="text-xs font-black text-zinc-800">Equipe Base</p><p className="mt-1 text-sm font-bold text-pink-600">{brl(config.teamCommissionPerSale || 10)} por venda</p><p className="mt-1 text-[10px] text-zinc-500">Nível inicial</p></div>
-              <div className={`rounded-xl px-3 py-3 ${teamHasAdvanced1 && !teamHasAdvanced2 ? 'bg-pink-100 ring-1 ring-pink-200' : 'bg-white'}`}><p className="text-xs font-black text-zinc-800">Equipe Avançada I</p><p className="mt-1 text-sm font-bold text-pink-600">{brl(teamAdvanced1.commissionPerSale)} por venda</p><p className="mt-1 text-[10px] text-zinc-500">{teamAdvanced1.members} afiliadas ativas + {teamAdvanced1.sales} vendas</p></div>
-              <div className={`rounded-xl px-3 py-3 ${teamHasAdvanced2 ? 'bg-amber-50 ring-1 ring-amber-200' : 'bg-white'}`}><p className="text-xs font-black text-zinc-800">Equipe Avançada II</p><p className="mt-1 text-sm font-bold text-pink-600">{brl(teamAdvanced2.commissionPerSale)} por venda</p><p className="mt-1 text-[10px] text-zinc-500">{teamAdvanced2.members} afiliadas ativas + {teamAdvanced2.sales} vendas</p></div>
-            </div>
+            <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4"><p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Comissão gerada</p><p className="mt-1 text-2xl font-black text-zinc-950">{brl(team.earnedCommission)}</p></div>
+            <div className="rounded-2xl border border-pink-100 bg-pink-50/60 p-4"><p className="text-[10px] font-black uppercase tracking-[.15em] text-pink-500">Saldo de Equipe</p><p className="mt-1 text-2xl font-black text-zinc-950">{brl(team.availableCommission)}</p></div>
           </div>
 
           <div className="mt-5">
@@ -1221,11 +1053,6 @@ export default function AffiliateDashboard() {
           </div>
 
 
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4"><p className="text-[10px] font-black uppercase tracking-[.15em] text-zinc-400">Comissão gerada</p><p className="mt-1 text-2xl font-black text-zinc-950">{brl(team.earnedCommission)}</p></div>
-            <div className="rounded-2xl border border-pink-100 bg-pink-50/60 p-4"><p className="text-[10px] font-black uppercase tracking-[.15em] text-pink-500">Saldo de Equipe</p><p className="mt-1 text-2xl font-black text-zinc-950">{brl(team.availableCommission)}</p></div>
-          </div>
 
           <div className="mt-5 rounded-2xl border border-pink-100 bg-white p-4">
             <p className="text-sm font-black text-zinc-900">Sacar comissão de equipe</p>
@@ -1258,7 +1085,7 @@ export default function AffiliateDashboard() {
                 const visuallyQueued = capacityFull || insufficient || blockedByActive
                 return <div key={plan.key} className={`rounded-2xl border p-4 ${visuallyQueued ? 'border-zinc-200 bg-zinc-100/80 text-zinc-400' : 'border-pink-100 bg-pink-50/50'}`}>
                   <div className="flex items-start justify-between gap-3"><div><p className={`text-sm font-black ${visuallyQueued ? 'text-zinc-500' : 'text-zinc-950'}`}>{plan.connections} conexões</p><p className="mt-1 text-xs text-zinc-400">Impulsionamento automático</p></div><p className={`text-xl font-black ${visuallyQueued ? 'text-zinc-500' : 'text-pink-600'}`}>{brl(plan.price)}</p></div>
-                  <button type="button" onClick={() => { setBoostConfirmPlan(plan); setBoostTermsAccepted(false) }} disabled={teamBoostBusy || insufficient || blockedByActive} className="mt-4 w-full rounded-xl bg-zinc-950 py-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-zinc-300">{blockedByActive ? (teamBoost?.boost?.status === 'queued' ? 'Já está na fila' : 'Impulso ativo') : insufficient ? 'Saldo insuficiente' : capacityFull ? 'Entrar na fila' : 'Impulsionar equipe'}</button>
+                  <button type="button" onClick={() => purchaseBoost(plan.key)} disabled={teamBoostBusy || insufficient || blockedByActive} className="mt-4 w-full rounded-xl bg-zinc-950 py-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-zinc-300">{blockedByActive ? (teamBoost?.boost?.status === 'queued' ? 'Já está na fila' : 'Impulso ativo') : insufficient ? 'Saldo insuficiente' : capacityFull ? 'Entrar na fila' : 'Impulsionar equipe'}</button>
                 </div>
               })}
             </div>
@@ -1517,35 +1344,6 @@ export default function AffiliateDashboard() {
             </div>
 
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" disabled={teamJoinBusy} onClick={closeTeamConfirmation} className="rounded-xl border border-zinc-200 px-5 py-3 text-sm font-black text-zinc-600 disabled:opacity-50">Voltar</button><button type="button" disabled={teamJoinBusy} onClick={confirmTeamJoin} className="rounded-xl bg-pink-500 px-5 py-3 text-sm font-black text-white shadow-md shadow-pink-100 transition hover:bg-pink-600 disabled:cursor-not-allowed disabled:opacity-40">{teamJoinBusy ? 'Confirmando…' : 'Aceitar e entrar na equipe'}</button></div>
-          </div>
-        </div>
-      )}
-
-      {boostConfirmPlan && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 px-4 py-6 backdrop-blur-[2px]" onMouseDown={() => { if (!teamBoostBusy) { setBoostConfirmPlan(null); setBoostTermsAccepted(false) } }}>
-          <div role="dialog" aria-modal="true" aria-labelledby="boost-confirm-title" className="w-full max-w-lg rounded-[1.7rem] bg-white p-6 shadow-[0_30px_100px_rgba(0,0,0,.25)]" onMouseDown={event => event.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Confirmação de contratação</p>
-                <h3 id="boost-confirm-title" className="mt-1 text-xl font-black text-zinc-950">Confirmar Impulso de Equipe</h3>
-                <p className="mt-2 text-sm text-zinc-500">Plano de {boostConfirmPlan.connections} conexões · <strong className="text-pink-600">{brl(boostConfirmPlan.price)}</strong></p>
-              </div>
-              <button type="button" aria-label="Fechar" onClick={() => { setBoostConfirmPlan(null); setBoostTermsAccepted(false) }} disabled={teamBoostBusy} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-sm font-black text-zinc-500 disabled:opacity-50">×</button>
-            </div>
-            <div className="mt-5 space-y-3 rounded-2xl border border-pink-100 bg-pink-50/60 p-4 text-sm leading-6 text-zinc-700">
-              <p>Ao contratar o Impulso, o valor será reservado do seu saldo e você entrará na fila. Quando houver capacidade, o sistema ativará o plano e direcionará novas afiliadas para você conforme elas procurarem uma equipe.</p>
-              <p>Quando novas afiliadas entrarem na sua equipe, você poderá entrar em contato com elas para dar boas-vindas, apresentar a oportunidade e incentivá-las a desenvolver as vendas.</p>
-              <p><strong className="text-zinc-900">Cancelamento:</strong> enquanto estiver na fila, você pode sair e receber o valor reservado de volta. Depois que o impulso for ativado, não há cancelamento nem reembolso.</p>
-              <p>As conexões representam novas entradas confirmadas na equipe, e o impulso termina quando todas as conexões contratadas forem utilizadas.</p>
-            </div>
-            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl border border-zinc-200 p-4 text-sm leading-5 text-zinc-700">
-              <input type="checkbox" checked={boostTermsAccepted} onChange={event => setBoostTermsAccepted(event.target.checked)} className="mt-1 h-4 w-4 accent-pink-500" />
-              <span>Li e aceito os termos do Impulso de Equipe, incluindo as regras de reserva do saldo, fila, cancelamento e reembolso.</span>
-            </label>
-            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button type="button" disabled={teamBoostBusy} onClick={() => { setBoostConfirmPlan(null); setBoostTermsAccepted(false) }} className="rounded-xl border border-zinc-200 px-5 py-3 text-sm font-black text-zinc-600 disabled:opacity-50">Voltar</button>
-              <button type="button" disabled={!boostTermsAccepted || teamBoostBusy} onClick={async () => { const planKey = boostConfirmPlan.key; const success = await purchaseBoost(planKey); if (success) { setBoostConfirmPlan(null); setBoostTermsAccepted(false) } }} className="rounded-xl bg-pink-500 px-5 py-3 text-sm font-black text-white shadow-md shadow-pink-100 transition hover:bg-pink-600 disabled:cursor-not-allowed disabled:bg-zinc-300">{teamBoostBusy ? 'Processando…' : 'Aceitar termos e contratar'}</button>
-            </div>
           </div>
         </div>
       )}

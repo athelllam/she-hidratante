@@ -1,13 +1,66 @@
 const { requireAdmin, supabaseFetch } = require('../_lib/admin');
+const { wooviFetch } = require('../_lib/woovi');
 const { sendEmail, affiliateVideoReviewEmail } = require('../_lib/email');
-const { commissionForOrders, reconcileAffiliateOrderCommissions, reconcileTeamMonthlyCommissions, isPaidOrder, DEFAULT_COMMISSION_CONFIG, normalizeConfig } = require('../_lib/affiliateCommission');
+const { commissionForOrders, reconcileAffiliateOrderCommissions, isPaidOrder, DEFAULT_COMMISSION_CONFIG, normalizeConfig } = require('../_lib/affiliateCommission');
 
 function json(res, status, body) { res.status(status).json(body); }
 function money(value) { return Math.round((Number(value) || 0) * 100) / 100; }
 
 module.exports = async function handler(req, res) {
+  // Reuse this existing serverless function for admin data settings so the
+  // project stays within Vercel's function-count limit. The rewrite in
+  // vercel.json forwards /api/admin/data here with __handler=admin-data.
+  if (String(req.query?.__handler || '') === 'admin-data') {
+    return require('../_handlers/admin_data')(req, res);
+  }
+
   try {
     await requireAdmin(req);
+
+    // Read-only Woovi balance for the admin dashboard. Reuses this function to
+    // stay within Vercel's serverless-function limit; the AppID remains server-side.
+    if (req.method === 'GET' && String(req.query?.wooviBalance || '') === '1') {
+      const result = await wooviFetch('/api/v1/account');
+      // The account-list endpoint may return account metadata without balance.
+      // Select the default account, then fetch its detail endpoint for balance.
+      const accounts = Array.isArray(result?.accounts) ? result.accounts : [];
+      let account =
+        (result?.account && typeof result.account === 'object' ? result.account : null) ||
+        accounts.find(item => item?.isDefault) ||
+        accounts[0] ||
+        (result?.balance && typeof result.balance === 'object' ? result : null);
+
+      if ((!account?.balance || account.balance.available == null) && account?.accountId) {
+        const detailResult = await wooviFetch(`/api/v1/account/${encodeURIComponent(account.accountId)}`);
+        account = (detailResult?.account && typeof detailResult.account === 'object')
+          ? detailResult.account
+          : detailResult;
+      }
+
+      if (!account?.balance || account.balance.available == null || !Number.isFinite(Number(account.balance.available))) {
+        const diagnostic = {
+          responseType: result === null ? 'null' : Array.isArray(result) ? 'array' : typeof result,
+          responseKeys: result && typeof result === 'object' ? Object.keys(result).slice(0, 30) : [],
+          accountCount: accounts.length,
+          accountKeys: account && typeof account === 'object' ? Object.keys(account).slice(0, 30) : [],
+          balanceType: account?.balance === null ? 'null' : Array.isArray(account?.balance) ? 'array' : typeof account?.balance,
+          balanceKeys: account?.balance && typeof account.balance === 'object' ? Object.keys(account.balance).slice(0, 30) : [],
+        };
+        // Safe shape-only diagnostics: never return balances, tokens, IDs, or raw provider payloads.
+        console.error('[Woovi balance] Unexpected account response shape', diagnostic);
+        const summary = `Tipo: ${diagnostic.responseType}; chaves raiz: ${diagnostic.responseKeys.join(', ') || '(nenhuma)'}; chaves conta: ${diagnostic.accountKeys.join(', ') || '(nenhuma)'}; tipo saldo: ${diagnostic.balanceType}; chaves saldo: ${diagnostic.balanceKeys.join(', ') || '(nenhuma)'}.`;
+        return json(res, 502, { error: `A Woovi respondeu, mas não foi possível identificar o saldo da conta. ${summary}` });
+      }
+      return json(res, 200, {
+        balance: {
+          total: Number(account.balance.total || 0) / 100,
+          blocked: Number(account.balance.blocked || 0) / 100,
+          available: Number(account.balance.available) / 100,
+        },
+        accountId: account.accountId || null,
+        updatedAt: new Date().toISOString(),
+      });
+    }
 
     if (req.method === 'GET' && String(req.query?.videos || '') === '1') {
       const rows = await supabaseFetch('/rest/v1/affiliate_video_submissions?select=id,affiliate_id,video_url,status,note,terms_version,terms_accepted_at,created_at,reviewed_at,affiliates(id,name,slug,email,cpf,whatsapp)&order=created_at.desc&limit=1000');
@@ -17,11 +70,11 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET') {
       const [affiliates, orders, withdrawals, events, statusHistory, settingRows, boostState, boostRows] = await Promise.all([
         supabaseFetch('/rest/v1/affiliates?select=id,slug,name,email,cpf,whatsapp,pix_key,active,admin_active,commission_rate,created_at,team_parent_id&order=created_at.desc'),
-        supabaseFetch('/rest/v1/affiliate_orders?select=id,affiliate_id,status,total,commission,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot,created_at&order=created_at.desc&limit=20000'),
+        supabaseFetch('/rest/v1/affiliate_orders?select=affiliate_id,status,total,commission,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot,created_at&order=created_at.desc&limit=20000'),
         supabaseFetch('/rest/v1/affiliate_withdrawals?select=affiliate_id,amount,status,source,requested_at&order=requested_at.desc&limit=10000'),
         supabaseFetch('/rest/v1/affiliate_events?select=affiliate_id,type,created_at&order=created_at.desc&limit=20000'),
         supabaseFetch('/rest/v1/affiliate_admin_status_history?select=affiliate_id,admin_active,effective_at&order=effective_at.asc&limit=20000').catch(() => []),
-        supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,team_advanced1_members,team_advanced1_sales,team_advanced1_commission,team_advanced2_members,team_advanced2_sales,team_advanced2_commission,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active,reseller_hydrant_price,reseller_hydrant_blister_price,reseller_stick_price,reseller_complete_price,average_sale_cost&limit=1'),
+        supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active,reseller_hydrant_price,reseller_hydrant_blister_price,reseller_stick_price,reseller_complete_price,average_sale_cost&limit=1'),
         supabaseFetch('/rest/v1/rpc/she_team_boost_admin_state', { method: 'POST', body: '{}' }).catch(() => ({ activeCount: 0, queueCount: 0, completedCount: 0, active: [] })),
         supabaseFetch('/rest/v1/affiliate_team_boosts?status=neq.cancelled&select=affiliate_id,price&limit=20000').catch(() => []),
       ]);
@@ -30,8 +83,6 @@ module.exports = async function handler(req, res) {
         ticketThreshold: settingRows[0].ticket_threshold,
         ticketBonus: settingRows[0].ticket_bonus,
         teamCommissionPerSale: Number(settingRows[0].team_commission_per_sale) > 0 ? Number(settingRows[0].team_commission_per_sale) : DEFAULT_COMMISSION_CONFIG.teamCommissionPerSale,
-        teamAdvanced1: { members: settingRows[0].team_advanced1_members, sales: settingRows[0].team_advanced1_sales, commissionPerSale: settingRows[0].team_advanced1_commission },
-        teamAdvanced2: { members: settingRows[0].team_advanced2_members, sales: settingRows[0].team_advanced2_sales, commissionPerSale: settingRows[0].team_advanced2_commission },
         commissions: {
           none: Number(settingRows[0].commission_none) > 0 ? Number(settingRows[0].commission_none) : DEFAULT_COMMISSION_CONFIG.commissions.none,
           bronze: Number(settingRows[0].commission_bronze) > 0 ? Number(settingRows[0].commission_bronze) : DEFAULT_COMMISSION_CONFIG.commissions.bronze,
@@ -53,20 +104,6 @@ module.exports = async function handler(req, res) {
       } : { small: { price: 30, connections: 5 }, large: { price: 50, connections: 10 }, maxActive: 3 };
       settings.resellerPrices = { hydrant: Number(settingRows?.[0]?.reseller_hydrant_price ?? 0), hydrantBlister: Number(settingRows?.[0]?.reseller_hydrant_blister_price ?? 0), stick: Number(settingRows?.[0]?.reseller_stick_price ?? 0), complete: Number(settingRows?.[0]?.reseller_complete_price ?? 0) };
       settings.averageSaleCost = Number(settingRows?.[0]?.average_sale_cost ?? 0);
-
-      const directMembersByParent = new Map();
-      for (const affiliate of affiliates || []) {
-        const parentId = Number(affiliate.team_parent_id || 0);
-        if (parentId) {
-          if (!directMembersByParent.has(parentId)) directMembersByParent.set(parentId, []);
-          directMembersByParent.get(parentId).push(affiliate);
-        }
-      }
-      for (const [parentId, members] of directMembersByParent.entries()) {
-        const memberIds = new Set(members.map(member => Number(member.id)));
-        const teamOrders = (orders || []).filter(order => memberIds.has(Number(order.affiliate_id)));
-        await reconcileTeamMonthlyCommissions(supabaseFetch, parentId, members, teamOrders, settings).catch(() => null);
-      }
 
       const detailAffiliateId = Number(req.query?.detail || 0);
       const detailMonth = String(req.query?.month || 'all');
@@ -597,13 +634,11 @@ module.exports = async function handler(req, res) {
       }
 
       if (requestedSettings) {
-        const currentRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,team_advanced1_members,team_advanced1_sales,team_advanced1_commission,team_advanced2_members,team_advanced2_sales,team_advanced2_commission,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active,reseller_hydrant_price,reseller_hydrant_blister_price,reseller_stick_price,reseller_complete_price,average_sale_cost&limit=1');
+        const currentRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active,reseller_hydrant_price,reseller_hydrant_blister_price,reseller_stick_price,reseller_complete_price,average_sale_cost&limit=1');
         const currentSettings = normalizeConfig(currentRows?.[0] ? {
           ticketThreshold: currentRows[0].ticket_threshold,
           ticketBonus: currentRows[0].ticket_bonus,
           teamCommissionPerSale: currentRows[0].team_commission_per_sale,
-          teamAdvanced1: { members: currentRows[0].team_advanced1_members, sales: currentRows[0].team_advanced1_sales, commissionPerSale: currentRows[0].team_advanced1_commission },
-          teamAdvanced2: { members: currentRows[0].team_advanced2_members, sales: currentRows[0].team_advanced2_sales, commissionPerSale: currentRows[0].team_advanced2_commission },
           commissions: { none: currentRows[0].commission_none, bronze: currentRows[0].commission_bronze, silver: currentRows[0].commission_silver, gold: currentRows[0].commission_gold },
           monthlyLevels: { bronze: currentRows[0].monthly_bronze_sales, silver: currentRows[0].monthly_silver_sales, gold: currentRows[0].monthly_gold_sales },
           fixedLevels: { bronze: currentRows[0].fixed_bronze_sales, silver: currentRows[0].fixed_silver_sales, gold: currentRows[0].fixed_gold_sales },
@@ -619,8 +654,6 @@ module.exports = async function handler(req, res) {
           ticketThreshold: requestedSettings.ticketThreshold,
           ticketBonus: requestedSettings.ticketBonus,
           teamCommissionPerSale: requestedSettings.teamCommissionPerSale,
-          teamAdvanced1: requestedSettings.teamAdvanced1,
-          teamAdvanced2: requestedSettings.teamAdvanced2,
           commissions: requestedSettings.commissions,
           monthlyLevels: requestedSettings.monthlyLevels,
           fixedLevels: requestedSettings.fixedLevels,
@@ -633,7 +666,7 @@ module.exports = async function handler(req, res) {
         const boost = nextSettings.boostPlans || { small: { price: 30, connections: 5 }, large: { price: 50, connections: 10 }, maxActive: 3 };
         const boostValid = boost.small?.price > 0 && Number.isInteger(Number(boost.small?.connections)) && Number(boost.small.connections) > 0 && boost.large?.price > 0 && Number.isInteger(Number(boost.large?.connections)) && Number(boost.large.connections) > 0 && Number.isInteger(Number(boost.maxActive)) && Number(boost.maxActive) > 0;
         const thresholdsValid = monthly.bronze < monthly.silver && monthly.silver < monthly.gold && fixed.bronze < fixed.silver && fixed.silver < fixed.gold;
-        if (nextSettings.ticketThreshold <= 0 || nextSettings.ticketBonus < 0 || Object.values(nextSettings.commissions).some(value => value < 0) || !thresholdsValid || !boostValid || [nextSettings.teamAdvanced1, nextSettings.teamAdvanced2].some(t => !Number.isInteger(t.members) || t.members <= 0 || !Number.isInteger(t.sales) || t.sales <= 0 || !Number.isFinite(t.commissionPerSale) || t.commissionPerSale < 0)) {
+        if (nextSettings.ticketThreshold <= 0 || nextSettings.ticketBonus < 0 || Object.values(nextSettings.commissions).some(value => value < 0) || !thresholdsValid || !boostValid) {
           return json(res, 400, { error: 'Os valores precisam ser válidos. As metas devem ser crescentes (Bronze < Prata < Ouro) e a meta de ticket deve ser maior que zero.' });
         }
         const rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1', {
@@ -643,12 +676,6 @@ module.exports = async function handler(req, res) {
             ticket_threshold: nextSettings.ticketThreshold,
             ticket_bonus: nextSettings.ticketBonus,
             team_commission_per_sale: nextSettings.teamCommissionPerSale,
-            team_advanced1_members: nextSettings.teamAdvanced1.members,
-            team_advanced1_sales: nextSettings.teamAdvanced1.sales,
-            team_advanced1_commission: nextSettings.teamAdvanced1.commissionPerSale,
-            team_advanced2_members: nextSettings.teamAdvanced2.members,
-            team_advanced2_sales: nextSettings.teamAdvanced2.sales,
-            team_advanced2_commission: nextSettings.teamAdvanced2.commissionPerSale,
             commission_none: nextSettings.commissions.none,
             commission_bronze: nextSettings.commissions.bronze,
             commission_silver: nextSettings.commissions.silver,
@@ -670,29 +697,10 @@ module.exports = async function handler(req, res) {
             reseller_complete_price: Number(nextSettings.resellerPrices?.complete || 0),
           }),
         });
-        let savedRow = rows?.[0] || null;
-        if (!savedRow) {
-          // Some installations may not have the singleton settings row yet. Create it instead of silently returning defaults.
-          const inserted = await supabaseFetch('/rest/v1/affiliate_settings', {
-            method: 'POST',
-            headers: { Prefer: 'return=representation,resolution=merge-duplicates' },
-            body: JSON.stringify({
-              id: 1, ticket_threshold: nextSettings.ticketThreshold, ticket_bonus: nextSettings.ticketBonus,
-              team_commission_per_sale: nextSettings.teamCommissionPerSale,
-              team_advanced1_members: nextSettings.teamAdvanced1.members, team_advanced1_sales: nextSettings.teamAdvanced1.sales, team_advanced1_commission: nextSettings.teamAdvanced1.commissionPerSale,
-              team_advanced2_members: nextSettings.teamAdvanced2.members, team_advanced2_sales: nextSettings.teamAdvanced2.sales, team_advanced2_commission: nextSettings.teamAdvanced2.commissionPerSale,
-              commission_none: nextSettings.commissions.none, commission_bronze: nextSettings.commissions.bronze, commission_silver: nextSettings.commissions.silver, commission_gold: nextSettings.commissions.gold,
-              monthly_bronze_sales: nextSettings.monthlyLevels.bronze, monthly_silver_sales: nextSettings.monthlyLevels.silver, monthly_gold_sales: nextSettings.monthlyLevels.gold,
-              fixed_bronze_sales: nextSettings.fixedLevels.bronze, fixed_silver_sales: nextSettings.fixedLevels.silver, fixed_gold_sales: nextSettings.fixedLevels.gold,
-              team_boost_small_price: Number(boost.small.price), team_boost_small_connections: Number(boost.small.connections), team_boost_large_price: Number(boost.large.price), team_boost_large_connections: Number(boost.large.connections), team_boost_max_active: Number(boost.maxActive),
-              reseller_hydrant_price: Number(nextSettings.resellerPrices?.hydrant || 0), reseller_hydrant_blister_price: Number(nextSettings.resellerPrices?.hydrantBlister || 0), reseller_stick_price: Number(nextSettings.resellerPrices?.stick || 0), reseller_complete_price: Number(nextSettings.resellerPrices?.complete || 0),
-            }),
-          });
-          savedRow = inserted?.[0] || null;
-        }
-        if (!savedRow) throw new Error('As configurações não foram confirmadas pelo Supabase. Verifique se existe a linha id=1 em affiliate_settings e tente novamente.');
+
+
         await supabaseFetch('/rest/v1/rpc/she_team_boost_activate_waiting', { method: 'POST', body: '{}' }).catch(() => null);
-        return json(res, 200, { settings: nextSettings, row: savedRow });
+        return json(res, 200, { settings: nextSettings, row: rows?.[0] || null });
       }
 
       if (!id) return json(res, 400, { error: 'ID obrigatório.' });

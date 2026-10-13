@@ -134,8 +134,6 @@ export default function AffiliateProgram() {
   const bonuses = cfg.commissions || {}
   const ticketBonus = Number(cfg.ticketBonus || 0)
   const teamSaleBonus = Number(cfg.teamCommissionPerSale || 0)
-  const teamAdvanced1 = cfg.teamAdvanced1 || { members: 10, sales: 20, commissionPerSale: 15 }
-  const teamAdvanced2 = cfg.teamAdvanced2 || { members: 20, sales: 40, commissionPerSale: 20 }
   const maximumPersonal = Number(bonuses.gold || 0) + ticketBonus + teamSaleBonus
 
   const monthlyLevels = [
@@ -325,42 +323,26 @@ export default function AffiliateProgram() {
 
         <section className="px-5 py-20 md:py-28 bg-[#fffafc]">
           <div className="max-w-7xl mx-auto">
-            <div className="max-w-3xl">
-              <p className="text-xs font-black uppercase tracking-[.22em] text-pink-500">Bônus de Venda de Equipe</p>
-              <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">Sua equipe cresce, sua comissão também.</h2>
-              <p className="mt-5 text-base md:text-lg leading-8 text-zinc-500">As vendas das afiliadas diretamente ligadas à sua equipe geram uma comissão adicional. Conforme sua equipe alcança as metas mensais, você pode avançar da Equipe Base para os níveis Equipe Avançada I e II.</p>
-            </div>
-
-            <div className="mt-10 grid md:grid-cols-3 gap-4">
-              <div className="rounded-[1.8rem] border border-pink-200 bg-white p-6 shadow-sm">
-                <p className="text-xs font-black uppercase tracking-[.16em] text-pink-500">Equipe Base</p>
-                <p className="mt-3 text-3xl font-black text-zinc-950">{brl(teamSaleBonus)}</p>
-                <p className="mt-1 text-sm font-bold text-zinc-500">por venda da equipe</p>
-                <p className="mt-4 text-sm leading-6 text-zinc-500">Comissão inicial por venda elegível realizada por uma afiliada da sua equipe direta.</p>
+                        <div>
+              <p className="text-xs font-black uppercase tracking-[.22em] text-pink-500">Venda de Equipe</p>
+              <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">Sua equipe também pode gerar bonificação para você.</h2>
+              <p className="mt-5 text-base md:text-lg leading-8 text-zinc-500">Quando uma afiliada diretamente ligada à sua equipe realiza uma venda elegível, você recebe a bonificação de Venda de Equipe </p>
+              <div className="mt-8 rounded-[1.8rem] border border-pink-100 bg-pink-50/60 p-7">
+                <p className="text-xs font-black uppercase tracking-[.16em] text-pink-500">Valor atual</p>
+                <p className="mt-2 text-4xl font-black text-zinc-950">{brl(teamSaleBonus)} <span className="text-base font-bold text-zinc-400">/ venda elegível</span></p>
               </div>
-              <div className="rounded-[1.8rem] border border-fuchsia-200 bg-white p-6 shadow-sm">
-                <p className="text-xs font-black uppercase tracking-[.16em] text-fuchsia-600">Equipe Avançada I</p>
-                <p className="mt-3 text-3xl font-black text-zinc-950">{brl(teamAdvanced1.commissionPerSale)} <span className="text-sm font-bold text-zinc-400">/ venda</span></p>
-                <div className="mt-4 space-y-2 text-sm text-zinc-600">
-                  <p><strong>{integer(teamAdvanced1.members)}</strong> afiliadas ativas</p>
-                  <p><strong>{integer(teamAdvanced1.sales)}</strong> vendas da equipe no mês</p>
+              <div className="mt-8 grid md:grid-cols-2 gap-4">
+                <div className="rounded-[1.8rem] border border-zinc-100 bg-zinc-50 p-6">
+                  <p className="text-xs font-black uppercase tracking-[.16em] text-zinc-400">Afiliada mãe</p>
+                  <h3 className="mt-3 text-xl font-black">Quem lidera sua entrada</h3>
+                  <p className="mt-2 text-sm leading-6 text-zinc-500">É a afiliada diretamente acima de você na estrutura.</p>
+                </div>
+                <div className="rounded-[1.8rem] border border-pink-100 bg-pink-50 p-6">
+                  <p className="text-xs font-black uppercase tracking-[.16em] text-pink-500">Afiliadas filhas</p>
+                  <h3 className="mt-3 text-xl font-black">Sua rede direta</h3>
+                  <p className="mt-2 text-sm leading-6 text-zinc-500">São as afiliadas que entram diretamente na sua equipe e ajudam a ampliar o resultado da sua rede.</p>
                 </div>
               </div>
-              <div className="rounded-[1.8rem] border border-amber-200 bg-white p-6 shadow-sm">
-                <p className="text-xs font-black uppercase tracking-[.16em] text-amber-600">Equipe Avançada II</p>
-                <p className="mt-3 text-3xl font-black text-zinc-950">{brl(teamAdvanced2.commissionPerSale)} <span className="text-sm font-bold text-zinc-400">/ venda</span></p>
-                <div className="mt-4 space-y-2 text-sm text-zinc-600">
-                  <p><strong>{integer(teamAdvanced2.members)}</strong> afiliadas ativas</p>
-                  <p><strong>{integer(teamAdvanced2.sales)}</strong> vendas da equipe no mês</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 rounded-[1.8rem] bg-zinc-950 p-6 md:p-8 text-white">
-              <h3 className="text-xl font-black">Como avançar de categoria</h3>
-              <p className="mt-3 text-sm md:text-base leading-7 text-white/75">Para alcançar cada categoria avançada, você precisa atingir <strong>simultaneamente as duas metas</strong>: o número mínimo de afiliadas diretas ativas (cada uma com pelo menos uma venda aprovada no mês) e o número mínimo de vendas da equipe no mesmo mês. Atingir apenas uma das metas não é suficiente.</p>
-              <p className="mt-3 text-sm md:text-base leading-7 text-white/75">A classificação mais alta alcançada no mês define retroativamente a comissão de equipe para todas as vendas elegíveis da equipe direta realizadas naquele mês, não apenas para as vendas feitas depois de atingir a meta.</p>
-              <p className="mt-3 text-sm md:text-base leading-7 text-white/75">No início de cada mês, a contagem de afiliadas ativas, vendas da equipe e classificação avançada reinicia. Um novo mês começa novamente na Equipe Base, e as metas são avaliadas com os resultados daquele mês.</p>
             </div>
           </div>
         </section>

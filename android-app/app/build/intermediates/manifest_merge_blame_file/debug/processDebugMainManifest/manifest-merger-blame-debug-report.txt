@@ -1,0 +1,225 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="br.com.sheafiliadas.app"
+4    android:versionCode="1"
+5    android:versionName="1.0.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="24"
+9        android:targetSdkVersion="35" />
+10
+11    <uses-permission android:name="android.permission.INTERNET" />
+11-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:2:5-67
+11-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:2:22-64
+12    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+12-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:3:5-77
+12-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:3:22-74
+13    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+13-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:22:5-79
+13-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:22:22-76
+14    <uses-permission android:name="android.permission.WAKE_LOCK" /> <!-- Required by older versions of Google Play services to create IID tokens -->
+14-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:24:5-68
+14-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:24:22-65
+15    <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" />
+15-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:26:5-82
+15-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:26:22-79
+16
+17    <application
+17-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:4:5-14:19
+18        android:allowBackup="false"
+18-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:4:18-45
+19        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+19-->[androidx.core:core:1.2.0] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\2dc8a283a8babe81c34d150dc822f6a9\transformed\core-1.2.0\AndroidManifest.xml:24:18-86
+20        android:debuggable="true"
+21        android:extractNativeLibs="false"
+22        android:label="She Afiliadas"
+22-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:4:46-75
+23        android:testOnly="true"
+24        android:theme="@style/AppTheme"
+24-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:4:76-107
+25        android:usesCleartextTraffic="false" >
+25-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:4:108-144
+26        <activity
+26-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:5:9-10:20
+27            android:name="br.com.sheafiliadas.app.MainActivity"
+27-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:5:19-47
+28            android:configChanges="orientation|screenSize|keyboardHidden"
+28-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:5:72-133
+29            android:exported="true"
+29-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:5:48-71
+30            android:windowSoftInputMode="adjustResize" >
+30-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:5:134-176
+31            <intent-filter>
+31-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:6:13-9:29
+32                <action android:name="android.intent.action.MAIN" />
+32-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:7:17-69
+32-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:7:25-66
+33
+34                <category android:name="android.intent.category.LAUNCHER" />
+34-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:8:17-77
+34-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:8:27-74
+35            </intent-filter>
+36        </activity>
+37
+38        <service
+38-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:11:9-13:19
+39            android:name="br.com.sheafiliadas.app.SheFirebaseMessagingService"
+39-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:11:18-61
+40            android:exported="false" >
+40-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:11:62-86
+41            <intent-filter>
+41-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:12:13-105
+42                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+42-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:12:28-89
+42-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:12:36-86
+43            </intent-filter>
+44        </service>
+45
+46        <receiver
+46-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:29:9-40:20
+47            android:name="com.google.firebase.iid.FirebaseInstanceIdReceiver"
+47-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:30:13-78
+48            android:exported="true"
+48-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:31:13-36
+49            android:permission="com.google.android.c2dm.permission.SEND" >
+49-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:32:13-73
+50            <intent-filter>
+50-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:33:13-35:29
+51                <action android:name="com.google.android.c2dm.intent.RECEIVE" />
+51-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:34:17-81
+51-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:34:25-78
+52            </intent-filter>
+53
+54            <meta-data
+54-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:37:13-39:40
+55                android:name="com.google.android.gms.cloudmessaging.FINISHED_AFTER_HANDLED"
+55-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:38:17-92
+56                android:value="true" />
+56-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:39:17-37
+57        </receiver>
+58        <!--
+59             FirebaseMessagingService performs security checks at runtime,
+60             but set to not exported to explicitly avoid allowing another app to call it.
+61        -->
+62        <service
+62-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:46:9-53:19
+63            android:name="com.google.firebase.messaging.FirebaseMessagingService"
+63-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:47:13-82
+64            android:directBootAware="true"
+64-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:48:13-43
+65            android:exported="false" >
+65-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:49:13-37
+66            <intent-filter android:priority="-500" >
+66-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:12:13-105
+67                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+67-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:12:28-89
+67-->C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\AndroidManifest.xml:12:36-86
+68            </intent-filter>
+69        </service>
+70        <service
+70-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:54:9-63:19
+71            android:name="com.google.firebase.components.ComponentDiscoveryService"
+71-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:55:13-84
+72            android:directBootAware="true"
+72-->[com.google.firebase:firebase-common:22.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\311ab5128ec94f105db359444b2f4a1d\transformed\firebase-common-22.0.1\AndroidManifest.xml:32:13-43
+73            android:exported="false" >
+73-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:56:13-37
+74            <meta-data
+74-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:57:13-59:85
+75                android:name="com.google.firebase.components:com.google.firebase.messaging.FirebaseMessagingKtxRegistrar"
+75-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:58:17-122
+76                android:value="com.google.firebase.components.ComponentRegistrar" />
+76-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:59:17-82
+77            <meta-data
+77-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:60:13-62:85
+78                android:name="com.google.firebase.components:com.google.firebase.messaging.FirebaseMessagingRegistrar"
+78-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:61:17-119
+79                android:value="com.google.firebase.components.ComponentRegistrar" />
+79-->[com.google.firebase:firebase-messaging:25.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\AndroidManifest.xml:62:17-82
+80            <meta-data
+80-->[com.google.firebase:firebase-installations:19.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\7b6affe7c50bf22a6565af0e6ebc49a3\transformed\firebase-installations-19.0.1\AndroidManifest.xml:15:13-17:85
+81                android:name="com.google.firebase.components:com.google.firebase.installations.FirebaseInstallationsKtxRegistrar"
+81-->[com.google.firebase:firebase-installations:19.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\7b6affe7c50bf22a6565af0e6ebc49a3\transformed\firebase-installations-19.0.1\AndroidManifest.xml:16:17-130
+82                android:value="com.google.firebase.components.ComponentRegistrar" />
+82-->[com.google.firebase:firebase-installations:19.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\7b6affe7c50bf22a6565af0e6ebc49a3\transformed\firebase-installations-19.0.1\AndroidManifest.xml:17:17-82
+83            <meta-data
+83-->[com.google.firebase:firebase-installations:19.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\7b6affe7c50bf22a6565af0e6ebc49a3\transformed\firebase-installations-19.0.1\AndroidManifest.xml:18:13-20:85
+84                android:name="com.google.firebase.components:com.google.firebase.installations.FirebaseInstallationsRegistrar"
+84-->[com.google.firebase:firebase-installations:19.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\7b6affe7c50bf22a6565af0e6ebc49a3\transformed\firebase-installations-19.0.1\AndroidManifest.xml:19:17-127
+85                android:value="com.google.firebase.components.ComponentRegistrar" />
+85-->[com.google.firebase:firebase-installations:19.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\7b6affe7c50bf22a6565af0e6ebc49a3\transformed\firebase-installations-19.0.1\AndroidManifest.xml:20:17-82
+86            <meta-data
+86-->[com.google.firebase:firebase-common:22.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\311ab5128ec94f105db359444b2f4a1d\transformed\firebase-common-22.0.1\AndroidManifest.xml:35:13-37:85
+87                android:name="com.google.firebase.components:com.google.firebase.FirebaseCommonKtxRegistrar"
+87-->[com.google.firebase:firebase-common:22.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\311ab5128ec94f105db359444b2f4a1d\transformed\firebase-common-22.0.1\AndroidManifest.xml:36:17-109
+88                android:value="com.google.firebase.components.ComponentRegistrar" />
+88-->[com.google.firebase:firebase-common:22.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\311ab5128ec94f105db359444b2f4a1d\transformed\firebase-common-22.0.1\AndroidManifest.xml:37:17-82
+89            <meta-data
+89-->[com.google.firebase:firebase-datatransport:18.2.0] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\f9d12868a7372f95aed3eb0a93a56e4c\transformed\firebase-datatransport-18.2.0\AndroidManifest.xml:25:13-27:85
+90                android:name="com.google.firebase.components:com.google.firebase.datatransport.TransportRegistrar"
+90-->[com.google.firebase:firebase-datatransport:18.2.0] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\f9d12868a7372f95aed3eb0a93a56e4c\transformed\firebase-datatransport-18.2.0\AndroidManifest.xml:26:17-115
+91                android:value="com.google.firebase.components.ComponentRegistrar" />
+91-->[com.google.firebase:firebase-datatransport:18.2.0] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\f9d12868a7372f95aed3eb0a93a56e4c\transformed\firebase-datatransport-18.2.0\AndroidManifest.xml:27:17-82
+92        </service>
+93
+94        <provider
+94-->[com.google.firebase:firebase-common:22.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\311ab5128ec94f105db359444b2f4a1d\transformed\firebase-common-22.0.1\AndroidManifest.xml:23:9-28:39
+95            android:name="com.google.firebase.provider.FirebaseInitProvider"
+95-->[com.google.firebase:firebase-common:22.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\311ab5128ec94f105db359444b2f4a1d\transformed\firebase-common-22.0.1\AndroidManifest.xml:24:13-77
+96            android:authorities="br.com.sheafiliadas.app.firebaseinitprovider"
+96-->[com.google.firebase:firebase-common:22.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\311ab5128ec94f105db359444b2f4a1d\transformed\firebase-common-22.0.1\AndroidManifest.xml:25:13-72
+97            android:directBootAware="true"
+97-->[com.google.firebase:firebase-common:22.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\311ab5128ec94f105db359444b2f4a1d\transformed\firebase-common-22.0.1\AndroidManifest.xml:26:13-43
+98            android:exported="false"
+98-->[com.google.firebase:firebase-common:22.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\311ab5128ec94f105db359444b2f4a1d\transformed\firebase-common-22.0.1\AndroidManifest.xml:27:13-37
+99            android:initOrder="100" />
+99-->[com.google.firebase:firebase-common:22.0.1] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\311ab5128ec94f105db359444b2f4a1d\transformed\firebase-common-22.0.1\AndroidManifest.xml:28:13-36
+100
+101        <service
+101-->[com.google.android.datatransport:transport-backend-cct:3.1.9] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\d9da6354ea2dd546e1206bae48342b3f\transformed\transport-backend-cct-3.1.9\AndroidManifest.xml:28:9-34:19
+102            android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery"
+102-->[com.google.android.datatransport:transport-backend-cct:3.1.9] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\d9da6354ea2dd546e1206bae48342b3f\transformed\transport-backend-cct-3.1.9\AndroidManifest.xml:29:13-103
+103            android:exported="false" >
+103-->[com.google.android.datatransport:transport-backend-cct:3.1.9] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\d9da6354ea2dd546e1206bae48342b3f\transformed\transport-backend-cct-3.1.9\AndroidManifest.xml:30:13-37
+104            <meta-data
+104-->[com.google.android.datatransport:transport-backend-cct:3.1.9] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\d9da6354ea2dd546e1206bae48342b3f\transformed\transport-backend-cct-3.1.9\AndroidManifest.xml:31:13-33:39
+105                android:name="backend:com.google.android.datatransport.cct.CctBackendFactory"
+105-->[com.google.android.datatransport:transport-backend-cct:3.1.9] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\d9da6354ea2dd546e1206bae48342b3f\transformed\transport-backend-cct-3.1.9\AndroidManifest.xml:32:17-94
+106                android:value="cct" />
+106-->[com.google.android.datatransport:transport-backend-cct:3.1.9] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\d9da6354ea2dd546e1206bae48342b3f\transformed\transport-backend-cct-3.1.9\AndroidManifest.xml:33:17-36
+107        </service>
+108        <service
+108-->[com.google.android.datatransport:transport-runtime:3.1.9] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\298c836366f01c5b1da1598f3a41bfdd\transformed\transport-runtime-3.1.9\AndroidManifest.xml:26:9-30:19
+109            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.JobInfoSchedulerService"
+109-->[com.google.android.datatransport:transport-runtime:3.1.9] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\298c836366f01c5b1da1598f3a41bfdd\transformed\transport-runtime-3.1.9\AndroidManifest.xml:27:13-117
+110            android:exported="false"
+110-->[com.google.android.datatransport:transport-runtime:3.1.9] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\298c836366f01c5b1da1598f3a41bfdd\transformed\transport-runtime-3.1.9\AndroidManifest.xml:28:13-37
+111            android:permission="android.permission.BIND_JOB_SERVICE" >
+111-->[com.google.android.datatransport:transport-runtime:3.1.9] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\298c836366f01c5b1da1598f3a41bfdd\transformed\transport-runtime-3.1.9\AndroidManifest.xml:29:13-69
+112        </service>
+113
+114        <receiver
+114-->[com.google.android.datatransport:transport-runtime:3.1.9] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\298c836366f01c5b1da1598f3a41bfdd\transformed\transport-runtime-3.1.9\AndroidManifest.xml:32:9-34:40
+115            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.AlarmManagerSchedulerBroadcastReceiver"
+115-->[com.google.android.datatransport:transport-runtime:3.1.9] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\298c836366f01c5b1da1598f3a41bfdd\transformed\transport-runtime-3.1.9\AndroidManifest.xml:33:13-132
+116            android:exported="false" />
+116-->[com.google.android.datatransport:transport-runtime:3.1.9] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\298c836366f01c5b1da1598f3a41bfdd\transformed\transport-runtime-3.1.9\AndroidManifest.xml:34:13-37
+117
+118        <activity
+118-->[com.google.android.gms:play-services-base:18.1.0] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\c6451e06a1792c8dbc060479889d57ac\transformed\play-services-base-18.1.0\AndroidManifest.xml:20:9-22:45
+119            android:name="com.google.android.gms.common.api.GoogleApiActivity"
+119-->[com.google.android.gms:play-services-base:18.1.0] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\c6451e06a1792c8dbc060479889d57ac\transformed\play-services-base-18.1.0\AndroidManifest.xml:20:19-85
+120            android:exported="false"
+120-->[com.google.android.gms:play-services-base:18.1.0] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\c6451e06a1792c8dbc060479889d57ac\transformed\play-services-base-18.1.0\AndroidManifest.xml:22:19-43
+121            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+121-->[com.google.android.gms:play-services-base:18.1.0] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\c6451e06a1792c8dbc060479889d57ac\transformed\play-services-base-18.1.0\AndroidManifest.xml:21:19-78
+122
+123        <meta-data
+123-->[com.google.android.gms:play-services-basement:18.3.0] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\30cd372cd55f1fb4a40da84177a611cb\transformed\play-services-basement-18.3.0\AndroidManifest.xml:21:9-23:69
+124            android:name="com.google.android.gms.version"
+124-->[com.google.android.gms:play-services-basement:18.3.0] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\30cd372cd55f1fb4a40da84177a611cb\transformed\play-services-basement-18.3.0\AndroidManifest.xml:22:13-58
+125            android:value="@integer/google_play_services_version" />
+125-->[com.google.android.gms:play-services-basement:18.3.0] C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\30cd372cd55f1fb4a40da84177a611cb\transformed\play-services-basement-18.3.0\AndroidManifest.xml:23:13-66
+126    </application>
+127
+128</manifest>

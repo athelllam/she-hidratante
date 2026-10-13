@@ -1,10 +1,7 @@
-const { sendEmail, affiliateTeamAdvancedEmail } = require('./email');
 const DEFAULT_COMMISSION_CONFIG = {
   ticketThreshold: 170,
   ticketBonus: 5,
   teamCommissionPerSale: 10,
-  teamAdvanced1: { members: 10, sales: 20, commissionPerSale: 15 },
-  teamAdvanced2: { members: 20, sales: 40, commissionPerSale: 20 },
   commissions: {
     none: 30,
     bronze: 40,
@@ -41,16 +38,6 @@ function normalizeConfig(config = {}) {
     ticketThreshold: Number.isFinite(Number(config.ticketThreshold)) ? Number(config.ticketThreshold) : DEFAULT_COMMISSION_CONFIG.ticketThreshold,
     ticketBonus: Number.isFinite(Number(config.ticketBonus)) ? Number(config.ticketBonus) : DEFAULT_COMMISSION_CONFIG.ticketBonus,
     teamCommissionPerSale: Number.isFinite(Number(config.teamCommissionPerSale)) ? Number(config.teamCommissionPerSale) : DEFAULT_COMMISSION_CONFIG.teamCommissionPerSale,
-    teamAdvanced1: {
-      members: Number.isInteger(Number(config.teamAdvanced1?.members)) && Number(config.teamAdvanced1.members) > 0 ? Number(config.teamAdvanced1.members) : DEFAULT_COMMISSION_CONFIG.teamAdvanced1.members,
-      sales: Number.isInteger(Number(config.teamAdvanced1?.sales)) && Number(config.teamAdvanced1.sales) > 0 ? Number(config.teamAdvanced1.sales) : DEFAULT_COMMISSION_CONFIG.teamAdvanced1.sales,
-      commissionPerSale: Number.isFinite(Number(config.teamAdvanced1?.commissionPerSale)) && Number(config.teamAdvanced1.commissionPerSale) >= 0 ? Number(config.teamAdvanced1.commissionPerSale) : DEFAULT_COMMISSION_CONFIG.teamAdvanced1.commissionPerSale,
-    },
-    teamAdvanced2: {
-      members: Number.isInteger(Number(config.teamAdvanced2?.members)) && Number(config.teamAdvanced2.members) > 0 ? Number(config.teamAdvanced2.members) : DEFAULT_COMMISSION_CONFIG.teamAdvanced2.members,
-      sales: Number.isInteger(Number(config.teamAdvanced2?.sales)) && Number(config.teamAdvanced2.sales) > 0 ? Number(config.teamAdvanced2.sales) : DEFAULT_COMMISSION_CONFIG.teamAdvanced2.sales,
-      commissionPerSale: Number.isFinite(Number(config.teamAdvanced2?.commissionPerSale)) && Number(config.teamAdvanced2.commissionPerSale) >= 0 ? Number(config.teamAdvanced2.commissionPerSale) : DEFAULT_COMMISSION_CONFIG.teamAdvanced2.commissionPerSale,
-    },
     commissions: {
       none: Number.isFinite(Number(commissions.none)) ? Number(commissions.none) : DEFAULT_COMMISSION_CONFIG.commissions.none,
       bronze: Number.isFinite(Number(commissions.bronze)) ? Number(commissions.bronze) : DEFAULT_COMMISSION_CONFIG.commissions.bronze,
@@ -402,121 +389,10 @@ async function reconcileAffiliateOrderCommissions(supabaseFetch, affiliateId, co
   return { updated: updates.length, orders: paid };
 }
 
-
-function currentSaoPauloMonth(value = new Date()) {
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).formatToParts(date);
-  return `${parts.find(part => part.type === 'year')?.value}-${parts.find(part => part.type === 'month')?.value}`;
-}
-
-/** Recalcula somente a comissão da equipe no mês corrente. Pedidos de meses
- * anteriores permanecem congelados em team_commission_snapshot. */
-async function reconcileTeamMonthlyCommissions(supabaseFetch, parentId, members, orders, config = DEFAULT_COMMISSION_CONFIG) {
-  const normalized = normalizeConfig(config);
-  const month = currentSaoPauloMonth();
-  const monthOrders = (orders || []).filter(order => isPaidOrder(order) && monthKey(order.created_at) === month);
-  const salesCount = monthOrders.length;
-  // Para a qualificação avançada, contam somente integrantes diretos que
-  // fizeram ao menos uma venda paga no mesmo mês da apuração.
-  const activeMemberIds = new Set(monthOrders
-    .map(order => Number(order.affiliate_id))
-    .filter(id => Number.isInteger(id) && id > 0));
-  const memberCount = (Array.isArray(members) ? members : [])
-    .filter(member => activeMemberIds.has(Number(member.id))).length;
-  let level = 'Equipe Base';
-  let rate = Number(normalized.teamCommissionPerSale || 10);
-  if (memberCount >= normalized.teamAdvanced1.members && salesCount >= normalized.teamAdvanced1.sales) {
-    level = 'Equipe Avançada I';
-    rate = normalized.teamAdvanced1.commissionPerSale;
-  }
-  if (memberCount >= normalized.teamAdvanced2.members && salesCount >= normalized.teamAdvanced2.sales) {
-    level = 'Equipe Avançada II';
-    rate = normalized.teamAdvanced2.commissionPerSale;
-  }
-  // Envia os e-mails de conquista uma única vez por afiliada, nível e mês.
-  // O registro idempotente é persistido no Supabase; se o envio falhar, ele é removido para permitir nova tentativa.
-  try {
-    const milestones = [];
-    if (memberCount >= normalized.teamAdvanced1.members && salesCount >= normalized.teamAdvanced1.sales) {
-      milestones.push({ key: 'advanced_1', label: 'Equipe Avançada I', commission: normalized.teamAdvanced1.commissionPerSale });
-    }
-    if (memberCount >= normalized.teamAdvanced2.members && salesCount >= normalized.teamAdvanced2.sales) {
-      milestones.push({ key: 'advanced_2', label: 'Equipe Avançada II', commission: normalized.teamAdvanced2.commissionPerSale });
-    }
-    if (milestones.length) {
-      const parentRows = await supabaseFetch(`/rest/v1/affiliates?id=eq.${Number(parentId)}&select=id,name,email&limit=1`);
-      const parent = parentRows?.[0];
-      if (parent?.email) {
-        for (const milestone of milestones) {
-          let claimed = false;
-          try {
-            await supabaseFetch('/rest/v1/affiliate_team_level_notifications', {
-              method: 'POST',
-              headers: { Prefer: 'return=minimal' },
-              body: JSON.stringify({ affiliate_id: Number(parentId), month_key: month, level_key: milestone.key, status: 'sending' }),
-            });
-            claimed = true;
-          } catch (claimError) {
-            // Unique constraint means this level/month was already claimed or sent.
-            if (claimError?.statusCode === 409 || /duplicate|unique/i.test(String(claimError?.message || ''))) continue;
-            throw claimError;
-          }
-          if (!claimed) continue;
-          try {
-            const result = await sendEmail({
-              to: parent.email,
-              subject: milestone.key === 'advanced_2' ? '🏆 Você chegou à Equipe Avançada II!' : '🎉 Parabéns! Sua equipe alcançou a Avançada I!',
-              html: affiliateTeamAdvancedEmail({ name: parent.name, level: milestone.label, commissionPerSale: milestone.commission, month, dashboardUrl: process.env.SITE_URL ? `${String(process.env.SITE_URL).replace(/\/$/, '')}/afiliado` : undefined }),
-              tags: [{ name: 'type', value: 'team-advanced-milestone' }, { name: 'level', value: milestone.key }],
-            });
-            if (result?.skipped) {
-              await supabaseFetch(`/rest/v1/affiliate_team_level_notifications?affiliate_id=eq.${Number(parentId)}&month_key=eq.${encodeURIComponent(month)}&level_key=eq.${milestone.key}`, { method: 'DELETE' });
-            } else {
-              await supabaseFetch(`/rest/v1/affiliate_team_level_notifications?affiliate_id=eq.${Number(parentId)}&month_key=eq.${encodeURIComponent(month)}&level_key=eq.${milestone.key}`, {
-                method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status: 'sent', sent_at: new Date().toISOString() }),
-              });
-            }
-          } catch (sendError) {
-            await supabaseFetch(`/rest/v1/affiliate_team_level_notifications?affiliate_id=eq.${Number(parentId)}&month_key=eq.${encodeURIComponent(month)}&level_key=eq.${milestone.key}`, { method: 'DELETE' }).catch(() => null);
-            throw sendError;
-          }
-        }
-      }
-    }
-  } catch (notificationError) {
-    // E-mail não deve interromper a apuração das comissões; o erro fica no log do Vercel.
-    console.error('[team-level-email] Falha ao enviar notificação de classificação:', notificationError?.message || notificationError);
-  }
-
-  const updates = [];
-  for (const order of monthOrders) {
-    const existing = Number(order.team_commission_snapshot);
-    if (!Number.isFinite(existing) || Math.abs(existing - rate) > 0.001) {
-      updates.push({ id: order.id, rate });
-    }
-  }
-  for (const item of updates) {
-    await supabaseFetch(`/rest/v1/affiliate_orders?id=eq.${Number(item.id)}`, {
-      method: 'PATCH', headers: { Prefer: 'return=minimal' },
-      body: JSON.stringify({ team_commission_snapshot: item.rate }),
-    });
-    const local = (orders || []).find(order => Number(order.id) === Number(item.id));
-    if (local) local.team_commission_snapshot = item.rate;
-  }
-  return { month, memberCount, activeMemberCount: memberCount, totalMemberCount: Array.isArray(members) ? members.length : 0, salesCount, level, commissionPerSale: rate, updated: updates.length };
-}
-
 function isPaidOrder(order) {
-  // Alinhar os status aceitos pelo contador da equipe aos status de pagamento
-  // reconhecidos pela integração Yampi/webhook. A Yampi pode gravar approved/aprovado.
-  return new Set([
-    'payment_approved',
-    'pagamento_aprovado',
-    'paid',
-    'approved',
-    'aprovado',
-  ]).has(String(order?.status || '').toLowerCase().trim().replace(/\s+/g, '_'));
+  return new Set(['payment_approved', 'paid', 'pagamento_aprovado']).has(
+    String(order?.status || '').toLowerCase()
+  );
 }
 
 module.exports = {
@@ -532,6 +408,5 @@ module.exports = {
   calculateMonthlyStats,
   commissionForOrders,
   reconcileAffiliateOrderCommissions,
-  reconcileTeamMonthlyCommissions,
   isPaidOrder,
 };

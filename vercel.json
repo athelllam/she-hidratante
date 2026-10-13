@@ -33,10 +33,6 @@
       "destination": "/api/affiliate/auth?action=reset"
     },
     {
-      "source": "/api/affiliate/push-subscription",
-      "destination": "/api/affiliate/auth?action=push-subscription"
-    },
-    {
       "source": "/((?!api(?:/|$)).*)",
       "destination": "/index.html"
     }

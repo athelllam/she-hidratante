@@ -1,0 +1,17 @@
+br.com.sheafiliadas.app-core-1.2.0-0 C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\2dc8a283a8babe81c34d150dc822f6a9\transformed\core-1.2.0\res
+br.com.sheafiliadas.app-play-services-basement-18.3.0-1 C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\30cd372cd55f1fb4a40da84177a611cb\transformed\play-services-basement-18.3.0\res
+br.com.sheafiliadas.app-firebase-common-22.0.1-2 C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\311ab5128ec94f105db359444b2f4a1d\transformed\firebase-common-22.0.1\res
+br.com.sheafiliadas.app-datastore-core-release-3 C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\8f1e8aae1e9ec7a5f4ba05ff53c4b242\transformed\datastore-core-release\res
+br.com.sheafiliadas.app-datastore-preferences-release-4 C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\96bcd4cdda36ee1fc70cbfece5645a93\transformed\datastore-preferences-release\res
+br.com.sheafiliadas.app-play-services-base-18.1.0-5 C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\c6451e06a1792c8dbc060479889d57ac\transformed\play-services-base-18.1.0\res
+br.com.sheafiliadas.app-firebase-messaging-25.0.1-6 C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\dfd2beb2ee9d277506850000adcf2db0\transformed\firebase-messaging-25.0.1\res
+br.com.sheafiliadas.app-datastore-release-7 C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\fb9effea2276c7989e5151ef60b289b2\transformed\datastore-release\res
+br.com.sheafiliadas.app-datastore-preferences-core-release-8 C:\Users\ADMIN\.gradle\caches\9.6.0\transforms\fe0388ce95a7d5f221925f4a6156ac8b\transformed\datastore-preferences-core-release\res
+br.com.sheafiliadas.app-pngs-9 C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\build\generated\res\pngs\debug
+br.com.sheafiliadas.app-res-10 C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\build\generated\res\processDebugGoogleServices
+br.com.sheafiliadas.app-resValues-11 C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\build\generated\res\resValues\debug
+br.com.sheafiliadas.app-packageDebugResources-12 C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\build\intermediates\incremental\debug\packageDebugResources\merged.dir
+br.com.sheafiliadas.app-packageDebugResources-13 C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\build\intermediates\incremental\debug\packageDebugResources\stripped.dir
+br.com.sheafiliadas.app-debug-14 C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\build\intermediates\merged_res\debug\mergeDebugResources
+br.com.sheafiliadas.app-debug-15 C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\debug\res
+br.com.sheafiliadas.app-main-16 C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\src\main\res
