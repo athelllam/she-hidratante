@@ -43,7 +43,17 @@ function boostStatusLabel(status) {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
+  const previewId = new URLSearchParams(window.location.search).get('adminPreviewId')
+  const isPreview = Boolean(previewId)
+  if (isPreview && String(options.method || 'GET').toUpperCase() !== 'GET') {
+    throw new Error('Modo de Administrador - Cuidado: ações que alteram dados estão bloqueadas nesta visualização.')
+  }
+  let requestPath = path
+  if (isPreview && path.startsWith('/api/affiliate/dashboard')) {
+    const separator = path.includes('?') ? '&' : '?'
+    requestPath = `${path}${separator}adminPreviewId=${encodeURIComponent(previewId)}`
+  }
+  const response = await fetch(requestPath, {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     ...options,
@@ -74,6 +84,8 @@ function levelAccent(key) {
 }
 
 export default function AffiliateDashboard() {
+  const adminPreviewId = new URLSearchParams(window.location.search).get('adminPreviewId')
+  const isAdminPreview = Boolean(adminPreviewId)
   const [affiliate, setAffiliate] = useState(null)
   const [installHelpOpen, setInstallHelpOpen] = useState(false)
   const [installPrompt, setInstallPrompt] = useState(null)
@@ -266,7 +278,7 @@ export default function AffiliateDashboard() {
   }, [])
 
   useEffect(() => {
-    if (!affiliate?.id || !isStandaloneApp || isAndroidDevice || pushDismissed) return
+    if (isAdminPreview || !affiliate?.id || !isStandaloneApp || isAndroidDevice || pushDismissed) return
     if (!('Notification' in window) || Notification.permission !== 'default') return
     // Não bloqueia a exibição do convite por uma detecção prematura de PushManager;
     // a compatibilidade completa é verificada quando a afiliada toca em Ativar.
@@ -337,13 +349,13 @@ export default function AffiliateDashboard() {
     setInstallHelpOpen(true)
   }
 
-  useEffect(() => { load({ sync: true }) }, [])
+  useEffect(() => { load({ sync: !isAdminPreview }) }, [])
 
 
   // Atualiza a página inteira a cada minuto apenas no painel autenticado da afiliada.
   // A carga inicial já sincroniza vendas; o reload mantém esse fallback automático.
   useEffect(() => {
-    if (!affiliate?.id || !dashboard) return undefined
+    if (isAdminPreview || !affiliate?.id || !dashboard) return undefined
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') window.location.reload()
     }, 60_000)
@@ -692,6 +704,10 @@ export default function AffiliateDashboard() {
 
   if (loading) return <main className="min-h-screen bg-[#fffafc]" />
 
+  if (!affiliate && isAdminPreview && !loading) {
+    return <main className="min-h-screen bg-[#fffafc] p-8"><div className="mx-auto max-w-2xl rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-950"><strong>Modo de Administrador - Cuidado</strong><p className="mt-2 text-sm">Não foi possível carregar o painel. Verifique se sua sessão administrativa está ativa.</p></div></main>
+  }
+
   if (!affiliate) {
     return (
       <main className="min-h-screen bg-[#fffafc] flex items-center justify-center px-5 py-10">
@@ -823,6 +839,7 @@ export default function AffiliateDashboard() {
 
   return (
     <main className="min-h-screen bg-[#fffafc] px-5 py-8 md:px-10">
+      {isAdminPreview && <div className="sticky top-0 z-[120] -mx-5 -mt-8 mb-6 border-b-2 border-amber-500 bg-amber-100 px-5 py-3 text-center text-sm font-black text-amber-950 shadow-md md:-mx-10 md:px-10">⚠️ Modo de Administrador - Cuidado · Visualização de {affiliate?.name || 'afiliada'} · Ações que alteram dados estão bloqueadas</div>}
       {pushPromptOpen && <div className="fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto bg-zinc-950/60 p-4" role="dialog" aria-modal="true" aria-labelledby="push-prompt-title">
         <div className="my-auto w-full max-w-md overflow-hidden rounded-[2rem] border border-pink-100 bg-white shadow-2xl">
           <div className="bg-gradient-to-br from-pink-500 via-rose-400 to-fuchsia-500 px-6 pb-7 pt-8 text-center text-white"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-white/40 bg-white/20 text-3xl shadow-lg">🔔</div><p className="mt-4 text-[10px] font-black uppercase tracking-[.25em] text-white/80">She Afiliadas</p><h2 id="push-prompt-title" className="mt-2 text-2xl font-black">Não perca as novidades da sua equipe</h2><p className="mt-2 text-sm leading-6 text-white/90">Ative as notificações para receber avisos importantes diretamente no seu iPhone.</p></div>

@@ -1168,7 +1168,7 @@ export default function AdminDashboard() {
                     <td className="py-4 pr-4">
                       <button
                         type="button"
-                        onClick={() => { setPreviewAffiliate(affiliate); setPreviewMonth('all'); setPreviewData(null); setPreviewError('') }}
+                        onClick={() => { window.open(`/afiliado?adminPreviewId=${encodeURIComponent(affiliate.id)}`, '_blank', 'noopener,noreferrer') }}
                         className="rounded-xl bg-zinc-950 px-3 py-2 text-xs font-black text-white transition hover:bg-pink-500"
                       >
                         Ver desempenho
@@ -1534,66 +1534,6 @@ export default function AdminDashboard() {
           </div>
         </section>
       </div>
-
-      {previewAffiliate && (
-        <div className="fixed inset-0 z-[58] flex items-center justify-center bg-black/60 px-3 py-5 sm:px-6" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreviewAffiliate(null) }}>
-          <div className="max-h-[94vh] w-full max-w-6xl overflow-y-auto rounded-[2rem] bg-zinc-50 p-4 shadow-[0_30px_100px_rgba(0,0,0,.35)] sm:p-7">
-            <div className="flex flex-col gap-4 border-b border-zinc-200 pb-5 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Resumo de desempenho</p>
-                <h3 className="mt-1 text-2xl font-black text-zinc-950">Desempenho de {previewAffiliate.name}</h3>
-                <p className="mt-1 text-sm text-zinc-500">ID #{previewAffiliate.id}{previewAffiliate.slug ? ` · /${previewAffiliate.slug}` : ''}. Indicadores e histórico de vendas pessoais e da equipe.</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <select value={previewMonth} onChange={event => setPreviewMonth(event.target.value)} className="min-w-0 rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm font-black text-zinc-700 outline-none focus:border-pink-400">
-                  <option value="all">Todo o período</option>
-                  {availableMonths.map(month => <option key={month} value={month}>{monthLabel(month)}</option>)}
-                </select>
-                <button type="button" onClick={() => setPreviewAffiliate(null)} aria-label="Fechar visualização do painel" className="h-11 w-11 shrink-0 rounded-full bg-white text-xl text-zinc-500 shadow-sm">×</button>
-              </div>
-            </div>
-
-            {previewLoading ? (
-              <div className="mt-5 rounded-[1.5rem] border border-zinc-200 bg-white py-24 text-center text-sm font-bold text-zinc-400">Carregando painel da afiliada…</div>
-            ) : previewError ? (
-              <div role="alert" className="mt-5 rounded-2xl border border-red-100 bg-red-50 p-5 text-sm font-bold text-red-700">{previewError}</div>
-            ) : previewData ? (
-              <>
-                <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {[
-                    ['Acessos', previewData.metrics?.accesses || 0, 'text-zinc-950'],
-                    ['Vendas', previewData.metrics?.sales || 0, 'text-pink-600'],
-                    ['Faturamento', brl(previewData.metrics?.revenue || 0), 'text-zinc-950'],
-                    ['Ticket médio', brl(previewData.metrics?.averageTicket || 0), 'text-zinc-950'],
-                  ].map(([label, value, tone]) => (
-                    <div key={label} className="rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
-                      <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">{label}</p>
-                      <p className={`mt-2 text-2xl font-black ${tone}`}>{value}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-pink-100 bg-white p-4"><p className="text-[10px] font-black uppercase tracking-wider text-zinc-400">Vendas pessoais</p><p className="mt-1 text-xl font-black text-pink-600">{previewData.metrics?.ownSales || 0}</p><p className="text-xs font-bold text-zinc-500">{brl(previewData.metrics?.ownRevenue || 0)}</p></div>
-                  <div className="rounded-2xl border border-zinc-200 bg-white p-4"><p className="text-[10px] font-black uppercase tracking-wider text-zinc-400">Vendas da equipe</p><p className="mt-1 text-xl font-black text-zinc-900">{previewData.metrics?.teamSales || 0}</p><p className="text-xs font-bold text-zinc-500">{brl(previewData.metrics?.teamRevenue || 0)}</p></div>
-                  <div className="rounded-2xl border border-violet-100 bg-white p-4"><p className="text-[10px] font-black uppercase tracking-wider text-zinc-400">Tamanho da equipe</p><p className="mt-1 text-xl font-black text-violet-700">{previewData.teamSize || 0}</p><p className="text-xs font-bold text-zinc-500">Afiliadas vinculadas diretamente</p></div>
-                </div>
-                <div className="mt-4 rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div><h4 className="text-lg font-black text-zinc-950">{previewMonth === 'all' ? 'Histórico mensal' : 'Histórico diário'}</h4><p className="mt-1 text-xs text-zinc-500">Resumo das vendas pessoais e da equipe no período selecionado.</p></div>
-                    <div className="flex flex-wrap gap-3 text-[10px] font-black uppercase tracking-wider text-zinc-500"><span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-pink-400"/> Pessoais</span><span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-zinc-900"/> Equipe</span></div>
-                  </div>
-                  {(() => {
-                    const rows = previewData.chart || []
-                    const maxTotal = Math.max(1, ...rows.map(item => Number(item.ownSales || 0) + Number(item.teamSales || 0)))
-                    return rows.length ? <div className="mt-5 overflow-x-auto pb-2"><div className={`flex h-[250px] min-w-full items-end gap-1 border-b border-zinc-200 px-2 pt-8 ${previewMonth === 'all' ? '' : 'min-w-[720px]'}`}>{rows.map(item => { const own = Number(item.ownSales || 0); const team = Number(item.teamSales || 0); const total = own + team; const height = total ? Math.max(8, total / maxTotal * 180) : 3; const ownHeight = total ? own / total * height : 0; const teamHeight = total ? team / total * height : 0; return <div key={item.date} className="group flex h-full min-w-[36px] flex-1 flex-col justify-end"><div className="relative flex flex-1 items-end justify-center">{total > 0 && <span className="absolute bottom-[calc(100%+5px)] whitespace-nowrap text-[9px] font-black text-zinc-700">{total}</span>}<div className="flex w-[22px] flex-col justify-end overflow-hidden rounded-t-md" style={{ height: `${height}px` }} title={`${item.label}: ${own} pessoais + ${team} da equipe`}>{team > 0 && <div className="w-full bg-zinc-900" style={{ height: `${teamHeight}px`, minHeight: 3 }}/>}{own > 0 && <div className="w-full bg-pink-400" style={{ height: `${ownHeight}px`, minHeight: 3 }}/>}</div></div><span className="mt-2 truncate text-center text-[8px] font-bold text-zinc-400">{item.label}</span></div>})}</div></div> : <p className="py-10 text-center text-sm font-semibold text-zinc-400">Ainda não há movimentações neste período.</p>
-                  })()}
-                </div>
-                <div className="mt-4 flex justify-end"><button type="button" onClick={() => setPreviewAffiliate(null)} className="rounded-xl bg-zinc-950 px-5 py-3 text-sm font-black text-white transition hover:bg-pink-600">Fechar visualização</button></div>
-              </>
-            ) : null}
-          </div>
-        </div>
-      )}
 
       {detailAffiliate && (
         <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/55 px-3 py-5 sm:px-6" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailAffiliate(null) }}>
