@@ -12,4 +12,4 @@ Este projeto Android Studio cria um app nativo chamado **She Afiliadas** que abr
 A base do Firebase Cloud Messaging e o serviço que exibe notificações estão incluídos, e o app recupera/guarda o token FCM. **O push Android ainda não está integrado ao backend de produção**: para ficar equivalente ao push iOS, é preciso cadastrar os tokens FCM associados à afiliada autenticada no Supabase e adaptar o emissor existente para enviar a esses tokens usando credenciais de servidor do Firebase. Não coloque credenciais privadas do Firebase no app nem no GitHub.
 
 ## URL inicial
-A atividade abre `https://shecoisademulher.com/`. Ajuste `HOME_URL` se o endereço canônico do painel de afiliadas for outro.
+A atividade abre diretamente `https://she-hidratante.vercel.app/afiliado` dentro de uma WebView. A base do Firebase Messaging e a solicitação de permissão para notificações Android permanecem no projeto. O token FCM ainda precisa ser associado à afiliada autenticada no backend e o emissor backend precisa enviar para tokens FCM; a simples compilação não completa essa integração.

@@ -18,7 +18,7 @@ import androidx.core.content.ContextCompat;
 import com.google.firebase.messaging.FirebaseMessaging;
 
 public class MainActivity extends ComponentActivity {
-    private static final String HOME_URL = "https://shecoisademulher.com/?source=android-app";
+    private static final String HOME_URL = "https://she-hidratante.vercel.app/afiliado";
     private WebView webView;
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
