@@ -229,7 +229,7 @@ module.exports = async function handler(req, res) {
     if (!wasAlreadyApproved) {
       try {
         pushDiagnostics.personal = await sendToAffiliate(affiliateId, {
-          title: 'Nova venda confirmada!',
+          title: 'Venda realizada!',
           body: 'Uma venda foi aprovada e sua comissão foi atualizada. 💗',
           url: '/afiliado',
           tag: `sale-${yampiOrderId}`,

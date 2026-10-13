@@ -1,5 +1,6 @@
 const { supabaseFetch } = require('./supabase');
 const { reconcileAffiliateOrderCommissions, normalizeConfig, DEFAULT_COMMISSION_CONFIG } = require('./affiliateCommission');
+const { sendToAffiliate } = require('./push');
 
 const YAMPI_BASE_URL = 'https://api.dooki.com.br/v2';
 
@@ -238,7 +239,7 @@ async function upsertAffiliateOrder(order, affiliateId, commissionRate) {
   const yampiOrderId = String(getOrderId(order) || '');
   if (!yampiOrderId) return false;
 
-  const status = getStatus(order) || 'created';
+  const status = isPaymentApprovedOrder(order) ? 'payment_approved' : (getStatus(order) || 'created');
   const total = getTotal(order);
   const commission = 0;
   const createdAt = getCreatedAt(order);
@@ -266,7 +267,12 @@ async function upsertAffiliateOrder(order, affiliateId, commissionRate) {
     }),
   });
 
-  return true;
+  return {
+    synced: true,
+    orderId: yampiOrderId,
+    previousStatus,
+    wasAlreadyApproved: ['payment_approved', 'pagamento_aprovado', 'paid', 'approved', 'aprovado'].includes(String(previousStatus || '').toLowerCase()),
+  };
 }
 
 async function syncAffiliateOrders(affiliateId, commissionRate) {
@@ -310,7 +316,31 @@ async function syncAffiliateOrders(affiliateId, commissionRate) {
       const metadataId = Number(getMetadata(order, 'affiliate_id'));
       if (!metadataId || metadataId !== Number(affiliateId)) continue;
 
-      if (await upsertAffiliateOrder(order, affiliateId, commissionRate)) synced += 1;
+      const syncResult = await upsertAffiliateOrder(order, affiliateId, commissionRate);
+      if (syncResult?.synced) {
+        synced += 1;
+        if (!syncResult.wasAlreadyApproved) {
+          try {
+            console.log('[She Push Sale] sync start', JSON.stringify({ orderId: syncResult.orderId, affiliateId }));
+            const pushResult = await sendToAffiliate(affiliateId, {
+              title: 'Venda realizada!',
+              body: 'Uma venda foi aprovada e sua comissão foi atualizada. 💗',
+              url: '/afiliado',
+              tag: `sale-${syncResult.orderId}`,
+            });
+            console.log('[She Push Sale] sync result', JSON.stringify({ orderId: syncResult.orderId, affiliateId, result: pushResult || null }));
+          } catch (pushError) {
+            console.error('[She Push Sale] sync failed', JSON.stringify({
+              orderId: syncResult.orderId,
+              affiliateId,
+              statusCode: pushError.statusCode || null,
+              message: pushError.message || 'sem detalhes',
+            }));
+          }
+        } else {
+          console.log('[She Push Sale] sync skipped already approved', JSON.stringify({ orderId: syncResult.orderId, affiliateId, previousStatus: syncResult.previousStatus }));
+        }
+      }
     }
 
     if (!scrollId) break;
