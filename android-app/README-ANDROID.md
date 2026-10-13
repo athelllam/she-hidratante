@@ -2,6 +2,7 @@
 
 ## Correções incluídas
 - URL inicial definida para `https://she-hidratante.vercel.app/afiliado` em `app/src/main/java/br/com/sheafiliadas/app/MainActivity.java`.
+- Navegação do WebView intercepta redirecionamentos para `shecoisademulher.com` e retorna à área de afiliadas no Vercel.
 - Ícone de launcher configurado usando `@mipmap/ic_launcher` e `@mipmap/ic_launcher_round`, com os PNGs nas densidades Android.
 
 ## Gerar o APK atualizado

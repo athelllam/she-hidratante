@@ -1,0 +1,4 @@
+br.com.sheafiliadas.app.test.app-androidTest-0 C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\build\generated\res\resValues\androidTest\debug
+br.com.sheafiliadas.app.test.app-mergeDebugAndroidTestResources-1 C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\build\intermediates\incremental\debugAndroidTest\mergeDebugAndroidTestResources\merged.dir
+br.com.sheafiliadas.app.test.app-mergeDebugAndroidTestResources-2 C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\build\intermediates\incremental\debugAndroidTest\mergeDebugAndroidTestResources\stripped.dir
+br.com.sheafiliadas.app.test.app-debugAndroidTest-3 C:\Users\ADMIN\Desktop\SHE AFILIADOS\android-app\app\build\intermediates\merged_res\debugAndroidTest\mergeDebugAndroidTestResources

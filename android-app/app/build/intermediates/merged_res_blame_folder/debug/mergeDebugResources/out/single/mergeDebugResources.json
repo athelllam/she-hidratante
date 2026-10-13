@@ -1,0 +1,42 @@
+[
+    {
+        "merged": "br.com.sheafiliadas.app-debug-14:/mipmap-xxhdpi_ic_launcher.png.flat",
+        "source": "br.com.sheafiliadas.app-main-16:/mipmap-xxhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "br.com.sheafiliadas.app-debug-14:/mipmap-xxxhdpi_ic_launcher_round.png.flat",
+        "source": "br.com.sheafiliadas.app-main-16:/mipmap-xxxhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "br.com.sheafiliadas.app-debug-14:/mipmap-xxxhdpi_ic_launcher.png.flat",
+        "source": "br.com.sheafiliadas.app-main-16:/mipmap-xxxhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "br.com.sheafiliadas.app-debug-14:/mipmap-hdpi_ic_launcher.png.flat",
+        "source": "br.com.sheafiliadas.app-main-16:/mipmap-hdpi/ic_launcher.png"
+    },
+    {
+        "merged": "br.com.sheafiliadas.app-debug-14:/mipmap-xhdpi_ic_launcher_round.png.flat",
+        "source": "br.com.sheafiliadas.app-main-16:/mipmap-xhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "br.com.sheafiliadas.app-debug-14:/mipmap-xxhdpi_ic_launcher_round.png.flat",
+        "source": "br.com.sheafiliadas.app-main-16:/mipmap-xxhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "br.com.sheafiliadas.app-debug-14:/mipmap-mdpi_ic_launcher_round.png.flat",
+        "source": "br.com.sheafiliadas.app-main-16:/mipmap-mdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "br.com.sheafiliadas.app-debug-14:/mipmap-mdpi_ic_launcher.png.flat",
+        "source": "br.com.sheafiliadas.app-main-16:/mipmap-mdpi/ic_launcher.png"
+    },
+    {
+        "merged": "br.com.sheafiliadas.app-debug-14:/mipmap-xhdpi_ic_launcher.png.flat",
+        "source": "br.com.sheafiliadas.app-main-16:/mipmap-xhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "br.com.sheafiliadas.app-debug-14:/mipmap-hdpi_ic_launcher_round.png.flat",
+        "source": "br.com.sheafiliadas.app-main-16:/mipmap-hdpi/ic_launcher_round.png"
+    }
+]
