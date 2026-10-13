@@ -80,7 +80,3 @@ export function trackAffiliateAccess(affiliateOrId, target = 'access', affiliate
     eventId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
   })
 }
-
-export function clearRememberedAffiliate() {
-  try { localStorage.removeItem(STORAGE_KEY) } catch {}
-}

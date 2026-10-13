@@ -192,7 +192,7 @@ async function resetPassword(req, res) {
 }
 
 async function register(req, res) {
-  const { name, slug, email, password, whatsapp, cpf, referralSlug } = req.body || {};
+  const { name, slug, email, password, whatsapp, cpf } = req.body || {};
   const cleanName = String(name || '').trim();
   const cleanEmail = String(email || '').trim().toLowerCase();
   const cleanSlug = slugify(slug || name).slice(0, 44);
@@ -206,16 +206,6 @@ async function register(req, res) {
   const existing = await supabaseFetch(
     `/rest/v1/affiliates?or=(email.eq.${encodeURIComponent(cleanEmail)},cpf.eq.${encodeURIComponent(cleanCpf)})&select=id,slug,email,cpf&limit=1`
   );
-
-  // Se o cadastro veio de um link de afiliada, vincula a nova conta diretamente à equipe dela.
-  let referralParent = null;
-  const cleanReferralSlug = String(referralSlug || '').trim().toLowerCase();
-  if (cleanReferralSlug) {
-    const parents = await supabaseFetch(
-      `/rest/v1/affiliates?slug=eq.${encodeURIComponent(cleanReferralSlug)}&select=id,active&limit=1`
-    );
-    if (parents?.[0]?.active) referralParent = parents[0];
-  }
   if (existing?.length) {
     const duplicate = existing[0];
     if (duplicate.cpf === cleanCpf) return json(res, 409, { error: 'Este CPF já está cadastrado.' });
@@ -247,11 +237,6 @@ async function register(req, res) {
         active: true,
         admin_active: true,
         commission_rate: 0.10,
-        ...(referralParent ? {
-          team_parent_id: Number(referralParent.id),
-          team_joined_at: new Date().toISOString(),
-          team_join_source: 'referral',
-        } : {}),
       }),
     });
 
