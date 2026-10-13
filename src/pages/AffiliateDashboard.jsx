@@ -962,6 +962,7 @@ export default function AffiliateDashboard() {
                   </div>
                   <div className={`mt-1 whitespace-nowrap text-[11px] font-black leading-none sm:text-xs ${item.tone}`}>{item.rate}<span className="ml-0.5 text-[8px] font-bold sm:text-[9px]">/pedido</span></div>
                   <div className="mt-1 text-[8px] font-black uppercase tracking-wider text-zinc-400 sm:text-[9px]">{item.label}</div>
+                  <div className="mt-1 whitespace-nowrap text-[8px] font-black text-zinc-500 sm:text-[9px]">{item.min} vendas</div>
                 </div>
               )
             })}
@@ -1209,8 +1210,8 @@ export default function AffiliateDashboard() {
             </div>
             <div className="grid grid-cols-1 gap-2 border-t border-pink-100 bg-white/60 p-4 sm:grid-cols-3 sm:p-5">
               <div className={`rounded-xl px-3 py-3 ${!teamHasAdvanced1 ? 'bg-pink-100 ring-1 ring-pink-200' : 'bg-white'}`}><p className="text-xs font-black text-zinc-800">Equipe Base</p><p className="mt-1 text-sm font-bold text-pink-600">{brl(config.teamCommissionPerSale || 10)} por venda</p><p className="mt-1 text-[10px] text-zinc-500">Nível inicial</p></div>
-              <div className={`rounded-xl px-3 py-3 ${teamHasAdvanced1 && !teamHasAdvanced2 ? 'bg-pink-100 ring-1 ring-pink-200' : 'bg-white'}`}><p className="text-xs font-black text-zinc-800">Equipe Avançada I</p><p className="mt-1 text-sm font-bold text-pink-600">{brl(teamAdvanced1.commissionPerSale)} por venda</p><p className="mt-1 text-[10px] text-zinc-500">{teamAdvanced1.members} afiliadas ativas + {teamAdvanced1.sales} vendas</p></div>
-              <div className={`rounded-xl px-3 py-3 ${teamHasAdvanced2 ? 'bg-amber-50 ring-1 ring-amber-200' : 'bg-white'}`}><p className="text-xs font-black text-zinc-800">Equipe Avançada II</p><p className="mt-1 text-sm font-bold text-pink-600">{brl(teamAdvanced2.commissionPerSale)} por venda</p><p className="mt-1 text-[10px] text-zinc-500">{teamAdvanced2.members} afiliadas ativas + {teamAdvanced2.sales} vendas</p></div>
+              <div className={`rounded-xl px-3 py-3 ${teamHasAdvanced1 && !teamHasAdvanced2 ? 'bg-pink-100 ring-1 ring-pink-200' : 'bg-white'}`}><p className="text-xs font-black text-zinc-800">Equipe Avançada I</p><p className="mt-1 text-sm font-bold text-pink-600">{brl(teamAdvanced1.commissionPerSale)} por venda</p><p className="mt-1 text-[10px] text-zinc-500">Mín. {teamAdvanced1.sales} vendas equipe. Mín. {teamAdvanced1.members} afiliadas ativas</p></div>
+              <div className={`rounded-xl px-3 py-3 ${teamHasAdvanced2 ? 'bg-amber-50 ring-1 ring-amber-200' : 'bg-white'}`}><p className="text-xs font-black text-zinc-800">Equipe Avançada II</p><p className="mt-1 text-sm font-bold text-pink-600">{brl(teamAdvanced2.commissionPerSale)} por venda</p><p className="mt-1 text-[10px] text-zinc-500">Mín. {teamAdvanced2.sales} vendas equipe. Mín. {teamAdvanced2.members} afiliadas ativas</p></div>
             </div>
           </div>
 

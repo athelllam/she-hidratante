@@ -10,6 +10,7 @@ const {
   reconcileTeamMonthlyCommissions,
 } = require('../_lib/affiliateCommission');
 const { sendEmail, adminRecipients, adminVideoEmail, affiliateBoostJoinEmail } = require('../_lib/email');
+const { sendToAffiliate } = require('../_lib/push');
 
 function money(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
@@ -376,6 +377,20 @@ module.exports = async function handler(req, res) {
         headers: { Prefer: 'return=representation' },
         body: JSON.stringify({ team_parent_id: Number(parent.id), team_joined_at: new Date().toISOString(), team_join_source: 'organic' }),
       });
+
+      // Notifica a afiliada mãe somente depois que o vínculo com a equipe foi salvo.
+      // Falha no push não deve desfazer nem bloquear a entrada da nova integrante.
+      try {
+        await sendToAffiliate(Number(parent.id), {
+          title: 'Nova integrante na sua equipe!',
+          body: `${affiliate.name || 'Uma nova afiliada'} entrou para sua equipe.`,
+          url: '/afiliado',
+          tag: `team-member-${Number(affiliate.id)}`,
+        });
+      } catch (pushError) {
+        console.error('Push de nova integrante falhou:', pushError.statusCode || pushError.message || 'sem detalhes');
+      }
+
       return json(res, 200, { affiliate: rows?.[0] || { ...affiliate, team_parent_id: Number(parent.id) }, teamParent: parent });
     } catch (error) {
       return json(res, error.statusCode || 500, { error: error.message || 'Não foi possível entrar na equipe.' });
