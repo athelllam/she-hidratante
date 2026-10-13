@@ -325,7 +325,7 @@ export default function AffiliateDashboard() {
       return
     }
     if (isIosDevice && !isSafariBrowser) {
-      window.alert('É necessário baixar pelo Safari. Copie o endereço do painel e abra-o no Safari para adicionar a She à tela inicial.')
+      setInstallHelpOpen(true)
       return
     }
     if (installPrompt && !isIosDevice) {
@@ -825,7 +825,13 @@ export default function AffiliateDashboard() {
             <div className="min-w-0 flex-1"><p className="text-[10px] font-black uppercase tracking-[.22em] text-pink-500">She Afiliadas</p><h2 id="install-help-title" className="mt-1 text-xl font-black text-zinc-950">Adicione a She à tela inicial</h2><p className="mt-1 text-sm leading-5 text-zinc-500">Acesse seu painel como um aplicativo, direto pelo ícone da She.</p></div>
             <button type="button" onClick={() => setInstallHelpOpen(false)} aria-label="Fechar" className="rounded-full p-2 text-xl leading-none text-zinc-400 hover:bg-zinc-100">×</button>
           </div>
-          {isIosDevice ? <div className="mt-5 space-y-3">
+          {isIosDevice && !isSafariBrowser ? <div className="mt-5 space-y-4">
+            <div className="rounded-2xl border border-pink-100 bg-[#fff7fb] p-5 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-3xl shadow-sm">🧭</div>
+              <h3 className="mt-3 text-lg font-black text-zinc-950">Baixe o app pelo Safari.</h3>
+              <p className="mt-2 text-sm leading-6 text-zinc-600">Para adicionar a She à tela inicial do iPhone, abra este site no Safari e toque em “Baixar App”.</p>
+            </div>
+          </div> : isIosDevice ? <div className="mt-5 space-y-3">
             <div className="flex gap-3 rounded-2xl border border-zinc-100 bg-[#fffafc] p-3.5"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-2xl font-black shadow-sm">···</div><div><p className="text-sm font-extrabold text-zinc-900">1. Toque nos três pontinhos (···)</p><p className="mt-1 text-xs leading-5 text-zinc-600">No Safari do iPhone, toque no menu de três pontinhos na parte inferior da tela para abrir as opções da página.</p><div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-[11px] font-bold text-zinc-500 shadow-sm"><span className="text-lg">···</span> Menu do Safari</div></div></div>
             <div className="flex gap-3 rounded-2xl border border-zinc-100 bg-[#fffafc] p-3.5"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">↥</div><div><p className="text-sm font-extrabold text-zinc-900">2. Toque em “Compartilhar”</p><p className="mt-1 text-xs leading-5 text-zinc-600">No menu que abrir, escolha Compartilhar (ícone de um quadrado com uma seta para cima), se essa opção aparecer.</p><div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-[11px] font-bold text-zinc-500 shadow-sm"><span className="text-lg text-sky-600">□↑</span> Compartilhar</div></div></div>
             <div className="flex gap-3 rounded-2xl border border-zinc-100 bg-[#fffafc] p-3.5"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">⌄</div><div><p className="text-sm font-extrabold text-zinc-900">3. Toque na setinha de “Ver Mais”</p><p className="mt-1 text-xs leading-5 text-zinc-600">Na tela de Compartilhar, toque na seta para baixo ao lado de “Ver Mais” para expandir a lista completa de opções.</p><div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-[11px] font-bold text-zinc-600 shadow-sm"><span className="text-lg">Ver Mais⌄</span> Mostrar opções</div></div></div>
