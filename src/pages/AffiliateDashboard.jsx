@@ -691,7 +691,7 @@ export default function AffiliateDashboard() {
     return [
       ['Acessos', m.accesses || 0],
       ['Vendas', m.sales || 0],
-      ['Ticket médio', brl(m.averageTicket)],
+      ['Valor médio de venda', brl(m.averageTicket)],
       ['Comissão', brl(m.commission)],
     ]
   }, [dashboard])
@@ -1053,13 +1053,13 @@ export default function AffiliateDashboard() {
 
         <section className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {cards.map(([label, value]) => {
-            const multiplierActive = label === 'Ticket médio' && dashboard?.metrics?.ticketMultiplierActive
+            const multiplierActive = label === 'Valor médio de venda' && dashboard?.metrics?.ticketMultiplierActive
             return (
               <div key={label} className={`relative rounded-[1.5rem] p-5 border shadow-sm transition-all ${multiplierActive ? 'border-amber-300 bg-gradient-to-br from-amber-100 via-yellow-50 to-white shadow-[0_0_35px_rgba(245,158,11,.28)]' : 'border-pink-100 bg-white'}`}>
                 <p className={`text-xs uppercase tracking-[.18em] ${multiplierActive ? 'text-amber-700' : 'text-zinc-400'}`}>{label}</p>
                 <p className={`mt-3 text-2xl font-black ${multiplierActive ? 'text-amber-900' : 'text-zinc-950'}`}>{value}</p>
                 {multiplierActive && <span className="mt-2 inline-flex rounded-full bg-amber-400/20 px-2.5 py-1 text-[11px] font-black text-amber-800">+ {brl(dashboard?.metrics?.ticketMultiplierValue ?? config.ticketBonus)} / pedido</span>}
-                {label === 'Ticket médio' && <p className={`mt-2 text-[10px] leading-4 ${multiplierActive ? 'text-amber-700' : 'text-zinc-400'}`}>Ticket médio deste período acima de {brl(dashboard?.metrics?.ticketMultiplierThreshold ?? config.ticketThreshold)} ativa + {brl(dashboard?.metrics?.ticketMultiplierValue ?? config.ticketBonus)} por pedido.</p>}
+                {label === 'Valor médio de venda' && <p className={`mt-2 text-[10px] leading-4 ${multiplierActive ? 'text-amber-700' : 'text-zinc-400'}`}>Ticket médio deste período acima de {brl(dashboard?.metrics?.ticketMultiplierThreshold ?? config.ticketThreshold)} ativa + {brl(dashboard?.metrics?.ticketMultiplierValue ?? config.ticketBonus)} por pedido.</p>}
               </div>
             )
           })}

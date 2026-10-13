@@ -136,7 +136,9 @@ export default function AffiliateProgram() {
   const teamSaleBonus = Number(cfg.teamCommissionPerSale || 0)
   const teamAdvanced1 = cfg.teamAdvanced1 || { members: 10, sales: 20, commissionPerSale: 15 }
   const teamAdvanced2 = cfg.teamAdvanced2 || { members: 20, sales: 40, commissionPerSale: 20 }
-  const maximumPersonal = Number(bonuses.gold || 0) + ticketBonus + teamSaleBonus
+  // O potencial máximo considera o nível Ouro, o Bônus de Valor e a comissão máxima da Equipe Avançada II.
+  // Todos os valores continuam vindo das configurações públicas do painel administrativo.
+  const maximumPersonal = Number(bonuses.gold || 0) + ticketBonus + Number(teamAdvanced2.commissionPerSale ?? teamSaleBonus)
 
   const monthlyLevels = [
     { key: 'none', name: 'Início', value: bonuses.none, sales: 0 },
@@ -198,7 +200,7 @@ export default function AffiliateProgram() {
                   <p className="text-[10px] uppercase tracking-[.2em] text-white/45 font-black">Potencial pessoal</p>
                   <div className="mt-2 flex flex-wrap items-end gap-x-3 gap-y-1">
                     <span className="text-3xl md:text-4xl font-black">{brl(maximumPersonal)}</span>
-                    <span className="text-sm text-white/55 mb-1">/pedido no Ouro + Bônus de Valor + Venda de Equipe</span>
+                    <span className="text-sm text-white/55 mb-1">{brl(maximumPersonal)} por venda</span>
                   </div>
                   <p className="mt-2 text-xs leading-5 text-white/45">No Ouro, o potencial soma a bonificação do nível, o Bônus de Valor e a Venda de Equipe, conforme as configurações vigentes.</p>
                 </div>
