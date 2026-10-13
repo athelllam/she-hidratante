@@ -226,7 +226,11 @@ module.exports = async function handler(req, res) {
       wasAlreadyApproved,
     }));
 
-    if (!wasAlreadyApproved) {
+    // O webhook pode chegar depois de a sincronização já ter gravado a venda
+    // como aprovada no Supabase. Nesse caso, ainda precisamos disparar o push;
+    // a sincronização manual continua evitando reenvios para pedidos já aprovados.
+    // O mesmo tag por pedido ajuda o navegador a substituir notificações repetidas.
+    {
       try {
         pushDiagnostics.personal = await sendToAffiliate(affiliateId, {
           title: 'Venda realizada!',
@@ -240,8 +244,6 @@ module.exports = async function handler(req, res) {
         console.error('[She Push Sale] personal failed', JSON.stringify({ orderId: yampiOrderId, affiliateId, ...pushDiagnostics.personal }));
       }
 
-    } else {
-      console.log('[She Push Sale] skipped because order was already approved', JSON.stringify({ orderId: yampiOrderId, previousStatus }));
     }
 
     return json(res, 200, {
