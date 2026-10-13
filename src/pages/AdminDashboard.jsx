@@ -1168,7 +1168,7 @@ export default function AdminDashboard() {
                     <td className="py-4 pr-4">
                       <button
                         type="button"
-                        onClick={() => { window.open(`/afiliado?adminPreviewId=${encodeURIComponent(affiliate.id)}`, '_blank', 'noopener,noreferrer') }}
+                        onClick={() => { setDetailAffiliate(affiliate); setDetailMonth('all'); setDetailData(null) }}
                         className="rounded-xl bg-zinc-950 px-3 py-2 text-xs font-black text-white transition hover:bg-pink-500"
                       >
                         Ver desempenho
@@ -1185,13 +1185,12 @@ export default function AdminDashboard() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => { setDetailAffiliate(affiliate); setDetailMonth('all'); setDetailData(null) }}
+                          onClick={() => { window.open(`/afiliado?adminPreviewId=${encodeURIComponent(affiliate.id)}`, '_blank', 'noopener,noreferrer') }}
                           aria-label={`Visualizar painel de ${affiliate.name}`}
                           title={`Visualizar painel de ${affiliate.name}`}
-                          className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-pink-200 bg-pink-50 px-3 py-2 text-xs font-black text-pink-700 transition hover:border-pink-400 hover:bg-pink-100"
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-pink-200 bg-pink-50 text-pink-700 transition hover:border-pink-400 hover:bg-pink-100"
                         >
-                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-                          Visualizar painel
+                          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
                         </button>
                       </div>
                     </td>
