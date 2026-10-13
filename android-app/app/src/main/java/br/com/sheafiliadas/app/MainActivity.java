@@ -6,13 +6,11 @@ import android.app.NotificationManager;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.net.Uri;
 import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.webkit.WebResourceRequest;
 import android.widget.Toast;
 import androidx.activity.ComponentActivity;
 import androidx.core.app.ActivityCompat;
@@ -39,32 +37,7 @@ public class MainActivity extends ComponentActivity {
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
         webView.setWebChromeClient(new WebChromeClient());
-        webView.setWebViewClient(new WebViewClient() {
-            // Alguns redirecionamentos/canonical URLs levam ao domínio principal da She.
-            // No app de afiliadas, sempre voltamos para a área de afiliadas no Vercel.
-            private boolean redirectMainSiteToAffiliate(String url) {
-                if (url == null) return false;
-                Uri uri = Uri.parse(url);
-                String host = uri.getHost();
-                if (host == null) return false;
-                host = host.toLowerCase(java.util.Locale.ROOT);
-                if (host.equals("shecoisademulher.com") || host.equals("www.shecoisademulher.com")) {
-                    webView.post(() -> webView.loadUrl(HOME_URL));
-                    return true;
-                }
-                return false;
-            }
-
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                return redirectMainSiteToAffiliate(request.getUrl().toString());
-            }
-
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                return redirectMainSiteToAffiliate(url);
-            }
-        });
+        webView.setWebViewClient(new WebViewClient());
         webView.loadUrl(HOME_URL);
         // Token retrieval is enabled in the native shell. The backend must associate it with
         // the authenticated affiliate and send FCM messages before Android push is production-ready.

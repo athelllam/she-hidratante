@@ -254,11 +254,7 @@ export default function AffiliateDashboard() {
     const ios = /iPad|iPhone|iPod/.test(ua) || (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1)
     const android = /Android/i.test(ua)
     const safari = /Safari/i.test(ua) && !/(CriOS|FxiOS|EdgiOS|OPiOS|Chrome|Chromium|Firefox|DuckDuckGo|GSA)/i.test(ua)
-    // O APK Android abre o painel dentro de um WebView nativo, que não usa o display-mode
-    // standalone da PWA. O user-agent padrão do Android WebView inclui "wv" e/ou Version/4.0.
-    // Assim o botão de instalação some dentro do APK, sem esconder no Chrome comum.
-    const inAndroidAppWebView = android && (/(?:\bwv\b|;\s*wv\))/i.test(ua) || /Android.*Version\/4\.0.*Chrome\//i.test(ua))
-    const standalone = window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true || ['pwa', 'android-app'].includes(new URLSearchParams(window.location.search).get('source')) || inAndroidAppWebView
+    const standalone = window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true || ['pwa', 'android-app'].includes(new URLSearchParams(window.location.search).get('source'))
     setIsIosDevice(ios)
     setIsAndroidDevice(android)
     setIsSafariBrowser(safari)
@@ -337,7 +333,7 @@ export default function AffiliateDashboard() {
 
   const handleInstallApp = async () => {
     if (isAndroidDevice) {
-      setInstallHelpOpen(true)
+      window.location.href = '/she-afiliadas.apk'
       return
     }
     if (isIosDevice && !isSafariBrowser) {
@@ -355,6 +351,16 @@ export default function AffiliateDashboard() {
 
   useEffect(() => { load({ sync: !isAdminPreview }) }, [])
 
+
+  // Atualiza a página inteira a cada minuto apenas no painel autenticado da afiliada.
+  // A carga inicial já sincroniza vendas; o reload mantém esse fallback automático.
+  useEffect(() => {
+    if (isAdminPreview || !affiliate?.id || !dashboard) return undefined
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') window.location.reload()
+    }, 60_000)
+    return () => window.clearInterval(timer)
+  }, [affiliate?.id, dashboard])
 
   const submitLogin = async (event) => {
     event.preventDefault()
@@ -833,7 +839,7 @@ export default function AffiliateDashboard() {
 
   return (
     <main className="min-h-screen bg-[#fffafc] px-5 py-8 md:px-10">
-      {isAdminPreview && <div className="sticky top-0 z-[120] -mx-5 -mt-8 mb-6 flex flex-wrap items-center justify-between gap-3 border-b-2 border-amber-500 bg-amber-100 px-5 py-3 text-sm font-black text-amber-950 shadow-md md:-mx-10 md:px-10"><button type="button" onClick={() => { window.close(); if (window.history.length > 1) window.history.back(); else window.location.assign('/admin') }} className="inline-flex items-center gap-2 rounded-lg border border-amber-700/30 bg-white/70 px-3 py-2 font-black transition hover:bg-white"><span aria-hidden="true">←</span> Voltar ao painel admin</button><span className="text-center">⚠️ Modo de Administrador - Cuidado · Visualização de {affiliate?.name || 'afiliada'} · Ações que alteram dados estão bloqueadas</span><span className="hidden w-[150px] md:block" aria-hidden="true" /></div>}
+      {isAdminPreview && <div className="sticky top-0 z-[120] -mx-5 -mt-8 mb-6 border-b-2 border-amber-500 bg-amber-100 px-5 py-3 text-center text-sm font-black text-amber-950 shadow-md md:-mx-10 md:px-10">⚠️ Modo de Administrador - Cuidado · Visualização de {affiliate?.name || 'afiliada'} · Ações que alteram dados estão bloqueadas</div>}
       {pushPromptOpen && <div className="fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto bg-zinc-950/60 p-4" role="dialog" aria-modal="true" aria-labelledby="push-prompt-title">
         <div className="my-auto w-full max-w-md overflow-hidden rounded-[2rem] border border-pink-100 bg-white shadow-2xl">
           <div className="bg-gradient-to-br from-pink-500 via-rose-400 to-fuchsia-500 px-6 pb-7 pt-8 text-center text-white"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-white/40 bg-white/20 text-3xl shadow-lg">🔔</div><p className="mt-4 text-[10px] font-black uppercase tracking-[.25em] text-white/80">She Afiliadas</p><h2 id="push-prompt-title" className="mt-2 text-2xl font-black">Não perca as novidades da sua equipe</h2><p className="mt-2 text-sm leading-6 text-white/90">Ative as notificações para receber avisos importantes diretamente no seu iPhone.</p></div>
@@ -843,8 +849,8 @@ export default function AffiliateDashboard() {
       {installHelpOpen && <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-zinc-950/55 p-4" role="dialog" aria-modal="true" aria-labelledby="install-help-title">
         <div className="my-auto w-full max-w-lg rounded-[2rem] border border-pink-100 bg-white p-5 shadow-2xl sm:p-7">
           <div className="flex items-start gap-3">
-            <img src="/pwa-icon-192.png" alt="Ícone do app She Afiliadas" className="h-16 w-16 rounded-2xl shadow-sm" />
-            <div className="min-w-0 flex-1"><p className="text-[10px] font-black uppercase tracking-[.22em] text-pink-500">She Afiliadas</p><h2 id="install-help-title" className="mt-1 text-xl font-black text-zinc-950">{isAndroidDevice ? 'Instale o app oficial She Afiliadas' : 'Adicione a She à tela inicial'}</h2><p className="mt-1 text-sm leading-5 text-zinc-500">{isAndroidDevice ? 'Um aplicativo exclusivo para as afiliadas da SHE.' : 'Acesse seu painel como um aplicativo, direto pelo ícone da She.'}</p></div>
+            <img src="/apple-touch-icon-180.png" alt="Ícone do app She" className="h-16 w-16 rounded-2xl shadow-sm" />
+            <div className="min-w-0 flex-1"><p className="text-[10px] font-black uppercase tracking-[.22em] text-pink-500">She Afiliadas</p><h2 id="install-help-title" className="mt-1 text-xl font-black text-zinc-950">Adicione a She à tela inicial</h2><p className="mt-1 text-sm leading-5 text-zinc-500">Acesse seu painel como um aplicativo, direto pelo ícone da She.</p></div>
             <button type="button" onClick={() => setInstallHelpOpen(false)} aria-label="Fechar" className="rounded-full p-2 text-xl leading-none text-zinc-400 hover:bg-zinc-100">×</button>
           </div>
           {isIosDevice && !isSafariBrowser ? <div className="mt-5 space-y-4">
@@ -860,11 +866,6 @@ export default function AffiliateDashboard() {
             <div className="flex gap-3 rounded-2xl border border-zinc-100 bg-[#fffafc] p-3.5"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">＋</div><div><p className="text-sm font-extrabold text-zinc-900">4. Escolha “Adicionar à Tela de Início”</p><p className="mt-1 text-xs leading-5 text-zinc-600">Depois de expandir “Ver Mais”, procure e toque em “Adicionar à Tela de Início”.</p><div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-[11px] font-bold text-zinc-600 shadow-sm"><span className="flex h-5 w-5 items-center justify-center rounded-md bg-pink-100 text-pink-600">＋</span> Adicionar à Tela de Início</div></div></div>
             <div className="flex gap-3 rounded-2xl border border-pink-100 bg-pink-50/70 p-3.5"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">✓</div><div><p className="text-sm font-extrabold text-zinc-900">5. Confirme em “Adicionar”</p><p className="mt-1 text-xs leading-5 text-zinc-600">O ícone oficial da She Afiliadas aparecerá na tela inicial do iPhone. Na próxima vez, abra por esse ícone.</p></div></div>
             <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">Importante: no iPhone, faça isso pelo Safari. Outros navegadores podem não mostrar a mesma opção.</p>
-          </div> : isAndroidDevice ? <div className="mt-5 space-y-3">
-            <div className="rounded-2xl border border-pink-100 bg-[#fff7fb] p-4"><p className="text-sm font-extrabold text-zinc-900">Por que o app não está na Play Store?</p><p className="mt-1 text-sm leading-6 text-zinc-600">O She Afiliadas é um aplicativo individual, disponibilizado diretamente pela SHE para suas afiliadas. Ele não é distribuído pela Google Play Store; por isso, como acontece com aplicativos que o Google ainda não conhece ou verificou, o Play Protect pode mostrar um alerta de segurança durante a instalação.</p></div>
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4"><p className="text-sm font-extrabold text-amber-950">Se aparecer o aviso do Play Protect</p><ol className="mt-2 list-decimal space-y-2 pl-5 text-sm leading-6 text-amber-950"><li>Toque na setinha para baixo para expandir os detalhes do aviso, se essa opção aparecer.</li><li>Procure e toque em <strong>“Instalar mesmo assim”</strong>, caso essa opção seja exibida pelo Android.</li></ol><p className="mt-2 text-xs leading-5 text-amber-900">Só prossiga se você iniciou o download por este painel oficial da SHE e reconhece o aplicativo. Um aviso pode ocorrer por o app não ser conhecido pelo Google, mas não é possível concluir apenas pelo aviso que todo arquivo é seguro.</p></div>
-            <div className="rounded-2xl bg-zinc-50 p-4"><p className="text-sm font-extrabold text-zinc-900">Aplicativo oficial da SHE</p><p className="mt-1 text-sm leading-6 text-zinc-600">Este é o APK disponibilizado pela SHE para acesso ao painel de afiliadas. Mantenha o arquivo e o link de download restritos a fontes oficiais.</p></div>
-            <button type="button" onClick={() => { setInstallHelpOpen(false); window.location.href = '/she-afiliadas.apk' }} className="w-full rounded-xl bg-pink-600 px-4 py-3.5 text-sm font-black text-white shadow-lg shadow-pink-200 hover:bg-pink-700">Baixar app oficial para Android</button>
           </div> : <div className="mt-5 space-y-3"><div className="rounded-2xl bg-[#fffafc] p-4"><p className="text-sm font-extrabold text-zinc-900">Instale a She no seu dispositivo</p><p className="mt-1 text-sm leading-6 text-zinc-600">Use a opção de instalação do navegador. Se ela não aparecer, abra o menu do navegador e procure “Instalar app” ou “Adicionar à tela inicial”.</p></div>{installPrompt && <button type="button" onClick={handleInstallApp} className="w-full rounded-xl bg-pink-600 px-4 py-3 text-sm font-black text-white hover:bg-pink-700">Instalar agora</button>}</div>}
           <button type="button" onClick={() => setInstallHelpOpen(false)} className="mt-5 w-full rounded-xl bg-zinc-950 px-4 py-3 text-sm font-black text-white transition hover:bg-zinc-800">Entendi</button>
         </div>
