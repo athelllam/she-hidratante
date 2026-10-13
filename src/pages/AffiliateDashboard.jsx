@@ -254,7 +254,11 @@ export default function AffiliateDashboard() {
     const ios = /iPad|iPhone|iPod/.test(ua) || (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1)
     const android = /Android/i.test(ua)
     const safari = /Safari/i.test(ua) && !/(CriOS|FxiOS|EdgiOS|OPiOS|Chrome|Chromium|Firefox|DuckDuckGo|GSA)/i.test(ua)
-    const standalone = window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true || ['pwa', 'android-app'].includes(new URLSearchParams(window.location.search).get('source'))
+    // O APK Android abre o painel dentro de um WebView nativo, que não usa o display-mode
+    // standalone da PWA. O user-agent padrão do Android WebView inclui "wv" e/ou Version/4.0.
+    // Assim o botão de instalação some dentro do APK, sem esconder no Chrome comum.
+    const inAndroidAppWebView = android && (/(?:\bwv\b|;\s*wv\))/i.test(ua) || /Android.*Version\/4\.0.*Chrome\//i.test(ua))
+    const standalone = window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true || ['pwa', 'android-app'].includes(new URLSearchParams(window.location.search).get('source')) || inAndroidAppWebView
     setIsIosDevice(ios)
     setIsAndroidDevice(android)
     setIsSafariBrowser(safari)
