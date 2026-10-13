@@ -136,7 +136,7 @@ export default function AffiliateProgram() {
   const teamSaleBonus = Number(cfg.teamCommissionPerSale || 0)
   const teamAdvanced1 = cfg.teamAdvanced1 || { members: 10, sales: 20, commissionPerSale: 15 }
   const teamAdvanced2 = cfg.teamAdvanced2 || { members: 20, sales: 40, commissionPerSale: 20 }
-  const maximumPersonal = Number(bonuses.gold || 0) + ticketBonus + teamSaleBonus
+  const maximumPersonal = Number(bonuses.gold || 0) + ticketBonus + Number(teamAdvanced2.commissionPerSale || teamSaleBonus)
 
   const monthlyLevels = [
     { key: 'none', name: 'Início', value: bonuses.none, sales: 0 },
@@ -198,7 +198,7 @@ export default function AffiliateProgram() {
                   <p className="text-[10px] uppercase tracking-[.2em] text-white/45 font-black">Potencial pessoal</p>
                   <div className="mt-2 flex flex-wrap items-end gap-x-3 gap-y-1">
                     <span className="text-3xl md:text-4xl font-black">{brl(maximumPersonal)}</span>
-                    <span className="text-sm text-white/55 mb-1">/pedido no Ouro + Bônus de Valor + Venda de Equipe</span>
+                    <span className="text-sm text-white/55 mb-1">por venda</span>
                   </div>
                   <p className="mt-2 text-xs leading-5 text-white/45">No Ouro, o potencial soma a bonificação do nível, o Bônus de Valor e a Venda de Equipe, conforme as configurações vigentes.</p>
                 </div>
@@ -220,39 +220,6 @@ export default function AffiliateProgram() {
               <BonusCard title="Bônus Mensal" description="Suas vendas no mês definem seu nível e a bonificação aplicada às vendas do mês" />
               <BonusCard title="Bônus de Valor" description={`Vender dois ou mais produtos no mesmo pedido pode aumentar a sua bonificação`} />
               <BonusCard title="Bônus de Venda de Equipe" description={`Treine sua equipe, as vendas dela geram uma bonificação adicional`} />
-            </div>
-          </div>
-        </section>
-
-        <section className="px-5 py-20 md:py-28 bg-white">
-          <div className="max-w-7xl mx-auto grid lg:grid-cols-[1.1fr_.9fr] gap-14 items-start">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[.22em] text-zinc-400">Bônus Fixo</p>
-              <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">O seu histórico continua trabalhando por você.</h2>
-              <p className="mt-5 max-w-2xl text-base md:text-lg leading-8 text-zinc-500">O Bônus Fixo acompanha suas vendas pessoais acumuladas. Quando você atinge o marco definido para um nível, ele se torna seu nível-base permanente.</p>
-              <div className="mt-10 grid md:grid-cols-3 gap-4">
-                {[
-                  ['bronze', bonuses.bronze],
-                  ['silver', bonuses.silver],
-                  ['gold', bonuses.gold],
-                ].map(([key, value]) => (
-                  <motion.div key={key} whileHover={{ y: -4 }} className="rounded-[1.8rem] border border-zinc-100 bg-gradient-to-br from-white to-zinc-50 p-6 shadow-sm">
-                    <img src={badgeAssets[key]} alt={`Nível ${key}`} className="w-14" />
-                    <p className="mt-4 text-xs font-black uppercase tracking-[.16em] text-zinc-400">Bonificação</p>
-                    <p className="mt-2 text-2xl font-black text-zinc-950">{brl(value)}</p>
-                    <p className="text-xs text-zinc-400">por venda</p>
-                    <p className="mt-3 text-sm font-black text-zinc-700">Meta: {integer(fixed[key])} vendas acumuladas</p>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-            <div className="rounded-[2.4rem] bg-zinc-950 text-white p-7 md:p-9 shadow-[0_24px_80px_rgba(0,0,0,.14)]">
-              <p className="text-[10px] uppercase tracking-[.2em] text-white/45 font-black">Como funciona</p>
-              <div className="mt-7 space-y-6">
-                <div><p className="text-base font-black">Seu histórico acumula</p><p className="mt-2 text-sm leading-6 text-white/60">As vendas pessoais acumuladas fazem você avançar nos níveis do Bônus Fixo.</p></div>
-                <div><p className="text-base font-black">O nível conquistado permanece</p><p className="mt-2 text-sm leading-6 text-white/60">Ao atingir o marco de um nível, ele passa a ser seu nível-base permanente para os próximos meses.</p></div>
-                <div><p className="text-base font-black">Ele protege sua evolução mensal</p><p className="mt-2 text-sm leading-6 text-white/60">O novo mês começa em Início ou, se você já conquistou um Bônus Fixo, no nível permanente correspondente.</p></div>
-              </div>
             </div>
           </div>
         </section>
@@ -282,6 +249,40 @@ export default function AffiliateProgram() {
                 <p className="text-[10px] font-black uppercase tracking-[.2em] text-white/45">O detalhe que faz diferença</p>
                 <p className="mt-3 text-sm md:text-base leading-7 text-white/70">A cada mês, você evolui pelos níveis, e a bonificação correspondente ao nível alcançado passa a valer retroativamente para todas as vendas pessoais realizadas naquele mês. As vendas de sua equipe entram na soma para ajudar a alcançar novos níveis, mas a bonificação é aplicada somente às vendas pessoais.</p>
                 <p className="mt-3 text-sm md:text-base leading-7 text-white/70">No início de cada mês, o progresso do Bônus Mensal reinicia para Início ou para o nível definido pelo seu Bônus Fixo.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+
+        <section className="px-5 py-20 md:py-28 bg-white">
+          <div className="max-w-7xl mx-auto grid lg:grid-cols-[1.1fr_.9fr] gap-14 items-start">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[.22em] text-zinc-400">Bônus Fixo</p>
+              <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">O seu histórico continua trabalhando por você.</h2>
+              <p className="mt-5 max-w-2xl text-base md:text-lg leading-8 text-zinc-500">A qualificação permanente define o seu piso da qualificação mensal. Uma vez atingida a qualificação permanente, o seu progresso mensal reinicia sempre ao piso da qualificação permanente.</p>
+              <div className="mt-10 grid md:grid-cols-3 gap-4">
+                {[
+                  ['bronze', bonuses.bronze],
+                  ['silver', bonuses.silver],
+                  ['gold', bonuses.gold],
+                ].map(([key, value]) => (
+                  <motion.div key={key} whileHover={{ y: -4 }} className="rounded-[1.8rem] border border-zinc-100 bg-gradient-to-br from-white to-zinc-50 p-6 shadow-sm">
+                    <img src={badgeAssets[key]} alt={`Nível ${key}`} className="w-14" />
+                    <p className="mt-4 text-xs font-black uppercase tracking-[.16em] text-zinc-400">Bonificação</p>
+                    <p className="mt-2 text-2xl font-black text-zinc-950">{brl(value)}</p>
+                    <p className="text-xs text-zinc-400">por venda</p>
+                    <p className="mt-3 text-sm font-black text-zinc-700">Meta: {integer(fixed[key])} vendas acumuladas</p>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-[2.4rem] bg-zinc-950 text-white p-7 md:p-9 shadow-[0_24px_80px_rgba(0,0,0,.14)]">
+              <p className="text-[10px] uppercase tracking-[.2em] text-white/45 font-black">Como funciona</p>
+              <div className="mt-7 space-y-6">
+                <div><p className="text-base font-black">Seu histórico acumula</p><p className="mt-2 text-sm leading-6 text-white/60">As vendas pessoais acumuladas fazem você avançar nos níveis do Bônus Fixo.</p></div>
+                <div><p className="text-base font-black">O nível conquistado permanece</p><p className="mt-2 text-sm leading-6 text-white/60">Ao atingir o marco de um nível, ele passa a ser seu nível-base permanente para os próximos meses.</p></div>
+                <div><p className="text-base font-black">Ele protege sua evolução mensal</p><p className="mt-2 text-sm leading-6 text-white/60">O novo mês começa em Início ou, se você já conquistou um Bônus Fixo, no nível permanente correspondente.</p></div>
               </div>
             </div>
           </div>

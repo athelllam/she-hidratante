@@ -97,7 +97,6 @@ export default function AdminDashboard() {
   const [wooviBalance, setWooviBalance] = useState(null)
   const [wooviBalanceError, setWooviBalanceError] = useState('')
   const [wooviBalanceLoading, setWooviBalanceLoading] = useState(false)
-  const [wooviPixKeyCopied, setWooviPixKeyCopied] = useState(false)
   const [withdrawals, setWithdrawals] = useState([])
   const [videoSubmissions, setVideoSubmissions] = useState([])
   const [videoFilter, setVideoFilter] = useState('pending')
@@ -235,6 +234,16 @@ export default function AdminDashboard() {
       .catch(() => setAuthenticated(false))
       .finally(() => setLoading(false))
   }, [])
+
+  // Atualiza a página inteira a cada minuto somente enquanto o painel admin
+  // está autenticado. Não dispara reload em segundo plano para evitar gasto inútil.
+  useEffect(() => {
+    if (!authenticated) return undefined
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') window.location.reload()
+    }, 60_000)
+    return () => window.clearInterval(timer)
+  }, [authenticated])
 
   useEffect(() => {
     if (!previewAffiliate) return
@@ -1022,44 +1031,9 @@ export default function AdminDashboard() {
               <p className="mt-2 text-2xl font-black text-zinc-950">
                 {wooviBalanceLoading ? 'Consultando…' : wooviBalance ? brl(wooviBalance.available) : 'Indisponível'}
               </p>
-              {!wooviBalance && wooviBalanceError && (
-                <p className="mt-1 text-xs font-medium text-zinc-500">{wooviBalanceError}</p>
-              )}
-              <button
-                type="button"
-                onClick={async () => {
-                  const pixKey = 'b2145008-648c-460c-a31b-cb022db8b669'
-                  try {
-                    if (navigator.clipboard?.writeText) {
-                      await navigator.clipboard.writeText(pixKey)
-                    } else {
-                      const field = document.createElement('textarea')
-                      field.value = pixKey
-                      field.setAttribute('readonly', '')
-                      field.style.position = 'fixed'
-                      field.style.opacity = '0'
-                      document.body.appendChild(field)
-                      field.select()
-                      const copied = document.execCommand('copy')
-                      field.remove()
-                      if (!copied) throw new Error('Não foi possível copiar a chave Pix.')
-                    }
-                    setWooviPixKeyCopied(true)
-                    window.setTimeout(() => setWooviPixKeyCopied(false), 1800)
-                  } catch {
-                    setMessage('Não foi possível copiar a chave Pix. Verifique a permissão de área de transferência do navegador.')
-                  }
-                }}
-                title="Copiar chave Pix da Woovi"
-                aria-label="Copiar chave Pix da Woovi"
-                className="mt-3 inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-black text-zinc-700 shadow-sm transition hover:border-pink-300 hover:bg-pink-50"
-              >
-                {wooviPixKeyCopied ? (
-                  <><svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.2 7.26a1 1 0 0 1-1.42.003L3.29 9.202a1 1 0 1 1 1.415-1.414l4.08 4.08 6.493-6.572a1 1 0 0 1 1.426-.006Z" clipRule="evenodd" /></svg>Copiado!</>
-                ) : (
-                  <><svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true"><path d="M6 2.75A1.75 1.75 0 0 1 7.75 1h8.5A1.75 1.75 0 0 1 18 2.75v10.5A1.75 1.75 0 0 1 16.25 15h-8.5A1.75 1.75 0 0 1 6 13.25V2.75Z"/><path d="M3.75 5A1.75 1.75 0 0 0 2 6.75v10.5A1.75 1.75 0 0 0 3.75 19h8.5A1.75 1.75 0 0 0 14 17.25V17H7.75A3.75 3.75 0 0 1 4 13.25V5h-.25Z"/></svg>Copiar chave Pix</>
-                )}
-              </button>
+              <p className={`mt-1 text-xs font-medium ${!wooviBalance ? 'text-zinc-500' : wooviBalance.available < stats.totalBalance ? 'text-red-800/80' : 'text-emerald-800/80'}`}>
+                {wooviBalance ? `Disponível para pagamentos · Total: ${brl(wooviBalance.total)}${wooviBalance.blocked > 0 ? ` · Bloqueado: ${brl(wooviBalance.blocked)}` : ''}` : (wooviBalanceError || 'Não foi possível consultar o saldo.')}
+              </p>
             </div>
           </div>
         </section>
@@ -1190,7 +1164,7 @@ export default function AdminDashboard() {
                     <td className="py-4 pr-4">
                       <button
                         type="button"
-                        onClick={() => { setDetailAffiliate(affiliate); setDetailMonth('all'); setDetailData(null) }}
+                        onClick={() => { window.open(`/afiliado?adminPreviewId=${encodeURIComponent(affiliate.id)}`, '_blank', 'noopener,noreferrer') }}
                         className="rounded-xl bg-zinc-950 px-3 py-2 text-xs font-black text-white transition hover:bg-pink-500"
                       >
                         Ver desempenho
@@ -1207,12 +1181,13 @@ export default function AdminDashboard() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => { window.open(`/afiliado?adminPreviewId=${encodeURIComponent(affiliate.id)}`, '_blank', 'noopener,noreferrer') }}
+                          onClick={() => { setDetailAffiliate(affiliate); setDetailMonth('all'); setDetailData(null) }}
                           aria-label={`Visualizar painel de ${affiliate.name}`}
                           title={`Visualizar painel de ${affiliate.name}`}
-                          className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-pink-200 bg-pink-50 text-pink-700 transition hover:border-pink-400 hover:bg-pink-100"
+                          className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-pink-200 bg-pink-50 px-3 py-2 text-xs font-black text-pink-700 transition hover:border-pink-400 hover:bg-pink-100"
                         >
-                          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                          Visualizar painel
                         </button>
                       </div>
                     </td>
