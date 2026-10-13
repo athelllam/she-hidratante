@@ -101,6 +101,8 @@ export default function AffiliateDashboard() {
   const [dashboard, setDashboard] = useState(null)
   const [selectedMonth, setSelectedMonth] = useState('all')
   const [registerMode, setRegisterMode] = useState(false)
+  const [welcomeMotherOpen, setWelcomeMotherOpen] = useState(false)
+  const [welcomeMotherPending, setWelcomeMotherPending] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', password: '', whatsapp: '', cpf: '' })
   const [login, setLogin] = useState({ email: '', password: '' })
   const [forgotOpen, setForgotOpen] = useState(false)
@@ -109,6 +111,23 @@ export default function AffiliateDashboard() {
   const [forgotMessage, setForgotMessage] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+
+  // Executado junto dos demais hooks, antes de qualquer retorno condicional.
+  // A tela de boas-vindas só é aberta após cadastro concluído e dados da equipe carregados.
+  useEffect(() => {
+    const parent = dashboard?.team?.parent
+    if (!welcomeMotherPending || !affiliate?.id || !parent) return
+    const key = `she-welcome-mother-shown-${affiliate.id}`
+    try {
+      if (window.localStorage.getItem(key) === '1') {
+        setWelcomeMotherPending(false)
+        return
+      }
+      window.localStorage.setItem(key, '1')
+    } catch {}
+    setWelcomeMotherOpen(true)
+    setWelcomeMotherPending(false)
+  }, [welcomeMotherPending, affiliate?.id, dashboard?.team?.parent])
   const [busy, setBusy] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState('')
@@ -400,6 +419,7 @@ export default function AffiliateDashboard() {
       clearRememberedAffiliate()
       setRegisterTermsCardOpen(false)
       setRegisterTermsOpen(false)
+      setWelcomeMotherPending(true)
       await load({ sync: true })
     } catch (e) {
       setError(e.message)
@@ -1640,6 +1660,32 @@ export default function AffiliateDashboard() {
               <p>O nível fixo funciona como um piso do Bônus Mensal: mesmo que um novo mês comece com poucas vendas, você mantém o nível fixo que já conquistou até alcançar o próximo.</p>
             </div>
             <button type="button" onClick={() => setFixedHelpOpen(false)} className="mt-6 w-full rounded-xl bg-zinc-950 py-3 font-black text-white transition hover:bg-pink-500">Entendi</button>
+          </div>
+        </div>
+      )}
+
+      {welcomeMotherOpen && team.parent && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-zinc-950/55 px-4 py-8 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget) setWelcomeMotherOpen(false) }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="welcome-mother-title" className="relative w-full max-w-md overflow-hidden rounded-[2rem] border border-pink-100 bg-white shadow-[0_30px_100px_rgba(0,0,0,.28)]">
+            <div className="bg-gradient-to-br from-pink-500 via-fuchsia-500 to-rose-400 px-6 pb-8 pt-8 text-center text-white">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-white/40 bg-white/20 text-3xl shadow-lg">♡</div>
+              <p className="mt-4 text-[10px] font-black uppercase tracking-[.25em] text-white/80">Bem-vinda à SHE</p>
+              <h2 id="welcome-mother-title" className="mt-2 text-3xl font-black">Você não está sozinha!</h2>
+              <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-white/90">Sua jornada começa com uma parceria. Conheça a afiliada que te trouxe para nossa equipe.</p>
+            </div>
+            <div className="px-6 py-6 text-center">
+              <p className="text-xs font-bold uppercase tracking-[.16em] text-zinc-400">Sua afiliada mãe</p>
+              <p className="mt-2 text-2xl font-black text-zinc-950">{team.parent.name}</p>
+              <p className="mt-2 text-sm leading-6 text-zinc-500">Ela pode te orientar e ajudar nos seus primeiros passos como afiliada.</p>
+              {team.parent.whatsapp && (() => {
+                const digits = String(team.parent.whatsapp).replace(/\D/g, '')
+                const number = digits.startsWith('55') ? digits : `55${digits}`
+                const message = `Oi, ${team.parent.name}! Acabei de me cadastrar como afiliada da SHE pelo seu link. 💗`
+                return <a href={`https://wa.me/${number}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer" className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#25D366] px-5 py-4 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition hover:bg-[#1fb85a]"><svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="currentColor"><path d="M20.52 3.48A11.86 11.86 0 0 0 12.08 0C5.47 0 .1 5.37.1 11.98c0 2.11.55 4.17 1.6 5.99L0 24l6.2-1.63a11.94 11.94 0 0 0 5.88 1.5h.01c6.61 0 11.98-5.37 11.98-11.98 0-3.2-1.25-6.2-3.55-8.41ZM12.09 21.8a9.9 9.9 0 0 1-5.04-1.38l-.36-.21-3.68.97.98-3.59-.23-.37a9.83 9.83 0 0 1-1.51-5.24c0-5.44 4.43-9.87 9.88-9.87a9.8 9.8 0 0 1 6.98 2.89 9.8 9.8 0 0 1 2.89 6.99c0 5.44-4.43 9.87-9.89 9.87Z"/></svg>Conversar com {team.parent.name} no WhatsApp</a>
+              })()}
+              <button type="button" onClick={() => setWelcomeMotherOpen(false)} className="mt-3 w-full rounded-2xl bg-zinc-950 px-5 py-3.5 text-sm font-black text-white transition hover:bg-zinc-800">Começar minha jornada</button>
+              <p className="mt-3 text-[11px] text-zinc-400">Esta mensagem de boas-vindas aparece apenas uma vez.</p>
+            </div>
           </div>
         </div>
       )}
