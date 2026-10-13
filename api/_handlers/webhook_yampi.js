@@ -1,7 +1,7 @@
 const { supabaseFetch, json } = require('../_lib/supabase');
 const crypto = require('crypto');
 const { reconcileAffiliateOrderCommissions, reconcileTeamMonthlyCommissions, normalizeConfig, DEFAULT_COMMISSION_CONFIG } = require('../_lib/affiliateCommission');
-const { getCreatedAt } = require('../_lib/yampi');
+const { getCreatedAt, yampiFetch } = require('../_lib/yampi');
 const { sendToAffiliate } = require('../_lib/push');
 
 function header(req, name) {
@@ -135,15 +135,45 @@ module.exports = async function handler(req, res) {
       if (!safeEqual(received, secret)) return json(res, 401, { error: 'Webhook não autorizado.' });
     }
 
-    const payload = req.body || {};
-    const affiliateId = Number(getMetadata(payload, 'affiliate_id'));
-    const yampiOrderId = String(getOrderId(payload) || '');
+    let payload = req.body || {};
+    let yampiOrderId = String(getOrderId(payload) || '');
+    let affiliateId = Number(getMetadata(payload, 'affiliate_id'));
+
+    // A Yampi pode enviar um webhook enxuto, sem metadata ou transação completa.
+    // Nesse caso, consulta o pedido oficial antes de ignorar o evento.
+    console.log('[She Yampi Webhook] received', JSON.stringify({
+      event: payload?.event || payload?.type || null,
+      orderId: yampiOrderId || null,
+      affiliateId: affiliateId || null,
+      status: getStatus(payload) || null,
+      keys: Object.keys(payload || {}).slice(0, 20),
+    }));
+
+    if (yampiOrderId && (!affiliateId || !isPaymentApproved(payload))) {
+      try {
+        const fetched = await yampiFetch(`/orders/${encodeURIComponent(yampiOrderId)}?include=metadata,transactions`);
+        const fetchedOrder = fetched?.data?.order || fetched?.data || fetched?.order || fetched;
+        if (fetchedOrder && typeof fetchedOrder === 'object') {
+          // Mantém o evento original e usa o pedido consultado para campos ausentes.
+          const originalOrder = getOrder(payload) || {};
+          const mergedOrder = { ...fetchedOrder, ...originalOrder };
+          payload = { ...payload, data: { ...(payload.data && typeof payload.data === 'object' ? payload.data : {}), order: mergedOrder } };
+          yampiOrderId = String(getOrderId(payload) || yampiOrderId);
+          affiliateId = Number(getMetadata(payload, 'affiliate_id'));
+          console.log('[She Yampi Webhook] order enriched', JSON.stringify({ orderId: yampiOrderId, affiliateId: affiliateId || null, status: getStatus(payload) || null, approved: isPaymentApproved(payload) }));
+        }
+      } catch (lookupError) {
+        console.error('[She Yampi Webhook] order lookup failed', JSON.stringify({ orderId: yampiOrderId || null, statusCode: lookupError.statusCode || null, message: lookupError.message || 'sem detalhes' }));
+      }
+    }
 
     if (!affiliateId || !yampiOrderId) {
+      console.warn('[She Yampi Webhook] ignored missing affiliate/order', JSON.stringify({ event: payload?.event || payload?.type || null, orderId: yampiOrderId || null, affiliateId: affiliateId || null }));
       return json(res, 200, { ok: true, ignored: true, reason: 'Sem affiliate_id ou order id.' });
     }
 
     if (!isPaymentApproved(payload)) {
+      console.log('[She Yampi Webhook] ignored not approved', JSON.stringify({ orderId: yampiOrderId, affiliateId, event: payload?.event || payload?.type || null, status: getStatus(payload) || null }));
       return json(res, 200, { ok: true, ignored: true, reason: 'Evento/status não representa pagamento aprovado.' });
     }
 

@@ -230,6 +230,16 @@ export default function AdminDashboard() {
       .finally(() => setLoading(false))
   }, [])
 
+  // Atualiza a página inteira a cada minuto somente enquanto o painel admin
+  // está autenticado. Não dispara reload em segundo plano para evitar gasto inútil.
+  useEffect(() => {
+    if (!authenticated) return undefined
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') window.location.reload()
+    }, 60_000)
+    return () => window.clearInterval(timer)
+  }, [authenticated])
+
   useEffect(() => {
     if (!detailAffiliate) return
     let cancelled = false
