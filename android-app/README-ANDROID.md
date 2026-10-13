@@ -1,15 +1,13 @@
-# She Afiliadas para Android (WebView + Firebase Cloud Messaging)
+# She Afiliadas para Android
 
-Este projeto Android Studio cria um app nativo chamado **She Afiliadas** que abre o site em uma WebView. Ele não é um APK compilado.
+## Correções incluídas
+- URL inicial definida para `https://she-hidratante.vercel.app/afiliado` em `app/src/main/java/br/com/sheafiliadas/app/MainActivity.java`.
+- Ícone de launcher configurado usando `@mipmap/ic_launcher` e `@mipmap/ic_launcher_round`, com os PNGs nas densidades Android.
 
-## Antes de compilar
-1. O projeto Firebase `she-afiliadas` e o app Android `br.com.sheafiliadas.app` já foram registrados.
-2. O arquivo `google-services.json` deste projeto já está incluído em `android-app/app/google-services.json`.
-3. Abra a pasta `android-app` no Android Studio e sincronize o Gradle.
-4. Compile um APK de teste. O push ainda exige integração do token FCM ao cadastro de dispositivos/afiliadas e adaptação do emissor backend.
+## Gerar o APK atualizado
+Abra `android-app` no Android Studio, sincronize o Gradle e gere um APK em **Build > Build Bundle(s) / APK(s) > Build APK(s)**. Copie o APK gerado para `public/she-afiliadas.apk` antes de publicar o site na Vercel.
 
-## Estado das notificações
-A base do Firebase Cloud Messaging e o serviço que exibe notificações estão incluídos, e o app recupera/guarda o token FCM. **O push Android ainda não está integrado ao backend de produção**: para ficar equivalente ao push iOS, é preciso cadastrar os tokens FCM associados à afiliada autenticada no Supabase e adaptar o emissor existente para enviar a esses tokens usando credenciais de servidor do Firebase. Não coloque credenciais privadas do Firebase no app nem no GitHub.
+O APK antigo foi removido da pasta `public` para evitar continuar distribuindo a versão que abre o endereço errado. O ambiente usado para preparar este ZIP não conseguiu baixar a distribuição do Gradle, portanto não foi possível compilar um novo APK aqui.
 
-## URL inicial
-A atividade abre diretamente `https://she-hidratante.vercel.app/afiliado` dentro de uma WebView. A base do Firebase Messaging e a solicitação de permissão para notificações Android permanecem no projeto. O token FCM ainda precisa ser associado à afiliada autenticada no backend e o emissor backend precisa enviar para tokens FCM; a simples compilação não completa essa integração.
+## Aviso do Android
+O alerta do Play Protect pode aparecer em APKs instalados fora da Play Store, especialmente builds de teste/debug. Para distribuição pública mais confiável, gere um APK **release assinado** com uma chave de assinatura mantida em segurança. Isso não garante que o Play Protect nunca mostre um aviso; a distribuição pela Play Store é a opção recomendada.
