@@ -136,7 +136,7 @@ export default function AffiliateProgram() {
   const teamSaleBonus = Number(cfg.teamCommissionPerSale || 0)
   const teamAdvanced1 = cfg.teamAdvanced1 || { members: 10, sales: 20, commissionPerSale: 15 }
   const teamAdvanced2 = cfg.teamAdvanced2 || { members: 20, sales: 40, commissionPerSale: 20 }
-  const maximumPersonal = Number(bonuses.gold || 0) + ticketBonus + teamSaleBonus
+  const maximumPersonal = Number(bonuses.gold || 0) + ticketBonus + Number(teamAdvanced2.commissionPerSale || teamSaleBonus)
 
   const monthlyLevels = [
     { key: 'none', name: 'Início', value: bonuses.none, sales: 0 },
@@ -260,7 +260,7 @@ export default function AffiliateProgram() {
             <div>
               <p className="text-xs font-black uppercase tracking-[.22em] text-zinc-400">Bônus Fixo</p>
               <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">O seu histórico continua trabalhando por você.</h2>
-              <p className="mt-5 max-w-2xl text-base md:text-lg leading-8 text-zinc-500">O Bônus Fixo acompanha suas vendas pessoais acumuladas. Quando você atinge o marco definido para um nível, ele se torna seu nível-base permanente.</p>
+              <p className="mt-5 max-w-2xl text-base md:text-lg leading-8 text-zinc-500">A qualificação permanente define o seu piso da qualificação mensal. Uma vez atingida a qualificação permanente, o seu progresso mensal reinicia sempre ao piso da qualificação permanente.</p>
               <div className="mt-10 grid md:grid-cols-3 gap-4">
                 {[
                   ['bronze', bonuses.bronze],
