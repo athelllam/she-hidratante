@@ -1,4 +1,5 @@
 const { requireAdmin, supabaseFetch } = require('../_lib/admin');
+const { wooviFetch } = require('../_lib/woovi');
 const { sendEmail, affiliateVideoReviewEmail } = require('../_lib/email');
 const { commissionForOrders, reconcileAffiliateOrderCommissions, reconcileTeamMonthlyCommissions, isPaidOrder, DEFAULT_COMMISSION_CONFIG, normalizeConfig } = require('../_lib/affiliateCommission');
 
@@ -8,6 +9,52 @@ function money(value) { return Math.round((Number(value) || 0) * 100) / 100; }
 module.exports = async function handler(req, res) {
   try {
     await requireAdmin(req);
+
+    // Read-only Woovi balance for the admin dashboard. Reuses this function to
+    // stay within Vercel's serverless-function limit; the AppID remains server-side.
+    if (req.method === 'GET' && String(req.query?.wooviBalance || '') === '1') {
+      const result = await wooviFetch('/api/v1/account');
+      // The account-list endpoint may return account metadata without balance.
+      // Select the default account, then fetch its detail endpoint for balance.
+      const accounts = Array.isArray(result?.accounts) ? result.accounts : [];
+      let account =
+        (result?.account && typeof result.account === 'object' ? result.account : null) ||
+        accounts.find(item => item?.isDefault) ||
+        accounts[0] ||
+        (result?.balance && typeof result.balance === 'object' ? result : null);
+
+      if ((!account?.balance || account.balance.available == null) && account?.accountId) {
+        const detailResult = await wooviFetch(`/api/v1/account/${encodeURIComponent(account.accountId)}`);
+        account = (detailResult?.account && typeof detailResult.account === 'object')
+          ? detailResult.account
+          : detailResult;
+      }
+
+      if (!account?.balance || account.balance.available == null || !Number.isFinite(Number(account.balance.available))) {
+        const diagnostic = {
+          responseType: result === null ? 'null' : Array.isArray(result) ? 'array' : typeof result,
+          responseKeys: result && typeof result === 'object' ? Object.keys(result).slice(0, 30) : [],
+          accountCount: accounts.length,
+          accountKeys: account && typeof account === 'object' ? Object.keys(account).slice(0, 30) : [],
+          balanceType: account?.balance === null ? 'null' : Array.isArray(account?.balance) ? 'array' : typeof account?.balance,
+          balanceKeys: account?.balance && typeof account.balance === 'object' ? Object.keys(account.balance).slice(0, 30) : [],
+        };
+        // Safe shape-only diagnostics: never return balances, tokens, IDs, or raw provider payloads.
+        console.error('[Woovi balance] Unexpected account response shape', diagnostic);
+        const summary = `Tipo: ${diagnostic.responseType}; chaves raiz: ${diagnostic.responseKeys.join(', ') || '(nenhuma)'}; chaves conta: ${diagnostic.accountKeys.join(', ') || '(nenhuma)'}; tipo saldo: ${diagnostic.balanceType}; chaves saldo: ${diagnostic.balanceKeys.join(', ') || '(nenhuma)'}.`;
+        return json(res, 502, { error: `A Woovi respondeu, mas não foi possível identificar o saldo da conta. ${summary}` });
+      }
+      return json(res, 200, {
+        balance: {
+          total: Number(account.balance.total || 0) / 100,
+          blocked: Number(account.balance.blocked || 0) / 100,
+          available: Number(account.balance.available) / 100,
+        },
+        accountId: account.accountId || null,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
 
     if (req.method === 'GET' && String(req.query?.videos || '') === '1') {
       const rows = await supabaseFetch('/rest/v1/affiliate_video_submissions?select=id,affiliate_id,video_url,status,note,terms_version,terms_accepted_at,created_at,reviewed_at,affiliates(id,name,slug,email,cpf,whatsapp)&order=created_at.desc&limit=1000');
