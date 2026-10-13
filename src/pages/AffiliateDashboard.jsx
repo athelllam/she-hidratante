@@ -48,8 +48,14 @@ async function api(path, options = {}) {
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     ...options,
   })
-  const data = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(data.error || 'Não foi possível concluir a operação.')
+  const raw = await response.text().catch(() => '')
+  let data = {}
+  try { data = raw ? JSON.parse(raw) : {} } catch { data = {} }
+  if (!response.ok) {
+    const detail = data.error || data.message || data.msg || (raw && raw.slice(0, 180))
+    throw new Error(detail ? `Falha na operação (HTTP ${response.status}): ${detail}` : `Falha na operação (HTTP ${response.status}).`)
+  }
+  if (!raw) return {}
   return data
 }
 
