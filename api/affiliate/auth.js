@@ -1,7 +1,8 @@
 const affiliatePushSubscription = require('../_handlers/affiliate_push_subscription');
 const { authFetch, supabaseFetch, setAuthCookie, clearAuthCookie, json } = require('../_lib/supabase');
 const crypto = require('crypto');
-const { sendEmail, resetPasswordEmail, affiliateWelcomeEmail } = require('../_lib/email');
+const { sendEmail, resetPasswordEmail, affiliateWelcomeEmail, affiliateTeamReferralEmail } = require('../_lib/email');
+const { sendToAffiliate } = require('../_lib/push');
 
 function normalizeCpf(value) {
   return String(value || '').replace(/\D/g, '');
@@ -212,7 +213,7 @@ async function register(req, res) {
   const cleanReferralSlug = String(referralSlug || '').trim().toLowerCase();
   if (cleanReferralSlug) {
     const parents = await supabaseFetch(
-      `/rest/v1/affiliates?slug=eq.${encodeURIComponent(cleanReferralSlug)}&select=id,active&limit=1`
+      `/rest/v1/affiliates?slug=eq.${encodeURIComponent(cleanReferralSlug)}&select=id,active,name,email&limit=1`
     );
     if (parents?.[0]?.active) referralParent = parents[0];
   }
@@ -261,6 +262,28 @@ async function register(req, res) {
         headers: { Prefer: 'return=minimal' },
         body: JSON.stringify({ affiliate_id: rows[0].id, admin_active: true }),
       }).catch(() => null);
+    }
+
+    // Notifica a afiliada mãe quando uma nova integrante entra pelo link de indicação.
+    // A falha no push nunca deve bloquear o cadastro.
+    if (referralParent?.id && rows?.[0]?.id) {
+      await sendToAffiliate(Number(referralParent.id), {
+        title: 'Nova integrante na sua equipe! 💗',
+        body: `${cleanName} acabou de entrar na sua equipe.`,
+        url: '/afiliado',
+        tag: `nova-integrante-${rows[0].id}`,
+        data: { type: 'team_new_member', affiliateId: Number(rows[0].id) },
+      }).catch((pushError) => console.error('Push de nova integrante falhou:', pushError?.message || pushError));
+    }
+    // E-mail para a afiliada mãe quando o cadastro veio do link dela.
+    // Falhas do Resend não devem interromper o cadastro da nova afiliada.
+    if (referralParent?.id && referralParent?.email && rows?.[0]?.id) {
+      await sendEmail({
+        to: referralParent.email,
+        subject: `Nova afiliada na sua equipe: ${cleanName} 💗`,
+        html: affiliateTeamReferralEmail({ parentName: referralParent.name, childName: cleanName }),
+        tags: [{ name: 'category', value: 'affiliate-team-referral' }],
+      }).catch((emailError) => console.error('E-mail de nova integrante falhou:', emailError?.message || emailError));
     }
 
     const session = await authFetch('/auth/v1/token?grant_type=password', {
