@@ -9,6 +9,7 @@ const {
   isPaidOrder,
 } = require('../_lib/affiliateCommission');
 const { sendEmail, adminRecipients, adminVideoEmail, affiliateBoostJoinEmail } = require('../_lib/email');
+const { sendToAffiliate } = require('../_lib/push');
 
 function money(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
@@ -240,6 +241,21 @@ module.exports = async function handler(req, res) {
       if (parentId > 0) {
         const parents = await supabaseFetch(`/rest/v1/affiliates?id=eq.${parentId}&select=id,name,email&limit=1`).catch(() => []);
         const parent = parents?.[0];
+
+        // O RPC confirmou a entrada na equipe. Envia push à afiliada mãe e registra o resultado.
+        try {
+          console.log('[She Push Team Join] start', JSON.stringify({ parentId, memberId: Number(affiliate.id), source: 'boost_confirm' }));
+          const pushResult = await sendToAffiliate(parentId, {
+            title: 'Nova integrante na sua equipe!',
+            body: `${affiliate.name || 'Uma nova afiliada'} entrou para sua equipe.`,
+            url: '/afiliado',
+            tag: `team-member-${Number(affiliate.id)}`,
+          });
+          console.log('[She Push Team Join] result', JSON.stringify({ parentId, memberId: Number(affiliate.id), source: 'boost_confirm', result: pushResult || null }));
+        } catch (pushError) {
+          console.error('[She Push Team Join] failed', JSON.stringify({ parentId, memberId: Number(affiliate.id), source: 'boost_confirm', statusCode: pushError.statusCode || null, message: pushError.message || 'sem detalhes' }));
+        }
+
         if (parent?.email) {
           await sendEmail({
             to: parent.email,
@@ -373,6 +389,21 @@ module.exports = async function handler(req, res) {
         headers: { Prefer: 'return=representation' },
         body: JSON.stringify({ team_parent_id: Number(parent.id), team_joined_at: new Date().toISOString(), team_join_source: 'organic' }),
       });
+
+      // Notifica a afiliada mãe depois que o vínculo orgânico foi salvo.
+      try {
+        console.log('[She Push Team Join] start', JSON.stringify({ parentId: Number(parent.id), memberId: Number(affiliate.id), source: 'organic' }));
+        const pushResult = await sendToAffiliate(Number(parent.id), {
+          title: 'Nova integrante na sua equipe!',
+          body: `${affiliate.name || 'Uma nova afiliada'} entrou para sua equipe.`,
+          url: '/afiliado',
+          tag: `team-member-${Number(affiliate.id)}`,
+        });
+        console.log('[She Push Team Join] result', JSON.stringify({ parentId: Number(parent.id), memberId: Number(affiliate.id), source: 'organic', result: pushResult || null }));
+      } catch (pushError) {
+        console.error('[She Push Team Join] failed', JSON.stringify({ parentId: Number(parent.id), memberId: Number(affiliate.id), source: 'organic', statusCode: pushError.statusCode || null, message: pushError.message || 'sem detalhes' }));
+      }
+
       return json(res, 200, { affiliate: rows?.[0] || { ...affiliate, team_parent_id: Number(parent.id) }, teamParent: parent });
     } catch (error) {
       return json(res, error.statusCode || 500, { error: error.message || 'Não foi possível entrar na equipe.' });
