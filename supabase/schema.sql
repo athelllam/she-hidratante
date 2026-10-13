@@ -202,6 +202,13 @@ where source is null or source = '';
 -- Comissão paga por cada venda de uma afiliada direta da equipe.
 alter table public.affiliate_settings
   add column if not exists team_commission_per_sale numeric(12,2) not null default 10.00;
+  alter table public.affiliate_settings
+    add column if not exists team_advanced1_members integer not null default 10,
+    add column if not exists team_advanced1_sales integer not null default 20,
+    add column if not exists team_advanced1_commission numeric(12,2) not null default 15.00,
+    add column if not exists team_advanced2_members integer not null default 20,
+    add column if not exists team_advanced2_sales integer not null default 40,
+    add column if not exists team_advanced2_commission numeric(12,2) not null default 20.00;
 
 
 -- Código público permanente da equipe: 6 caracteres alfanuméricos,

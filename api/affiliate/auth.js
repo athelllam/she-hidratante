@@ -1,3 +1,4 @@
+const affiliatePushSubscription = require('../_handlers/affiliate_push_subscription');
 const { authFetch, supabaseFetch, setAuthCookie, clearAuthCookie, json } = require('../_lib/supabase');
 const crypto = require('crypto');
 const { sendEmail, resetPasswordEmail, affiliateWelcomeEmail } = require('../_lib/email');
@@ -37,13 +38,23 @@ function slugify(value) {
 }
 
 async function publicSettings(req, res) {
-  const rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active&limit=1');
+  const rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,team_advanced1_members,team_advanced1_sales,team_advanced1_commission,team_advanced2_members,team_advanced2_sales,team_advanced2_commission,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active&limit=1');
   const row = rows?.[0] || {};
   return json(res, 200, {
     settings: {
       ticketThreshold: Number(row.ticket_threshold ?? 170),
       ticketBonus: Number(row.ticket_bonus ?? 5),
       teamCommissionPerSale: Number(row.team_commission_per_sale ?? 10),
+      teamAdvanced1: {
+        members: Number(row.team_advanced1_members ?? 10),
+        sales: Number(row.team_advanced1_sales ?? 20),
+        commissionPerSale: Number(row.team_advanced1_commission ?? 15),
+      },
+      teamAdvanced2: {
+        members: Number(row.team_advanced2_members ?? 20),
+        sales: Number(row.team_advanced2_sales ?? 40),
+        commissionPerSale: Number(row.team_advanced2_commission ?? 20),
+      },
       commissions: {
         none: Number(row.commission_none ?? 30),
         bronze: Number(row.commission_bronze ?? 40),
@@ -261,6 +272,7 @@ async function register(req, res) {
 
 module.exports = async function handler(req, res) {
   const action = String(req.query?.action || 'login').toLowerCase();
+  if (action === 'push-subscription') return affiliatePushSubscription(req, res);
   try {
     if (req.method === 'GET' && action === 'public_settings') return await publicSettings(req, res);
     if (req.method !== 'POST') return json(res, 405, { error: 'Método não permitido.' });

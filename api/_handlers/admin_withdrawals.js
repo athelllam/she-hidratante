@@ -1,6 +1,7 @@
 const { requireAdmin, supabaseFetch } = require('../_lib/admin');
 const { createPixPayment, normalizeWooviPixType } = require('../_lib/woovi');
 const { sendEmail, affiliateWithdrawalApprovedEmail } = require('../_lib/email');
+const { sendToAffiliate, sendToAll } = require('../_lib/push');
 
 function json(res, status, body) { res.status(status).json(body); }
 
@@ -9,18 +10,25 @@ function normalizePixKeyType(value) {
 }
 
 async function notifyAffiliate({ withdrawal, affiliate, status }) {
-  if (!affiliate?.email || !['approved', 'paid', 'failed', 'rejected'].includes(status)) return;
+  if (!affiliate?.id || !['approved', 'paid', 'failed', 'rejected'].includes(status)) return;
   const subjectStatus = status === 'failed' ? 'falhou' : status === 'rejected' ? 'foi recusado' : status === 'paid' ? 'foi pago' : 'foi aprovado';
-  await sendEmail({
-    to: affiliate.email,
-    subject: `Saque ${subjectStatus} — She Afiliadas`,
-    html: affiliateWithdrawalApprovedEmail({
-      name: affiliate.name,
-      amount: withdrawal.amount,
-      status: status === 'failed' || status === 'rejected' ? 'failed' : status,
-    }),
-    tags: [{ name: 'category', value: 'withdrawal-status' }],
-  });
+  await sendToAffiliate(affiliate.id, {
+    title: status === 'paid' ? 'Saque pago' : status === 'approved' ? 'Saque aprovado' : 'Saque não concluído',
+    body: status === 'paid' ? `Seu saque de R$ ${Number(withdrawal.amount || 0).toFixed(2).replace('.', ',')} foi pago.` : status === 'approved' ? `Seu saque de R$ ${Number(withdrawal.amount || 0).toFixed(2).replace('.', ',')} foi aprovado.` : `Seu saque de R$ ${Number(withdrawal.amount || 0).toFixed(2).replace('.', ',')} ${status === 'rejected' ? 'foi recusado' : 'falhou'}. Confira o painel para mais detalhes.`,
+    url: '/afiliado', tag: `withdrawal-${withdrawal.id}-${status}`
+  }).catch(() => null);
+  if (affiliate.email) {
+    await sendEmail({
+      to: affiliate.email,
+      subject: `Saque ${subjectStatus} — She Afiliadas`,
+      html: affiliateWithdrawalApprovedEmail({
+        name: affiliate.name,
+        amount: withdrawal.amount,
+        status: status === 'failed' || status === 'rejected' ? 'failed' : status,
+      }),
+      tags: [{ name: 'category', value: 'withdrawal-status' }],
+    });
+  }
 }
 
 module.exports = async function handler(req, res) {
@@ -32,6 +40,15 @@ module.exports = async function handler(req, res) {
       return json(res, 200, { withdrawals: rows || [] });
     }
 
+    if (req.method === 'POST') {
+      const action = String(req.body?.action || '');
+      if (action !== 'push-broadcast') return json(res, 400, { error: 'Ação inválida.' });
+      const title = String(req.body?.title || 'Aviso da She Afiliadas').trim().slice(0, 80);
+      const body = String(req.body?.body || '').trim().slice(0, 500);
+      if (!body) return json(res, 400, { error: 'Escreva a mensagem do aviso.' });
+      const result = await sendToAll({ title, body, url: '/afiliado', tag: `admin-broadcast-${Date.now()}` });
+      return json(res, 200, { ok: true, ...result, message: `Aviso enviado para ${result.sent} dispositivo(s).` });
+    }
     if (req.method !== 'PATCH') return json(res, 405, { error: 'Método não permitido.' });
     const { id } = req.body || {};
     const action = String(req.body?.action || 'approve').toLowerCase();
@@ -105,7 +122,7 @@ module.exports = async function handler(req, res) {
       // ocorrer depois de a Woovi aceitar o pagamento; manter reservado evita duplicidade.
       const definiteFailure = Number(error.providerStatus) >= 400 && Number(error.providerStatus) < 500;
       if (definiteFailure) {
-        await supabaseFetch(`/rest/v1/affiliate_withdrawals?id=eq.${Number(id)}&status=eq.processing`, {
+        const failedRows = await supabaseFetch(`/rest/v1/affiliate_withdrawals?id=eq.${Number(id)}&status=eq.processing`, {
           method: 'PATCH',
           headers: { Prefer: 'return=representation' },
           body: JSON.stringify({
@@ -115,6 +132,9 @@ module.exports = async function handler(req, res) {
             processed_at: new Date().toISOString(),
           }),
         }).catch(() => null);
+        if (failedRows?.[0]) {
+          await notifyAffiliate({ withdrawal: failedRows[0], affiliate: withdrawal.affiliates, status: 'failed' }).catch(() => null);
+        }
         return json(res, error.statusCode || 400, { error: `A Woovi recusou o Pix: ${error.message}` });
       }
       await supabaseFetch(`/rest/v1/affiliate_withdrawals?id=eq.${Number(id)}&status=eq.processing`, {
@@ -154,6 +174,8 @@ module.exports = async function handler(req, res) {
 
     if (updated?.status === 'paid' || updated?.status === 'failed') {
       await notifyAffiliate({ withdrawal: updated, affiliate: withdrawal.affiliates, status: updated.status }).catch(() => null);
+    } else if (updated?.status === 'processing') {
+      await notifyAffiliate({ withdrawal: { ...withdrawal, ...updated }, affiliate: withdrawal.affiliates, status: 'approved' }).catch(() => null);
     }
 
     return json(res, 200, {

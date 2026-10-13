@@ -7,6 +7,7 @@ const {
   normalizeConfig,
   LEVEL_ORDER,
   isPaidOrder,
+  reconcileTeamMonthlyCommissions,
 } = require('../_lib/affiliateCommission');
 const { sendEmail, adminRecipients, adminVideoEmail, affiliateBoostJoinEmail } = require('../_lib/email');
 
@@ -188,12 +189,14 @@ module.exports = async function handler(req, res) {
           ? { price: Number(s.team_boost_large_price ?? 50), connections: Number(s.team_boost_large_connections ?? 10) }
           : null;
       if (!selected) return json(res, 400, { error: 'Plano de impulso inválido.' });
-      const settingsRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales&limit=1');
+      const settingsRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,team_advanced1_members,team_advanced1_sales,team_advanced1_commission,team_advanced2_members,team_advanced2_sales,team_advanced2_commission,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales&limit=1');
       const row = settingsRows?.[0];
       const settings = normalizeConfig(row ? {
         ticketThreshold: row.ticket_threshold,
         ticketBonus: row.ticket_bonus,
         teamCommissionPerSale: row.team_commission_per_sale,
+        teamAdvanced1: { members: row.team_advanced1_members, sales: row.team_advanced1_sales, commissionPerSale: row.team_advanced1_commission },
+        teamAdvanced2: { members: row.team_advanced2_members, sales: row.team_advanced2_sales, commissionPerSale: row.team_advanced2_commission },
         commissions: { none: row.commission_none, bronze: row.commission_bronze, silver: row.commission_silver, gold: row.commission_gold },
         monthlyLevels: { bronze: row.monthly_bronze_sales, silver: row.monthly_silver_sales, gold: row.monthly_gold_sales },
         fixedLevels: { bronze: row.fixed_bronze_sales, silver: row.fixed_silver_sales, gold: row.fixed_gold_sales },
@@ -394,7 +397,7 @@ module.exports = async function handler(req, res) {
       supabaseFetch(`/rest/v1/affiliate_events?affiliate_id=eq.${id}&select=type,created_at&order=created_at.desc&limit=10000`),
       supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${id}&select=yampi_order_id,status,total,commission,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot,created_at,updated_at&order=created_at.desc&limit=5000`),
       supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${id}&select=id,amount,status,pix_key,pix_key_type,source,requested_at,processed_at,note&order=requested_at.desc&limit=500`),
-      supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales&limit=1'),
+      supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,team_advanced1_members,team_advanced1_sales,team_advanced1_commission,team_advanced2_members,team_advanced2_sales,team_advanced2_commission,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales&limit=1'),
       supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${id}&select=id,price,connections_total,connections_remaining,status,queue_created_at,activated_at,completed_at,created_at&order=created_at.desc&limit=500`).catch(() => []),
     ]);
 
@@ -402,6 +405,8 @@ module.exports = async function handler(req, res) {
       ticketThreshold: settingRows[0].ticket_threshold,
       ticketBonus: settingRows[0].ticket_bonus,
       teamCommissionPerSale: settingRows[0].team_commission_per_sale,
+      teamAdvanced1: { members: settingRows[0].team_advanced1_members, sales: settingRows[0].team_advanced1_sales, commissionPerSale: settingRows[0].team_advanced1_commission },
+      teamAdvanced2: { members: settingRows[0].team_advanced2_members, sales: settingRows[0].team_advanced2_sales, commissionPerSale: settingRows[0].team_advanced2_commission },
       commissions: { none: settingRows[0].commission_none, bronze: settingRows[0].commission_bronze, silver: settingRows[0].commission_silver, gold: settingRows[0].commission_gold },
       monthlyLevels: { bronze: settingRows[0].monthly_bronze_sales, silver: settingRows[0].monthly_silver_sales, gold: settingRows[0].monthly_gold_sales },
       fixedLevels: { bronze: settingRows[0].fixed_bronze_sales, silver: settingRows[0].fixed_silver_sales, gold: settingRows[0].fixed_gold_sales },
@@ -427,8 +432,19 @@ module.exports = async function handler(req, res) {
     const teamParent = teamParentRows?.[0] || null;
     const teamIds = (teamMembers || []).map(member => Number(member.id)).filter(Boolean);
     const teamOrders = teamIds.length
-      ? await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=in.(${teamIds.join(',')})&select=affiliate_id,status,team_commission_snapshot,created_at&order=created_at.asc&limit=20000`)
+      ? await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=in.(${teamIds.join(',')})&select=id,affiliate_id,status,team_commission_snapshot,created_at&order=created_at.asc&limit=20000`)
       : [];
+    const teamRate = Number(settings.teamCommissionPerSale || 10);
+    // Os contadores do painel devem ser calculados diretamente dos pedidos aprovados
+    // do mês atual; não dependem do resultado da rotina de consolidação de comissão.
+    const currentMonthTeamOrders = (teamOrders || []).filter(order =>
+      isPaidOrder(order) && monthKeyInSaoPaulo(order.created_at) === defaultMonth
+    );
+    const currentMonthActiveMemberIds = new Set(currentMonthTeamOrders.map(order => Number(order.affiliate_id)).filter(Number.isFinite));
+    const currentMonthTeamMemberCount = currentMonthActiveMemberIds.size;
+    const currentMonthTeamSalesCount = currentMonthTeamOrders.length;
+    const teamMonthlyLevel = await reconcileTeamMonthlyCommissions(supabaseFetch, id, teamMembers || [], teamOrders || [], settings)
+      .catch(() => ({ level: 'Equipe Base', commissionPerSale: teamRate }));
     const teamSalesByMonth = (teamOrders || []).filter(isPaidOrder).reduce((map, order) => {
       const key = monthKeyInSaoPaulo(order.created_at);
       if (key) map[key] = (map[key] || 0) + 1;
@@ -455,7 +471,6 @@ module.exports = async function handler(req, res) {
     // Saldo acumulado: o saldo de abertura do mês é o saldo final do mês anterior.
     // Saques pending/approved/paid já reduzem o saldo disponível imediatamente.
 
-    const teamRate = Number(settings.teamCommissionPerSale || 10);
     const levelMonth = defaultMonth;
     const levelMonthRange = monthRange(levelMonth);
     const ownSalesForLevel = annotatedPaidOrders.filter(order => {
@@ -587,7 +602,10 @@ module.exports = async function handler(req, res) {
       code: String(affiliate.team_code || ''),
       lifetimeSales,
       sales: Array.from(teamSalesByAffiliate.values()).reduce((sum, sales) => sum + sales, 0),
-      commissionPerSale: teamRate,
+      commissionPerSale: teamMonthlyLevel.commissionPerSale,
+      classification: teamMonthlyLevel.level,
+      monthlyMembers: currentMonthTeamMemberCount,
+      monthlySales: currentMonthTeamSalesCount,
       earnedCommission: money(teamEarnedCommission),
       reservedWithdrawals: money(teamReserved),
       availableCommission: money(teamAvailableCommission),

@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { supabaseFetch } = require('../_lib/supabase');
+const { sendToAffiliate } = require('../_lib/push');
 
 function json(res, status, body) { return res.status(status).json(body); }
 
@@ -131,6 +132,9 @@ module.exports = async function handler(req, res) {
     });
 
     const updated = updatedRows?.[0];
+    if (updated && ['paid', 'failed'].includes(finalStatus)) {
+      await sendToAffiliate(withdrawal.affiliate_id, { title: finalStatus === 'paid' ? 'Saque pago' : 'Saque falhou', body: finalStatus === 'paid' ? `Seu saque de R$ ${Number(withdrawal.amount || 0).toFixed(2).replace('.', ',')} foi pago.` : `Seu saque de R$ ${Number(withdrawal.amount || 0).toFixed(2).replace('.', ',')} falhou. Confira o painel para mais detalhes.`, url: '/afiliado', tag: `withdrawal-${withdrawal.id}-${finalStatus}` }).catch(() => null);
+    }
     if (updated && withdrawal.affiliates?.email && ['paid', 'failed'].includes(finalStatus)) {
       const { sendEmail, affiliateWithdrawalApprovedEmail } = require('../_lib/email');
       const label = finalStatus === 'paid' ? 'foi pago' : 'falhou';
