@@ -1,5 +1,4 @@
 const { requireAffiliate, supabaseFetch, json } = require('../_lib/supabase');
-const webpush = require('web-push');
 
 module.exports = async function affiliatePushSubscription(req, res) {
   try {
@@ -33,30 +32,7 @@ module.exports = async function affiliatePushSubscription(req, res) {
       body: JSON.stringify(payload),
     });
 
-    // Envia uma notificação de teste logo após salvar a inscrição. Usa a própria
-    // inscrição autenticada da afiliada; nenhuma rota pública de envio é criada.
-    const { VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT } = process.env;
-    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY || !VAPID_SUBJECT) {
-      return json(res, 200, { ok: true, testNotificationSent: false, message: 'Inscrição salva, mas faltam variáveis VAPID no servidor.' });
-    }
-    try {
-      webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-      await webpush.sendNotification(subscription, JSON.stringify({
-        title: 'She Afiliadas',
-        body: 'Está tudo funcionando! Você receberá por aqui as novidades da sua equipe 💗',
-        url: '/afiliado',
-        tag: 'she-push-test',
-      }), { TTL: 60 });
-      return json(res, 200, { ok: true, testNotificationSent: true, message: 'Inscrição salva e notificação de teste enviada.' });
-    } catch (pushError) {
-      if (pushError.statusCode === 404 || pushError.statusCode === 410) {
-        try {
-          await supabaseFetch(`/rest/v1/affiliate_push_subscriptions?endpoint=eq.${encodeURIComponent(subscription.endpoint)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ active: false, updated_at: new Date().toISOString() }) });
-        } catch {}
-      }
-      console.error('Falha ao enviar push de teste:', pushError.statusCode || 'sem status', pushError.body || pushError.message || 'erro desconhecido');
-      return json(res, 200, { ok: true, testNotificationSent: false, message: 'Inscrição salva, mas o envio de teste falhou.', pushStatus: pushError.statusCode || null });
-    }
+    return json(res, 200, { ok: true, message: 'Inscrição de notificações salva.' });
   } catch (error) {
     return json(res, error.statusCode || 500, { error: error.message || 'Não foi possível configurar as notificações.' });
   }

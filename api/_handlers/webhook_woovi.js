@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { supabaseFetch } = require('../_lib/supabase');
+const { sendToAffiliate } = require('../_lib/push');
 
 function json(res, status, body) { return res.status(status).json(body); }
 
