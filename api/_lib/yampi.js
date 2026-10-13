@@ -275,7 +275,7 @@ async function upsertAffiliateOrder(order, affiliateId, commissionRate) {
   };
 }
 
-async function syncAffiliateOrders(affiliateId, commissionRate) {
+async function syncAffiliateOrders(affiliateId = null, commissionRate) {
   const config = getConfig();
   if (!config.configured) {
     return { configured: false, synced: 0, scanned: 0, message: 'Integração Yampi não configurada.' };
@@ -286,6 +286,7 @@ async function syncAffiliateOrders(affiliateId, commissionRate) {
   let scanned = 0;
   let synced = 0;
   let pages = 0;
+  const affectedAffiliateIds = new Set();
 
   while (scanned < config.maxOrders) {
     const params = new URLSearchParams({ scroll: 'true', limit: '100', include: 'metadata,transactions' });
@@ -314,31 +315,33 @@ async function syncAffiliateOrders(affiliateId, commissionRate) {
       if (!isPaymentApprovedOrder(order)) continue;
 
       const metadataId = Number(getMetadata(order, 'affiliate_id'));
-      if (!metadataId || metadataId !== Number(affiliateId)) continue;
+      if (!metadataId || (affiliateId != null && metadataId !== Number(affiliateId))) continue;
+      const targetAffiliateId = metadataId;
+      affectedAffiliateIds.add(targetAffiliateId);
 
-      const syncResult = await upsertAffiliateOrder(order, affiliateId, commissionRate);
+      const syncResult = await upsertAffiliateOrder(order, targetAffiliateId, commissionRate);
       if (syncResult?.synced) {
         synced += 1;
         if (!syncResult.wasAlreadyApproved) {
           try {
-            console.log('[She Push Sale] sync start', JSON.stringify({ orderId: syncResult.orderId, affiliateId }));
-            const pushResult = await sendToAffiliate(affiliateId, {
+            console.log('[She Push Sale] sync start', JSON.stringify({ orderId: syncResult.orderId, affiliateId: targetAffiliateId }));
+            const pushResult = await sendToAffiliate(targetAffiliateId, {
               title: 'Venda realizada!',
               body: 'Uma venda foi aprovada e sua comissão foi atualizada. 💗',
               url: '/afiliado',
               tag: `sale-${syncResult.orderId}`,
             });
-            console.log('[She Push Sale] sync result', JSON.stringify({ orderId: syncResult.orderId, affiliateId, result: pushResult || null }));
+            console.log('[She Push Sale] sync result', JSON.stringify({ orderId: syncResult.orderId, affiliateId: targetAffiliateId, result: pushResult || null }));
           } catch (pushError) {
             console.error('[She Push Sale] sync failed', JSON.stringify({
               orderId: syncResult.orderId,
-              affiliateId,
+              affiliateId: targetAffiliateId,
               statusCode: pushError.statusCode || null,
               message: pushError.message || 'sem detalhes',
             }));
           }
         } else {
-          console.log('[She Push Sale] sync skipped already approved', JSON.stringify({ orderId: syncResult.orderId, affiliateId, previousStatus: syncResult.previousStatus }));
+          console.log('[She Push Sale] sync skipped already approved', JSON.stringify({ orderId: syncResult.orderId, affiliateId: targetAffiliateId, previousStatus: syncResult.previousStatus }));
         }
       }
     }
@@ -346,20 +349,26 @@ async function syncAffiliateOrders(affiliateId, commissionRate) {
     if (!scrollId) break;
   }
 
-  let reconciliation = { updated: 0 };
+  let commissionReconciled = 0;
   try {
-    const [affiliateRows, commissionConfig] = await Promise.all([
-      supabaseFetch(`/rest/v1/affiliates?id=eq.${Number(affiliateId)}&select=team_joined_at&limit=1`),
-      loadCurrentCommissionConfig(),
-    ]);
-    reconciliation = await reconcileAffiliateOrderCommissions(
-      supabaseFetch,
-      affiliateId,
-      commissionConfig,
-      { teamJoinedAt: affiliateRows?.[0]?.team_joined_at }
-    );
+    const commissionConfig = await loadCurrentCommissionConfig();
+    const idsToReconcile = affiliateId != null ? [Number(affiliateId)] : [...affectedAffiliateIds];
+    for (const targetId of idsToReconcile) {
+      try {
+        const affiliateRows = await supabaseFetch(`/rest/v1/affiliates?id=eq.${targetId}&select=team_joined_at&limit=1`);
+        const reconciliation = await reconcileAffiliateOrderCommissions(
+          supabaseFetch,
+          targetId,
+          commissionConfig,
+          { teamJoinedAt: affiliateRows?.[0]?.team_joined_at }
+        );
+        commissionReconciled += Number(reconciliation?.updated || 0);
+      } catch (error) {
+        console.error('[She Commission] Falha ao reconciliar após sincronização Yampi:', JSON.stringify({ affiliateId: targetId, message: error.message || 'sem detalhes' }));
+      }
+    }
   } catch (error) {
-    console.error('[She Commission] Falha ao reconciliar após sincronização Yampi:', error);
+    console.error('[She Commission] Falha ao carregar configuração para sincronização Yampi:', error);
   }
 
   return {
@@ -369,7 +378,7 @@ async function syncAffiliateOrders(affiliateId, commissionRate) {
     pages,
     cutoff: cutoff.toISOString(),
     partial: scanned >= config.maxOrders,
-    commissionReconciled: reconciliation.updated || 0,
+    commissionReconciled,
   };
 }
 
