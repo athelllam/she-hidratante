@@ -1,3 +1,4 @@
+const affiliatePushSubscription = require('../_handlers/affiliate_push_subscription');
 const { authFetch, supabaseFetch, setAuthCookie, clearAuthCookie, json } = require('../_lib/supabase');
 const crypto = require('crypto');
 const { sendEmail, resetPasswordEmail, affiliateWelcomeEmail } = require('../_lib/email');
@@ -271,6 +272,7 @@ async function register(req, res) {
 
 module.exports = async function handler(req, res) {
   const action = String(req.query?.action || 'login').toLowerCase();
+  if (action === 'push-subscription') return affiliatePushSubscription(req, res);
   try {
     if (req.method === 'GET' && action === 'public_settings') return await publicSettings(req, res);
     if (req.method !== 'POST') return json(res, 405, { error: 'Método não permitido.' });
