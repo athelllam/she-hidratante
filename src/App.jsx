@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { trackAffiliateAccess } from './utils/affiliateTracking'
+import { trackAffiliateAccess, rememberAffiliate } from './utils/affiliateTracking'
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import Welcome from './pages/Welcome'
 import AffiliateDashboard from './pages/AffiliateDashboard'
@@ -50,6 +50,7 @@ function AffiliateRootTracker({ affiliate }) {
 
   useEffect(() => {
     let active = true
+    rememberAffiliate(affiliate.slug)
     trackAffiliateAccess(affiliate, 'access')
       .finally(() => { if (active) setDone(true) })
     return () => { active = false }

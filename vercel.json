@@ -5,6 +5,14 @@
   ],
   "rewrites": [
     {
+      "source": "/api/admin/product-purchases",
+      "destination": "/api/admin/affiliates?__handler=product-purchases&admin=1"
+    },
+    {
+      "source": "/api/affiliate/product-purchases",
+      "destination": "/api/affiliate/dashboard?__handler=product-purchases"
+    },
+    {
       "source": "/api/admin/data",
       "destination": "/api/admin/affiliates?__handler=admin-data"
     },

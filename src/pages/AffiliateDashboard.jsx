@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { getRememberedAffiliate, clearRememberedAffiliate } from '../utils/affiliateTracking'
+import hidratanteProductImage from '../assets/cart/hidratante.webp'
+import stickProductImage from '../assets/cart/stick-clareador.webp'
 
 function brl(value) {
   return `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`
@@ -35,6 +38,8 @@ function withdrawalStatusLabel(status) {
   return 'Pendente'
 }
 
+function productPurchaseStatusLabel(status) { if (status === 'approved') return 'Aprovado / abatido'; if (status === 'shipped') return 'Enviado — aguardando aprovação'; if (status === 'rejected') return 'Recusado'; if (status === 'cancelled') return 'Cancelado'; return 'Saldo reservado' }
+
 function boostStatusLabel(status) {
   if (status === 'active') return 'Ativo'
   if (status === 'completed') return 'Concluído'
@@ -43,7 +48,17 @@ function boostStatusLabel(status) {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
+  const previewId = new URLSearchParams(window.location.search).get('adminPreviewId')
+  const isPreview = Boolean(previewId)
+  if (isPreview && String(options.method || 'GET').toUpperCase() !== 'GET') {
+    throw new Error('Modo de Administrador - Cuidado: ações que alteram dados estão bloqueadas nesta visualização.')
+  }
+  let requestPath = path
+  if (isPreview && path.startsWith('/api/affiliate/dashboard')) {
+    const separator = path.includes('?') ? '&' : '?'
+    requestPath = `${path}${separator}adminPreviewId=${encodeURIComponent(previewId)}`
+  }
+  const response = await fetch(requestPath, {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     ...options,
@@ -74,6 +89,8 @@ function levelAccent(key) {
 }
 
 export default function AffiliateDashboard() {
+  const adminPreviewId = new URLSearchParams(window.location.search).get('adminPreviewId')
+  const isAdminPreview = Boolean(adminPreviewId)
   const [affiliate, setAffiliate] = useState(null)
   const [installHelpOpen, setInstallHelpOpen] = useState(false)
   const [installPrompt, setInstallPrompt] = useState(null)
@@ -88,6 +105,8 @@ export default function AffiliateDashboard() {
   const [dashboard, setDashboard] = useState(null)
   const [selectedMonth, setSelectedMonth] = useState('all')
   const [registerMode, setRegisterMode] = useState(false)
+  const [welcomeMotherOpen, setWelcomeMotherOpen] = useState(false)
+  const [welcomeMotherPending, setWelcomeMotherPending] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', password: '', whatsapp: '', cpf: '' })
   const [login, setLogin] = useState({ email: '', password: '' })
   const [forgotOpen, setForgotOpen] = useState(false)
@@ -96,6 +115,78 @@ export default function AffiliateDashboard() {
   const [forgotMessage, setForgotMessage] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [productShop, setProductShop] = useState({ purchases: [], prices: null })
+  const [purchaseProduct, setPurchaseProduct] = useState('')
+  const [purchaseForm, setPurchaseForm] = useState({ name: '', cpf: '', cep: '', address: '', email: '', phone: '', notes: '' })
+  const [purchaseBusy, setPurchaseBusy] = useState(false)
+  const [purchaseMessage, setPurchaseMessage] = useState('')
+
+
+
+  useEffect(() => {
+    if (!dashboard?.affiliate?.id) return
+    let cancelled = false
+    // A rota existente lê os preços diretamente de affiliate_settings no Supabase.
+    // Usamos a mesma resposta para preços e solicitações, sem depender de campos
+    // derivados no dashboard e sem criar uma nova Serverless Function.
+    api('/api/affiliate/product-purchases')
+      .then(data => {
+        if (cancelled) return
+        const hydrant = Number(data?.prices?.hydrant)
+        const stick = Number(data?.prices?.stick)
+        const validPrices = Number.isFinite(hydrant) && hydrant > 0 && Number.isFinite(stick) && stick > 0
+        setProductShop({
+          prices: validPrices ? { hydrant, stick } : null,
+          purchases: Array.isArray(data?.purchases) ? data.purchases : [],
+        })
+      })
+      .catch(() => {
+        if (!cancelled) setProductShop(current => ({ ...current, prices: null }))
+      })
+    return () => { cancelled = true }
+  }, [dashboard?.affiliate?.id])
+
+  const submitProductPurchase = async (event) => {
+    event.preventDefault()
+    if (!purchaseProduct) return
+    setPurchaseBusy(true)
+    setPurchaseMessage('')
+    try {
+      await api('/api/affiliate/product-purchases', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'purchase', product: purchaseProduct, form: purchaseForm }),
+      })
+      setPurchaseMessage('Solicitação enviada! O valor está reservado no seu saldo até a aprovação administrativa.')
+      setPurchaseProduct('')
+      const [freshDashboard, shop] = await Promise.all([
+        api(`/api/affiliate/dashboard?month=${encodeURIComponent(selectedMonth || 'all')}`),
+        api('/api/affiliate/product-purchases'),
+      ])
+      setDashboard(freshDashboard)
+      setProductShop(shop)
+      setPurchaseForm({ name: '', cpf: '', cep: '', address: '', email: '', phone: '', notes: '' })
+    } catch (e) {
+      setPurchaseMessage(e.message || 'Não foi possível solicitar a compra.')
+    } finally {
+      setPurchaseBusy(false)
+    }
+  }
+
+  // Mostra a boas-vindas depois que o cadastro conclui e a equipe é carregada.
+  useEffect(() => {
+    const parent = dashboard?.team?.parent
+    if (!welcomeMotherPending || !affiliate?.id || !parent) return
+    const key = `she-welcome-mother-shown-${affiliate.id}`
+    try {
+      if (window.localStorage.getItem(key) === '1') {
+        setWelcomeMotherPending(false)
+        return
+      }
+      window.localStorage.setItem(key, '1')
+    } catch {}
+    setWelcomeMotherOpen(true)
+    setWelcomeMotherPending(false)
+  }, [welcomeMotherPending, affiliate?.id, dashboard?.team?.parent])
   const [busy, setBusy] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState('')
@@ -242,7 +333,11 @@ export default function AffiliateDashboard() {
     const ios = /iPad|iPhone|iPod/.test(ua) || (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1)
     const android = /Android/i.test(ua)
     const safari = /Safari/i.test(ua) && !/(CriOS|FxiOS|EdgiOS|OPiOS|Chrome|Chromium|Firefox|DuckDuckGo|GSA)/i.test(ua)
-    const standalone = window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true || ['pwa', 'android-app'].includes(new URLSearchParams(window.location.search).get('source'))
+    // O APK Android abre o painel dentro de um WebView nativo, que não usa o display-mode
+    // standalone da PWA. O user-agent padrão do Android WebView inclui "wv" e/ou Version/4.0.
+    // Assim o botão de instalação some dentro do APK, sem esconder no Chrome comum.
+    const inAndroidAppWebView = android && (/(?:\bwv\b|;\s*wv\))/i.test(ua) || /Android.*Version\/4\.0.*Chrome\//i.test(ua))
+    const standalone = window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true || ['pwa', 'android-app'].includes(new URLSearchParams(window.location.search).get('source')) || inAndroidAppWebView
     setIsIosDevice(ios)
     setIsAndroidDevice(android)
     setIsSafariBrowser(safari)
@@ -266,7 +361,7 @@ export default function AffiliateDashboard() {
   }, [])
 
   useEffect(() => {
-    if (!affiliate?.id || !isStandaloneApp || isAndroidDevice || pushDismissed) return
+    if (isAdminPreview || !affiliate?.id || !isStandaloneApp || isAndroidDevice || pushDismissed) return
     if (!('Notification' in window) || Notification.permission !== 'default') return
     // Não bloqueia a exibição do convite por uma detecção prematura de PushManager;
     // a compatibilidade completa é verificada quando a afiliada toca em Ativar.
@@ -321,7 +416,7 @@ export default function AffiliateDashboard() {
 
   const handleInstallApp = async () => {
     if (isAndroidDevice) {
-      window.location.href = '/she-afiliadas.apk'
+      setInstallHelpOpen(true)
       return
     }
     if (isIosDevice && !isSafariBrowser) {
@@ -337,18 +432,8 @@ export default function AffiliateDashboard() {
     setInstallHelpOpen(true)
   }
 
-  useEffect(() => { load({ sync: true }) }, [])
+  useEffect(() => { load({ sync: !isAdminPreview }) }, [])
 
-
-  // Atualiza a página inteira a cada minuto apenas no painel autenticado da afiliada.
-  // A carga inicial já sincroniza vendas; o reload mantém esse fallback automático.
-  useEffect(() => {
-    if (!affiliate?.id || !dashboard) return undefined
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') window.location.reload()
-    }, 60_000)
-    return () => window.clearInterval(timer)
-  }, [affiliate?.id, dashboard])
 
   const submitLogin = async (event) => {
     event.preventDefault()
@@ -389,9 +474,11 @@ export default function AffiliateDashboard() {
   const acceptRegisterTermsAndCreate = async () => {
     setBusy(true); setError('')
     try {
-      await api('/api/affiliate/register', { method: 'POST', body: JSON.stringify(form) })
+      await api('/api/affiliate/register', { method: 'POST', body: JSON.stringify({ ...form, referralSlug: getRememberedAffiliate() }) })
+      clearRememberedAffiliate()
       setRegisterTermsCardOpen(false)
       setRegisterTermsOpen(false)
+      setWelcomeMotherPending(true)
       await load({ sync: true })
     } catch (e) {
       setError(e.message)
@@ -692,6 +779,10 @@ export default function AffiliateDashboard() {
 
   if (loading) return <main className="min-h-screen bg-[#fffafc]" />
 
+  if (!affiliate && isAdminPreview && !loading) {
+    return <main className="min-h-screen bg-[#fffafc] p-8"><div className="mx-auto max-w-2xl rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-950"><strong>Modo de Administrador - Cuidado</strong><p className="mt-2 text-sm">Não foi possível carregar o painel. Verifique se sua sessão administrativa está ativa.</p></div></main>
+  }
+
   if (!affiliate) {
     return (
       <main className="min-h-screen bg-[#fffafc] flex items-center justify-center px-5 py-10">
@@ -823,6 +914,7 @@ export default function AffiliateDashboard() {
 
   return (
     <main className="min-h-screen bg-[#fffafc] px-5 py-8 md:px-10">
+      {isAdminPreview && <div className="sticky top-0 z-[120] -mx-5 -mt-8 mb-6 flex flex-wrap items-center justify-between gap-3 border-b-2 border-amber-500 bg-amber-100 px-5 py-3 text-sm font-black text-amber-950 shadow-md md:-mx-10 md:px-10"><button type="button" onClick={() => { window.close(); if (window.history.length > 1) window.history.back(); else window.location.assign('/admin') }} className="inline-flex items-center gap-2 rounded-lg border border-amber-700/30 bg-white/70 px-3 py-2 font-black transition hover:bg-white"><span aria-hidden="true">←</span> Voltar ao painel admin</button><span className="text-center">⚠️ Modo de Administrador - Cuidado · Visualização de {affiliate?.name || 'afiliada'} · Ações que alteram dados estão bloqueadas</span><span className="hidden w-[150px] md:block" aria-hidden="true" /></div>}
       {pushPromptOpen && <div className="fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto bg-zinc-950/60 p-4" role="dialog" aria-modal="true" aria-labelledby="push-prompt-title">
         <div className="my-auto w-full max-w-md overflow-hidden rounded-[2rem] border border-pink-100 bg-white shadow-2xl">
           <div className="bg-gradient-to-br from-pink-500 via-rose-400 to-fuchsia-500 px-6 pb-7 pt-8 text-center text-white"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-white/40 bg-white/20 text-3xl shadow-lg">🔔</div><p className="mt-4 text-[10px] font-black uppercase tracking-[.25em] text-white/80">She Afiliadas</p><h2 id="push-prompt-title" className="mt-2 text-2xl font-black">Não perca as novidades da sua equipe</h2><p className="mt-2 text-sm leading-6 text-white/90">Ative as notificações para receber avisos importantes diretamente no seu iPhone.</p></div>
@@ -832,8 +924,8 @@ export default function AffiliateDashboard() {
       {installHelpOpen && <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-zinc-950/55 p-4" role="dialog" aria-modal="true" aria-labelledby="install-help-title">
         <div className="my-auto w-full max-w-lg rounded-[2rem] border border-pink-100 bg-white p-5 shadow-2xl sm:p-7">
           <div className="flex items-start gap-3">
-            <img src="/apple-touch-icon-180.png" alt="Ícone do app She" className="h-16 w-16 rounded-2xl shadow-sm" />
-            <div className="min-w-0 flex-1"><p className="text-[10px] font-black uppercase tracking-[.22em] text-pink-500">She Afiliadas</p><h2 id="install-help-title" className="mt-1 text-xl font-black text-zinc-950">Adicione a She à tela inicial</h2><p className="mt-1 text-sm leading-5 text-zinc-500">Acesse seu painel como um aplicativo, direto pelo ícone da She.</p></div>
+            <img src="/pwa-icon-192.png" alt="Ícone do app She Afiliadas" className="h-16 w-16 rounded-2xl shadow-sm" />
+            <div className="min-w-0 flex-1"><p className="text-[10px] font-black uppercase tracking-[.22em] text-pink-500">She Afiliadas</p><h2 id="install-help-title" className="mt-1 text-xl font-black text-zinc-950">{isAndroidDevice ? 'Instale o app oficial She Afiliadas' : 'Adicione a She à tela inicial'}</h2><p className="mt-1 text-sm leading-5 text-zinc-500">{isAndroidDevice ? 'Um aplicativo exclusivo para as afiliadas da SHE.' : 'Acesse seu painel como um aplicativo, direto pelo ícone da She.'}</p></div>
             <button type="button" onClick={() => setInstallHelpOpen(false)} aria-label="Fechar" className="rounded-full p-2 text-xl leading-none text-zinc-400 hover:bg-zinc-100">×</button>
           </div>
           {isIosDevice && !isSafariBrowser ? <div className="mt-5 space-y-4">
@@ -849,6 +941,11 @@ export default function AffiliateDashboard() {
             <div className="flex gap-3 rounded-2xl border border-zinc-100 bg-[#fffafc] p-3.5"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">＋</div><div><p className="text-sm font-extrabold text-zinc-900">4. Escolha “Adicionar à Tela de Início”</p><p className="mt-1 text-xs leading-5 text-zinc-600">Depois de expandir “Ver Mais”, procure e toque em “Adicionar à Tela de Início”.</p><div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-[11px] font-bold text-zinc-600 shadow-sm"><span className="flex h-5 w-5 items-center justify-center rounded-md bg-pink-100 text-pink-600">＋</span> Adicionar à Tela de Início</div></div></div>
             <div className="flex gap-3 rounded-2xl border border-pink-100 bg-pink-50/70 p-3.5"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">✓</div><div><p className="text-sm font-extrabold text-zinc-900">5. Confirme em “Adicionar”</p><p className="mt-1 text-xs leading-5 text-zinc-600">O ícone oficial da She Afiliadas aparecerá na tela inicial do iPhone. Na próxima vez, abra por esse ícone.</p></div></div>
             <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">Importante: no iPhone, faça isso pelo Safari. Outros navegadores podem não mostrar a mesma opção.</p>
+          </div> : isAndroidDevice ? <div className="mt-5 space-y-3">
+            <div className="rounded-2xl border border-pink-100 bg-[#fff7fb] p-4"><p className="text-sm font-extrabold text-zinc-900">Por que o app não está na Play Store?</p><p className="mt-1 text-sm leading-6 text-zinc-600">O She Afiliadas é um aplicativo individual, disponibilizado diretamente pela SHE para suas afiliadas. Ele não é distribuído pela Google Play Store; por isso, como acontece com aplicativos que o Google ainda não conhece ou verificou, o Play Protect pode mostrar um alerta de segurança durante a instalação.</p></div>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4"><p className="text-sm font-extrabold text-amber-950">Se aparecer o aviso do Play Protect</p><ol className="mt-2 list-decimal space-y-2 pl-5 text-sm leading-6 text-amber-950"><li>Toque na setinha para baixo para expandir os detalhes do aviso, se essa opção aparecer.</li><li>Procure e toque em <strong>“Instalar mesmo assim”</strong>, caso essa opção seja exibida pelo Android.</li></ol><p className="mt-2 text-xs leading-5 text-amber-900">Só prossiga se você iniciou o download por este painel oficial da SHE e reconhece o aplicativo. Um aviso pode ocorrer por o app não ser conhecido pelo Google, mas não é possível concluir apenas pelo aviso que todo arquivo é seguro.</p></div>
+            <div className="rounded-2xl bg-zinc-50 p-4"><p className="text-sm font-extrabold text-zinc-900">Aplicativo oficial da SHE</p><p className="mt-1 text-sm leading-6 text-zinc-600">Este é o APK disponibilizado pela SHE para acesso ao painel de afiliadas. Mantenha o arquivo e o link de download restritos a fontes oficiais.</p></div>
+            <button type="button" onClick={() => { setInstallHelpOpen(false); window.location.href = '/she-afiliadas.apk' }} className="w-full rounded-xl bg-pink-600 px-4 py-3.5 text-sm font-black text-white shadow-lg shadow-pink-200 hover:bg-pink-700">Baixar app oficial para Android</button>
           </div> : <div className="mt-5 space-y-3"><div className="rounded-2xl bg-[#fffafc] p-4"><p className="text-sm font-extrabold text-zinc-900">Instale a She no seu dispositivo</p><p className="mt-1 text-sm leading-6 text-zinc-600">Use a opção de instalação do navegador. Se ela não aparecer, abra o menu do navegador e procure “Instalar app” ou “Adicionar à tela inicial”.</p></div>{installPrompt && <button type="button" onClick={handleInstallApp} className="w-full rounded-xl bg-pink-600 px-4 py-3 text-sm font-black text-white hover:bg-pink-700">Instalar agora</button>}</div>}
           <button type="button" onClick={() => setInstallHelpOpen(false)} className="mt-5 w-full rounded-xl bg-zinc-950 px-4 py-3 text-sm font-black text-white transition hover:bg-zinc-800">Entendi</button>
         </div>
@@ -1358,6 +1455,36 @@ export default function AffiliateDashboard() {
           {!dashboard?.orders?.length && <div className="py-10 text-center text-sm text-zinc-400">Nenhuma venda aprovada ainda.</div>}
         </section>
 
+        <section className="mt-6 overflow-hidden rounded-[1.8rem] border border-pink-100 bg-gradient-to-br from-white via-pink-50 to-rose-100 p-5 shadow-sm md:p-7">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div><p className="text-[10px] font-black uppercase tracking-[.25em] text-pink-500">Benefícios She</p><h2 className="mt-1 text-2xl font-black text-zinc-950">Sua loja de benefícios</h2><p className="mt-1 max-w-xl text-sm text-zinc-600">Use suas comissões para adquirir os produtos She. Uma unidade de cada produto por mês.</p></div>
+            <span className="rounded-full border border-pink-200 bg-white/80 px-3 py-1.5 text-xs font-bold text-pink-700">Pagamento com saldo</span>
+          </div>
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            {[{key:'hydrant',name:'Hidratante Íntimo She',image:hidratanteProductImage,desc:'Cuidado íntimo premium',price:productShop.prices?.hydrant},{key:'stick',name:'Stick Clareador She',image:stickProductImage,desc:'Praticidade para sua rotina',price:productShop.prices?.stick}].map(product => {
+              const now = new Date()
+              const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
+              const boughtThisMonth = (productShop.purchases || []).some(p => p.product === product.key && !['rejected','cancelled'].includes(p.status) && String(p.created_at || '').slice(0,7) === thisMonth)
+              const available = Number(dashboard?.metrics?.availableCommission || 0)
+              return <div key={product.key} className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-white bg-white shadow-sm sm:flex-row">
+                <div className="flex min-h-[180px] items-center justify-center bg-white p-3 sm:w-[42%]"><img src={product.image} alt={product.name} className="max-h-48 w-full object-contain" /></div>
+                <div className="flex flex-1 flex-col p-4"><p className="text-[10px] font-black uppercase tracking-widest text-pink-500">Produto exclusivo</p><h3 className="mt-1 text-lg font-black text-zinc-950">{product.name}</h3><p className="mt-1 text-xs text-zinc-500">{product.desc}</p><p className="mt-4 text-2xl font-black text-zinc-950">{Number.isFinite(Number(product.price)) && Number(product.price) > 0 ? brl(product.price) : 'Preço indisponível'}</p><p className="mt-1 text-[11px] text-zinc-500">Saldo disponível: {brl(available)}</p>
+                <button type="button" disabled={!Number.isFinite(Number(product.price)) || Number(product.price) <= 0 || boughtThisMonth || available < product.price} onClick={() => {setPurchaseProduct(product.key); setPurchaseMessage('')}} className="mt-4 rounded-xl bg-gradient-to-r from-pink-600 to-rose-500 px-4 py-3 text-xs font-black text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400">{!Number.isFinite(Number(product.price)) || Number(product.price) <= 0 ? 'Preço indisponível' : boughtThisMonth ? 'Já solicitado neste mês' : available < product.price ? 'Saldo insuficiente' : 'Adquirir com meu saldo'}</button>
+                {boughtThisMonth && <p className="mt-2 text-[11px] text-amber-700">Você já solicitou este produto neste mês.</p>}</div>
+              </div>
+            })}
+          </div>
+          {purchaseMessage && <p className="mt-4 rounded-xl bg-white p-3 text-sm font-semibold text-pink-700">{purchaseMessage}</p>}
+          {(productShop.purchases || []).length > 0 && <div className="mt-5 rounded-2xl border border-pink-100 bg-white/80 p-4"><h3 className="text-sm font-black text-zinc-900">Minhas solicitações</h3><div className="mt-3 space-y-2">{productShop.purchases.map(p => <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-zinc-50 p-3 text-xs"><span className="font-bold">{p.product === 'hydrant' ? 'Hidratante' : 'Stick'} · {brl(p.price)}</span><span className="rounded-full bg-pink-100 px-2 py-1 font-black text-pink-700">{({pending:'Aguardando envio',shipped:'Enviado — aguardando aprovação',approved:'Aprovado',rejected:'Recusado',cancelled:'Cancelado'})[p.status] || p.status}</span>{['pending','shipped'].includes(p.status) && <a href={`https://wa.me/553132784332?text=${encodeURIComponent(`Olá, suporte She. Gostaria de cancelar a solicitação ${p.id} do produto ${p.product === 'hydrant' ? 'Hidratante' : 'Stick'}.`)}`} target="_blank" rel="noreferrer" className="font-bold text-emerald-700 underline">Solicitar cancelamento pelo WhatsApp</a>}</div>)}</div></div>}
+        </section>
+
+        {purchaseProduct && <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-zinc-950/60 p-4"><form onSubmit={submitProductPurchase} className="my-auto w-full max-w-xl rounded-3xl bg-white p-5 shadow-2xl md:p-7"><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-widest text-pink-500">Finalizar solicitação</p><h2 className="mt-1 text-xl font-black text-zinc-950">Dados para entrega</h2><p className="mt-1 text-xs text-zinc-500">O valor será reservado. O abatimento definitivo acontece após a aprovação da She.</p></div><button type="button" onClick={() => setPurchaseProduct('')} className="rounded-full bg-zinc-100 px-3 py-1 text-sm font-black">✕</button></div><div className="mt-5 grid gap-3 sm:grid-cols-2">
+          {[['name','Nome completo','text'],['cpf','CPF','text'],['cep','CEP','text'],['email','E-mail','email'],['phone','Telefone','tel']].map(([key,label,type]) => <label key={key} className="grid gap-1 text-xs font-bold text-zinc-600">{label}<input required value={purchaseForm[key]} onChange={e=>setPurchaseForm(v=>({...v,[key]:e.target.value}))} type={type} className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-medium text-zinc-900 outline-none focus:border-pink-400" /></label>)}
+          <label className="grid gap-1 text-xs font-bold text-zinc-600 sm:col-span-2">Endereço completo<input required value={purchaseForm.address} onChange={e=>setPurchaseForm(v=>({...v,address:e.target.value}))} className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-medium text-zinc-900 outline-none focus:border-pink-400" placeholder="Rua, número, complemento, bairro, cidade e UF" /></label>
+          <label className="grid gap-1 text-xs font-bold text-zinc-600 sm:col-span-2">Observações<textarea value={purchaseForm.notes} onChange={e=>setPurchaseForm(v=>({...v,notes:e.target.value}))} rows={2} className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-medium text-zinc-900 outline-none focus:border-pink-400" /></label></div>
+          <p className="mt-4 rounded-xl bg-pink-50 p-3 text-sm font-black text-pink-800">{purchaseProduct === 'hydrant' ? 'Hidratante' : 'Stick'} · {brl(purchaseProduct === 'hydrant' ? productShop.prices?.hydrant : productShop.prices?.stick)}</p>
+          <button disabled={purchaseBusy} className="mt-4 w-full rounded-xl bg-pink-600 px-4 py-3 font-black text-white disabled:opacity-50">{purchaseBusy ? 'Enviando solicitação…' : 'Confirmar solicitação'}</button></form></div>}
+
         <section className="mt-6 rounded-[1.5rem] bg-white p-6 border border-pink-100 shadow-sm">
           <div className="flex items-end justify-between gap-4">
             <div>
@@ -1381,7 +1508,7 @@ export default function AffiliateDashboard() {
                 <div className="flex items-center gap-3">
                   <div className={`flex h-10 w-10 items-center justify-center rounded-full ${movement.kind === 'boost' ? 'bg-emerald-100 text-emerald-600' : 'bg-pink-100 text-pink-600'}`}>{movement.kind === 'boost' ? '↗' : '↗'}</div>
                   <div>
-                    <p className="font-black text-zinc-900">{movement.kind === 'boost' ? 'Impulso de Equipe' : `Solicitação de Saque ${movement.source === 'team' ? '· Equipe' : '· Pessoal'}`}</p>
+                    <p className="font-black text-zinc-900">{movement.kind === 'boost' ? 'Impulso de Equipe' : movement.kind === 'product_purchase' ? `Compra Loja de Benefícios · ${movement.productPurchase?.product === 'hydrant' ? 'Hidratante' : 'Stick'}` : `Solicitação de Saque ${movement.source === 'team' ? '· Equipe' : '· Pessoal'}`}</p>
                     <p className="mt-0.5 text-xs text-zinc-400">{new Date(movement.date).toLocaleDateString('pt-BR')}</p>
                     {movement.kind === 'withdrawal' && movement.status === 'rejected' && (
                        <p className="mt-1 max-w-xl text-xs font-semibold leading-5 text-red-600"><strong>Motivo da recusa:</strong> {movement.withdrawal?.note || 'Solicitação de saque recusada.'}</p>
@@ -1391,7 +1518,7 @@ export default function AffiliateDashboard() {
                 <div className="flex items-center gap-3 sm:justify-end">
                   <span className="text-lg font-black text-zinc-950">{brl(movement.amount)}</span>
                   <span className={`rounded-full px-3 py-1 text-[11px] font-black ${movement.kind === 'boost' ? (movement.status === 'active' ? 'bg-emerald-100 text-emerald-800' : movement.status === 'cancelled' ? 'bg-zinc-200 text-zinc-700' : movement.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800') : (movement.status === 'pending' ? 'bg-amber-100 text-amber-800' : movement.status === 'processing' ? 'bg-blue-100 text-blue-800' : movement.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : movement.status === 'failed' || movement.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-zinc-200 text-zinc-700')}`}>
-                    {movement.kind === 'boost' ? boostStatusLabel(movement.status) : withdrawalStatusLabel(movement.status)}
+                    {movement.kind === 'boost' ? boostStatusLabel(movement.status) : movement.kind === 'product_purchase' ? productPurchaseStatusLabel(movement.status) : withdrawalStatusLabel(movement.status)}
                   </span>
                 </div>
               </div>
@@ -1622,6 +1749,32 @@ export default function AffiliateDashboard() {
               <p>O nível fixo funciona como um piso do Bônus Mensal: mesmo que um novo mês comece com poucas vendas, você mantém o nível fixo que já conquistou até alcançar o próximo.</p>
             </div>
             <button type="button" onClick={() => setFixedHelpOpen(false)} className="mt-6 w-full rounded-xl bg-zinc-950 py-3 font-black text-white transition hover:bg-pink-500">Entendi</button>
+          </div>
+        </div>
+      )}
+
+      {welcomeMotherOpen && team.parent && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-zinc-950/55 px-4 py-8 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget) setWelcomeMotherOpen(false) }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="welcome-mother-title" className="relative w-full max-w-md overflow-hidden rounded-[2rem] border border-pink-100 bg-white shadow-[0_30px_100px_rgba(0,0,0,.28)]">
+            <div className="bg-gradient-to-br from-pink-500 via-fuchsia-500 to-rose-400 px-6 pb-8 pt-8 text-center text-white">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-white/40 bg-white/20 text-3xl shadow-lg">♡</div>
+              <p className="mt-4 text-[10px] font-black uppercase tracking-[.25em] text-white/80">Bem-vinda à SHE</p>
+              <h2 id="welcome-mother-title" className="mt-2 text-3xl font-black">Você não está sozinha!</h2>
+              <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-white/90">Sua jornada começa com uma parceria. Conheça a afiliada que te trouxe para nossa equipe.</p>
+            </div>
+            <div className="px-6 py-6 text-center">
+              <p className="text-xs font-bold uppercase tracking-[.16em] text-zinc-400">Sua afiliada mãe</p>
+              <p className="mt-2 text-2xl font-black text-zinc-950">{team.parent.name}</p>
+              <p className="mt-2 text-sm leading-6 text-zinc-500">Ela pode te orientar e ajudar nos seus primeiros passos como afiliada.</p>
+              {team.parent.whatsapp && (() => {
+                const digits = String(team.parent.whatsapp).replace(/\D/g, '')
+                const number = digits.startsWith('55') ? digits : `55${digits}`
+                const message = `Oi, ${team.parent.name}! Acabei de me cadastrar como afiliada da SHE pelo seu link. 💗`
+                return <a href={`https://wa.me/${number}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer" className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#25D366] px-5 py-4 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition hover:bg-[#1fb85a]"><svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="currentColor"><path d="M20.52 3.48A11.86 11.86 0 0 0 12.08 0C5.47 0 .1 5.37.1 11.98c0 2.11.55 4.17 1.6 5.99L0 24l6.2-1.63a11.94 11.94 0 0 0 5.88 1.5h.01c6.61 0 11.98-5.37 11.98-11.98 0-3.2-1.25-6.2-3.55-8.41ZM12.09 21.8a9.9 9.9 0 0 1-5.04-1.38l-.36-.21-3.68.97.98-3.59-.23-.37a9.83 9.83 0 0 1-1.51-5.24c0-5.44 4.43-9.87 9.88-9.87a9.8 9.8 0 0 1 6.98 2.89 9.8 9.8 0 0 1 2.89 6.99c0 5.44-4.43 9.87-9.89 9.87Z"/></svg>Conversar com {team.parent.name} no WhatsApp</a>
+              })()}
+              <button type="button" onClick={() => setWelcomeMotherOpen(false)} className="mt-3 w-full rounded-2xl bg-zinc-950 px-5 py-3.5 text-sm font-black text-white transition hover:bg-zinc-800">Começar minha jornada</button>
+              <p className="mt-3 text-[11px] text-zinc-400">Esta mensagem de boas-vindas aparece apenas uma vez.</p>
+            </div>
           </div>
         </div>
       )}

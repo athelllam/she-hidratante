@@ -1,4 +1,5 @@
 const { requireAffiliate, supabaseFetch, json } = require('../_lib/supabase');
+const { requireAdmin } = require('../_lib/admin');
 const {
   getLevel,
   commissionForOrders,
@@ -11,6 +12,24 @@ const {
 } = require('../_lib/affiliateCommission');
 const { sendEmail, adminRecipients, adminVideoEmail, affiliateBoostJoinEmail } = require('../_lib/email');
 const { sendToAffiliate } = require('../_lib/push');
+
+
+function getAdminPreviewId(req) {
+  const url = new URL(req.url || '/', 'http://localhost');
+  const raw = req.query?.adminPreviewId ?? url.searchParams.get('adminPreviewId');
+  const id = Number(raw);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+async function resolveDashboardAffiliate(req) {
+  const previewId = getAdminPreviewId(req);
+  if (!previewId) return (await requireAffiliate(req)).affiliate;
+  // O ID enviado pelo navegador só é aceito depois da validação da sessão administrativa.
+  await requireAdmin(req);
+  const rows = await supabaseFetch(`/rest/v1/affiliates?id=eq.${previewId}&select=id,auth_user_id,slug,name,email,cpf,whatsapp,pix_key,pix_key_type,active,commission_rate,team_parent_id,team_code,team_joined_at,created_at&limit=1`);
+  if (!rows?.[0]) { const error = new Error('Afiliada não encontrada.'); error.statusCode = 404; throw error; }
+  return rows[0];
+}
 
 function money(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
@@ -84,9 +103,10 @@ function normalizeWhatsapp(value) {
 }
 
 module.exports = async function handler(req, res) {
+  if (req.method === 'POST' && getAdminPreviewId(req)) return json(res, 403, { error: 'Modo de visualização administrativa: ações que alteram a conta estão bloqueadas.' });
   if (req.method === 'POST' && String(req.body?.action || '') === 'update_profile') {
     try {
-      const { affiliate } = await requireAffiliate(req);
+      const affiliate = await resolveDashboardAffiliate(req);
       const email = String(req.body?.email || '').trim().toLowerCase();
       const cpf = normalizeCpf(req.body?.cpf);
       const whatsapp = normalizeWhatsapp(req.body?.whatsapp);
@@ -126,7 +146,7 @@ module.exports = async function handler(req, res) {
 
   if (req.method === 'GET' && String(req.query?.boost || '') === '1') {
     try {
-      const { affiliate } = await requireAffiliate(req);
+      const affiliate = await resolveDashboardAffiliate(req);
       const settingRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active&limit=1');
       const s = settingRows?.[0] || {};
       const boosts = await supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${Number(affiliate.id)}&status=in.(queued,active)&select=id,price,connections_total,connections_remaining,status,queue_created_at,activated_at&order=id.desc&limit=1`).catch(() => []);
@@ -149,7 +169,7 @@ module.exports = async function handler(req, res) {
 
   if (req.method === 'POST' && String(req.body?.action || '') === 'team_lookup') {
     try {
-      const { affiliate } = await requireAffiliate(req);
+      const affiliate = await resolveDashboardAffiliate(req);
       const parentId = Number(req.body?.parentId);
       if (!Number.isInteger(parentId) || parentId <= 0) return json(res, 200, { parent: null, message: 'Digite um ID numérico válido.' });
       if (affiliate.team_parent_id) return json(res, 400, { error: 'Você já está em uma equipe.' });
@@ -167,7 +187,7 @@ module.exports = async function handler(req, res) {
 
   if (req.method === 'POST' && String(req.body?.action || '') === 'boost_find') {
     try {
-      const { affiliate } = await requireAffiliate(req);
+      const affiliate = await resolveDashboardAffiliate(req);
       if (affiliate.team_parent_id) return json(res, 400, { error: 'Você já está em uma equipe.' });
       const orders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=status&limit=5000`);
       if ((orders || []).some(isPaidOrder)) return json(res, 400, { error: 'Você já fez sua primeira venda e não pode procurar uma equipe.' });
@@ -180,7 +200,7 @@ module.exports = async function handler(req, res) {
 
   if (req.method === 'POST' && String(req.body?.action || '') === 'boost_purchase') {
     try {
-      const { affiliate } = await requireAffiliate(req);
+      const affiliate = await resolveDashboardAffiliate(req);
       const plan = String(req.body?.plan || '');
       const settingRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections&limit=1');
       const s = settingRows?.[0] || {};
@@ -223,7 +243,7 @@ module.exports = async function handler(req, res) {
 
   if (req.method === 'POST' && String(req.body?.action || '') === 'boost_leave_queue') {
     try {
-      const { affiliate } = await requireAffiliate(req);
+      const affiliate = await resolveDashboardAffiliate(req);
       const result = await supabaseFetch('/rest/v1/rpc/she_team_boost_leave_queue', { method: 'POST', body: JSON.stringify({ p_affiliate_id: Number(affiliate.id) }) });
       return json(res, 200, { boost: result });
     } catch (error) {
@@ -233,7 +253,7 @@ module.exports = async function handler(req, res) {
 
   if (req.method === 'POST' && String(req.body?.action || '') === 'boost_confirm') {
     try {
-      const { affiliate } = await requireAffiliate(req);
+      const affiliate = await resolveDashboardAffiliate(req);
       if (req.body?.teamTermsVersion !== '1.1' || req.body?.teamTermsAccepted !== true) {
         return json(res, 400, { error: 'É necessário confirmar a aceitação dos termos de entrada na equipe.' });
       }
@@ -260,7 +280,7 @@ module.exports = async function handler(req, res) {
   }
   if (req.method === 'GET' && String(req.query?.videos || '') === '1') {
     try {
-      const { affiliate } = await requireAffiliate(req);
+      const affiliate = await resolveDashboardAffiliate(req);
       const rows = await supabaseFetch(`/rest/v1/affiliate_video_submissions?affiliate_id=eq.${Number(affiliate.id)}&select=id,video_url,status,note,terms_version,terms_accepted_at,created_at,reviewed_at&order=created_at.desc&limit=100`);
       return json(res, 200, { videos: rows || [], termsVersion: '1.0' });
     } catch (error) {
@@ -270,7 +290,7 @@ module.exports = async function handler(req, res) {
 
   if (req.method === 'POST' && String(req.body?.action || '') === 'submit_video') {
     try {
-      const { affiliate } = await requireAffiliate(req);
+      const affiliate = await resolveDashboardAffiliate(req);
       const TERMS_VERSION = '1.0';
       const videoUrl = String(req.body?.videoUrl || '').trim();
       const termsAccepted = Boolean(req.body?.termsAccepted);
@@ -314,7 +334,7 @@ module.exports = async function handler(req, res) {
 
   if (req.method === 'POST' && String(req.body?.action || '') === 'create_link') {
     try {
-      const { affiliate } = await requireAffiliate(req);
+      const affiliate = await resolveDashboardAffiliate(req);
       if (affiliate.slug) return json(res, 400, { error: 'Seu link já foi criado.' });
       const rawSlug = String(req.body?.slug || '').trim();
       const cleanSlug = rawSlug
@@ -340,7 +360,7 @@ module.exports = async function handler(req, res) {
 
   if (req.method === 'POST') {
     try {
-      const { affiliate } = await requireAffiliate(req);
+      const affiliate = await resolveDashboardAffiliate(req);
       if (req.body?.teamTermsVersion !== '1.1' || req.body?.teamTermsAccepted !== true) {
         return json(res, 400, { error: 'É necessário confirmar a aceitação dos termos de entrada na equipe.' });
       }
@@ -400,7 +420,7 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'GET') return json(res, 405, { error: 'Método não permitido.' });
 
   try {
-    const { affiliate } = await requireAffiliate(req);
+    const affiliate = await resolveDashboardAffiliate(req);
     const id = affiliate.id;
     const now = new Date();
     const defaultMonth = monthKeyInSaoPaulo(now);
@@ -412,7 +432,7 @@ module.exports = async function handler(req, res) {
       supabaseFetch(`/rest/v1/affiliate_events?affiliate_id=eq.${id}&select=type,created_at&order=created_at.desc&limit=10000`),
       supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${id}&select=yampi_order_id,status,total,commission,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot,created_at,updated_at&order=created_at.desc&limit=5000`),
       supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${id}&select=id,amount,status,pix_key,pix_key_type,source,requested_at,processed_at,note&order=requested_at.desc&limit=500`),
-      supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,team_advanced1_members,team_advanced1_sales,team_advanced1_commission,team_advanced2_members,team_advanced2_sales,team_advanced2_commission,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales&limit=1'),
+      supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,team_advanced1_members,team_advanced1_sales,team_advanced1_commission,team_advanced2_members,team_advanced2_sales,team_advanced2_commission,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,affiliate_hydrant_price,affiliate_stick_price&limit=1'),
       supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${id}&select=id,price,connections_total,connections_remaining,status,queue_created_at,activated_at,completed_at,created_at&order=created_at.desc&limit=500`).catch(() => []),
     ]);
 
@@ -479,7 +499,9 @@ module.exports = async function handler(req, res) {
     const teamWithdrawals = (withdrawals || []).filter(w => String(w.source || 'personal') === 'team');
     const reserved = personalWithdrawals.filter(w => !['rejected', 'failed'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const boostSpent = (boostRows || []).filter(row => ['queued', 'active', 'completed'].includes(String(row.status || ''))).reduce((sum, row) => sum + Number(row.price || 0), 0);
-    let availableCommission = Math.max(0, totalEarnedCommission - reserved - boostSpent);
+    const productPurchaseRows = await supabaseFetch(`/rest/v1/affiliate_product_purchases?affiliate_id=eq.${affiliate.id}&status=in.(pending,shipped,approved)&select=id,product,price,status,created_at&limit=1000`).catch(() => []);
+    const reservedProductPurchases = (productPurchaseRows || []).reduce((sum, row) => sum + Number(row.price || 0), 0);
+    let availableCommission = Math.max(0, totalEarnedCommission - reserved - boostSpent - reservedProductPurchases);
     // O nível é mensal. Em "Todos os meses", usamos o mês atual,
     // porque o nível reinicia no primeiro dia de cada mês.
 
@@ -736,6 +758,11 @@ module.exports = async function handler(req, res) {
     return json(res, 200, {
       affiliate,
       settings,
+      // Preços da loja de benefícios lidos diretamente de affiliate_settings (id=1).
+      productPrices: {
+        hydrant: Number(settingRows?.[0]?.affiliate_hydrant_price),
+        stick: Number(settingRows?.[0]?.affiliate_stick_price),
+      },
       monthlyCommissionRates: displayMonthlyCommissionRates,
       selectedMonth: requestedMonth,
       isAllMonths: requestedMonth === 'all',
@@ -804,6 +831,14 @@ module.exports = async function handler(req, res) {
           amount: Number(boost.price || 0),
           status: boost.status,
           boost,
+        })),
+        ...(productPurchaseRows || []).map(purchase => ({
+          id: `product-purchase-${purchase.id}`,
+          kind: 'product_purchase',
+          date: purchase.created_at,
+          amount: Number(purchase.price || 0),
+          status: purchase.status,
+          productPurchase: purchase,
         })),
       ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
       monthlyStats,

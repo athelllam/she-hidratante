@@ -162,6 +162,15 @@ function adminVideoEmail(video) {
   `);
 }
 
+function affiliateTeamReferralEmail({ parentName, childName }) {
+  return shell('Nova afiliada na sua equipe! 💗', `
+    <p style="font-size:15px;line-height:1.7;color:#52525b">Olá, ${escapeHtml(parentName || 'afiliada')}!</p>
+    <p style="font-size:15px;line-height:1.7;color:#52525b"><strong>${escapeHtml(childName || 'Uma nova afiliada')}</strong> acabou de se cadastrar pelo seu link e agora faz parte da sua equipe.</p>
+    <div style="margin:20px 0;padding:18px;border-radius:16px;background:#fff1f7;color:#9d174d;font-weight:800">Compartilhe dicas, acompanhe sua equipe e cresçam juntas com a SHE.</div>
+    ${APP_BASE_URL ? `<div style="margin-top:24px">${buttonHtml('Ver minha equipe', `${APP_BASE_URL}/afiliado`)}</div>` : ''}
+  `);
+}
+
 function affiliateBoostJoinEmail({ parentName, childName }) {
   return shell('Nova afiliada entrou na sua equipe', `
     <p style="font-size:15px;line-height:1.7;color:#52525b">Olá, ${escapeHtml(parentName || 'afiliada')}!</p>
@@ -226,6 +235,7 @@ module.exports = {
   adminWithdrawalEmail,
   adminVideoEmail,
   affiliateBoostJoinEmail,
+  affiliateTeamReferralEmail,
   affiliateWithdrawalApprovedEmail,
   affiliateTeamAdvancedEmail,
   escapeHtml,
