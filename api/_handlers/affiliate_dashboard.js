@@ -222,76 +222,20 @@ module.exports = async function handler(req, res) {
         monthlyLevels: { bronze: row.monthly_bronze_sales, silver: row.monthly_silver_sales, gold: row.monthly_gold_sales },
         fixedLevels: { bronze: row.fixed_bronze_sales, silver: row.fixed_silver_sales, gold: row.fixed_gold_sales },
       } : DEFAULT_COMMISSION_CONFIG);
-      // Recalcula o saldo usando exatamente o mesmo nível mensal do painel da afiliada.
-      // Antes, este endpoint recalculava a comissão sem levelKey/teamSalesByMonth,
-      // fazendo a compra de impulso enxergar R$ 110 (e, após o saque reservado, R$ 10)
-      // enquanto o dashboard exibia R$ 210 de comissão e R$ 110 disponíveis.
-      const ordersPath = `/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=yampi_order_id,status,total,commission,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot,created_at,updated_at&order=created_at.asc&limit=5000`;
-      await reconcileAffiliateOrderCommissions(supabaseFetch, affiliate.id, settings, {
-        teamJoinedAt: affiliate.team_joined_at,
-      }).catch((error) => console.error('[She Boost] Reconciliação inicial falhou:', error));
-      let orders = await supabaseFetch(ordersPath);
-      let ownCommissionData = commissionForOrders(orders || [], settings, { teamJoinedAt: affiliate.team_joined_at });
-      const teamMembers = await supabaseFetch(`/rest/v1/affiliates?team_parent_id=eq.${affiliate.id}&select=id&limit=1000`);
-      const teamIds = (teamMembers || []).map(member => Number(member.id)).filter(id => Number.isInteger(id) && id > 0);
-      const teamOrders = teamIds.length
-        ? await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=in.(${teamIds.join(',')})&select=affiliate_id,status,created_at&order=created_at.asc&limit=20000`)
-        : [];
-      const now = new Date();
-      const monthParts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).formatToParts(now);
-      const monthKey = `${monthParts.find(part => part.type === 'year')?.value}-${monthParts.find(part => part.type === 'month')?.value}`;
-      const monthRangeStart = new Date(`${monthKey}-01T00:00:00-03:00`);
-      const nextMonthStart = new Date(monthRangeStart);
-      nextMonthStart.setMonth(nextMonthStart.getMonth() + 1);
-      const ownSalesThisMonth = (ownCommissionData.orders || []).filter(order => {
-        const d = new Date(order.created_at);
-        return d >= monthRangeStart && d < nextMonthStart;
-      }).length;
-      const teamSalesThisMonth = (teamOrders || []).filter(order => {
-        if (!isPaidOrder(order)) return false;
-        const d = new Date(order.created_at);
-        return d >= monthRangeStart && d < nextMonthStart;
-      }).length;
-      const teamSalesByMonth = (teamOrders || []).filter(isPaidOrder).reduce((map, order) => {
-        const d = new Date(order.created_at);
-        if (!Number.isNaN(d.getTime())) {
-          const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).formatToParts(d);
-          const key = `${parts.find(part => part.type === 'year')?.value}-${parts.find(part => part.type === 'month')?.value}`;
-          map[key] = (map[key] || 0) + 1;
-        }
-        return map;
-      }, {});
-      const joinedAt = affiliate.team_joined_at ? new Date(affiliate.team_joined_at) : null;
-      const teamBonusActive = Boolean(joinedAt && !Number.isNaN(joinedAt.getTime()) && now >= joinedAt && now < new Date(joinedAt.getTime() + 30 * 86400000));
-      const fixedLevel = getLevel((ownCommissionData.orders || []).length, settings, 'fixed');
-      const teamBonusLevel = teamBonusActive ? getLevel(settings.monthlyLevels.bronze, settings, 'monthly') : null;
-      const baseLevelKey = [fixedLevel.key, teamBonusLevel?.key || 'none'].reduce((best, candidate) =>
-        LEVEL_ORDER[candidate] > LEVEL_ORDER[best] ? candidate : best, 'none');
-      const basePoints = baseLevelKey === 'gold'
-        ? Number(settings.monthlyLevels?.gold || 101)
-        : baseLevelKey === 'silver'
-          ? Number(settings.monthlyLevels?.silver || 50)
-          : baseLevelKey === 'bronze'
-            ? Number(settings.monthlyLevels?.bronze || 10)
-            : 0;
-      const currentLevelKey = getLevel(basePoints + ownSalesThisMonth + teamSalesThisMonth, settings, 'monthly').key;
-      await reconcileAffiliateOrderCommissions(supabaseFetch, affiliate.id, settings, {
-        teamJoinedAt: affiliate.team_joined_at, levelKey: currentLevelKey, teamSalesByMonth,
-      }).catch((error) => console.error('[She Boost] Reconciliação por nível falhou:', error));
-      orders = await supabaseFetch(ordersPath);
-      const earned = commissionForOrders(orders || [], settings, {
-        teamJoinedAt: affiliate.team_joined_at, levelKey: currentLevelKey, teamSalesByMonth,
-      }).total;
+      const orders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=status,total,created_at&order=created_at.asc&limit=5000`);
+      const earned = commissionForOrders(orders || [], settings, { teamJoinedAt: affiliate.team_joined_at }).total;
       const [withdrawals, existingBoosts] = await Promise.all([
         supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${affiliate.id}&source=eq.personal&select=amount,status&limit=1000`),
-        supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${affiliate.id}&select=price,status,admin_granted&limit=1000`).catch(() => []),
+        supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${affiliate.id}&select=price,status&limit=1000`).catch(() => []),
       ]);
       const reservedWithdrawals = (withdrawals || []).filter(w => !['rejected', 'failed', 'cancelled'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
-      const reservedBoosts = (existingBoosts || []).filter(row => !row.admin_granted && ['queued', 'active', 'completed'].includes(String(row.status || ''))).reduce((sum, row) => sum + Number(row.price || 0), 0);
+      const reservedBoosts = (existingBoosts || []).filter(row => ['queued', 'active', 'completed'].includes(String(row.status || ''))).reduce((sum, row) => sum + Number(row.price || 0), 0);
       const baseAvailable = Math.max(0, earned - reservedWithdrawals - reservedBoosts);
+      // A RPC she_team_boost_purchase já desconta saques e impulsos reservados.
+      // Enviar baseAvailable aqui faria os mesmos descontos duas vezes.
       const result = await supabaseFetch('/rest/v1/rpc/she_team_boost_purchase', {
         method: 'POST',
-        body: JSON.stringify({ p_affiliate_id: Number(affiliate.id), p_price: selected.price, p_connections: selected.connections, p_earned_balance: baseAvailable }),
+        body: JSON.stringify({ p_affiliate_id: Number(affiliate.id), p_price: selected.price, p_connections: selected.connections, p_earned_balance: earned }),
       });
       return json(res, 201, { boost: result });
     } catch (error) {
