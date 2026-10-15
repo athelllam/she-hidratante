@@ -24,11 +24,11 @@ function ScrollToTop() {
   const location = useLocation()
 
   useEffect(() => {
-    const path = String(location.pathname || '').replace(/\\/+$/, '') || '/'
+    const path = String(location.pathname || '').replace(/\/+$/, '') || '/'
     // Preservar a posição de scroll nas páginas do Hidratante e do Stick.
     const isProductPage = path === '/hidratante'
       || path === '/stick'
-      || /^\\/[^/]+\\/(hidratante|stick)$/.test(path)
+      || /^\/[^/]+\/(hidratante|stick)$/.test(path)
 
     if (isProductPage) return
 
