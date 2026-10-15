@@ -47,10 +47,13 @@ module.exports = async function handler(req, res) {
             body: JSON.stringify({ id: 1, ...payload }),
           });
         }
-        const saved = rows?.[0];
+        let saved = rows?.[0];
+        // Confirm the persisted values with a fresh read, even if PostgREST returns an empty PATCH body.
+        const confirmed = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=affiliate_hydrant_price,affiliate_stick_price&limit=1');
+        saved = confirmed?.[0] || saved;
         if (!saved || Number(saved.affiliate_hydrant_price) !== payload.affiliate_hydrant_price ||
             Number(saved.affiliate_stick_price) !== payload.affiliate_stick_price) {
-          throw new Error('O banco não confirmou a gravação dos preços. Confira a configuração affiliate_settings no Supabase.');
+          throw new Error('O Supabase não confirmou a gravação dos preços. Confira se a migração migration_affiliate_product_purchases.sql foi executada.');
         }
         return json(res, 200, { prices: { hydrant: Number(saved.affiliate_hydrant_price), stick: Number(saved.affiliate_stick_price) } });
       }

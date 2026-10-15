@@ -141,7 +141,7 @@ export default function AdminDashboard() {
   const [deletePhrase, setDeletePhrase] = useState('')
   const [deletingIds, setDeletingIds] = useState([])
   const [settings, setSettings] = useState({ ticketThreshold: 170, ticketBonus: 5, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 }, monthlyLevels: { bronze: 10, silver: 50, gold: 101 }, fixedLevels: { bronze: 100, silver: 300, gold: 500 } })
-  const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', ticketBonus: '5', teamCommissionPerSale: '10', teamAdvanced1Members: '10', teamAdvanced1Sales: '20', teamAdvanced1Commission: '15', teamAdvanced2Members: '20', teamAdvanced2Sales: '40', teamAdvanced2Commission: '20', none: '30', bronze: '40', silver: '50', gold: '60', monthlyBronze: '10', monthlySilver: '50', monthlyGold: '101', fixedBronze: '100', fixedSilver: '300', fixedGold: '500', smallBoostPrice: '30', smallBoostConnections: '5', largeBoostPrice: '50', largeBoostConnections: '10', maxActiveBoosts: '3', resellerHydrant: '0', resellerHydrantBlister: '0', resellerStick: '0', resellerComplete: '0' })
+  const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', ticketBonus: '5', teamCommissionPerSale: '10', teamAdvanced1Members: '10', teamAdvanced1Sales: '20', teamAdvanced1Commission: '15', teamAdvanced2Members: '20', teamAdvanced2Sales: '40', teamAdvanced2Commission: '20', none: '30', bronze: '40', silver: '50', gold: '60', monthlyBronze: '10', monthlySilver: '50', monthlyGold: '101', fixedBronze: '100', fixedSilver: '300', fixedGold: '500', smallBoostPrice: '30', smallBoostConnections: '5', largeBoostPrice: '50', largeBoostConnections: '10', maxActiveBoosts: '3' })
   const [savingSettings, setSavingSettings] = useState(false)
   const [savingBonusLevels, setSavingBonusLevels] = useState(false)
   const [globalStatsData, setGlobalStatsData] = useState({ all: { sales: 0, revenue: 0, averageTicket: 0, accesses: 0 }, byMonth: {}, snapshots: {} })
@@ -225,10 +225,6 @@ export default function AdminDashboard() {
       largeBoostPrice: String(nextSettings.boostPlans?.large?.price ?? 50),
       largeBoostConnections: String(nextSettings.boostPlans?.large?.connections ?? 10),
       maxActiveBoosts: String(nextSettings.boostPlans?.maxActive ?? 3),
-      resellerHydrant: String(nextSettings.resellerPrices?.hydrant ?? 0),
-      resellerHydrantBlister: String(nextSettings.resellerPrices?.hydrantBlister ?? 0),
-      resellerStick: String(nextSettings.resellerPrices?.stick ?? 0),
-      resellerComplete: String(nextSettings.resellerPrices?.complete ?? 0),
     })
     setSelectedAffiliateIds(new Set())
     setDeleteModalOpen(false)
@@ -657,14 +653,8 @@ export default function AdminDashboard() {
           large: { price: Number(String(settingsForm.largeBoostPrice).replace(',', '.')), connections: Number(settingsForm.largeBoostConnections) },
           maxActive: Number(settingsForm.maxActiveBoosts),
         },
-        resellerPrices: {
-          hydrant: Number(String(settingsForm.resellerHydrant).replace(',', '.')),
-          hydrantBlister: Number(String(settingsForm.resellerHydrantBlister).replace(',', '.')),
-          stick: Number(String(settingsForm.resellerStick).replace(',', '.')),
-          complete: Number(String(settingsForm.resellerComplete).replace(',', '.')),
-        },
       }
-      if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || !Number.isFinite(payload.ticketBonus) || payload.ticketBonus < 0 || !Number.isFinite(payload.teamCommissionPerSale) || payload.teamCommissionPerSale < 0 || [payload.teamAdvanced1, payload.teamAdvanced2].some(t => !Number.isInteger(t.members) || t.members <= 0 || !Number.isInteger(t.sales) || t.sales <= 0 || !Number.isFinite(t.commissionPerSale) || t.commissionPerSale < 0) || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0) || Object.values(payload.monthlyLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.fixedLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.resellerPrices).some(value => !Number.isFinite(value) || value < 0) || payload.boostPlans.small.price <= 0 || !Number.isInteger(payload.boostPlans.small.connections) || payload.boostPlans.small.connections <= 0 || payload.boostPlans.large.price <= 0 || !Number.isInteger(payload.boostPlans.large.connections) || payload.boostPlans.large.connections <= 0 || !Number.isInteger(payload.boostPlans.maxActive) || payload.boostPlans.maxActive <= 0 || !(payload.monthlyLevels.bronze < payload.monthlyLevels.silver && payload.monthlyLevels.silver < payload.monthlyLevels.gold) || !(payload.fixedLevels.bronze < payload.fixedLevels.silver && payload.fixedLevels.silver < payload.fixedLevels.gold)) {
+      if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || !Number.isFinite(payload.ticketBonus) || payload.ticketBonus < 0 || !Number.isFinite(payload.teamCommissionPerSale) || payload.teamCommissionPerSale < 0 || [payload.teamAdvanced1, payload.teamAdvanced2].some(t => !Number.isInteger(t.members) || t.members <= 0 || !Number.isInteger(t.sales) || t.sales <= 0 || !Number.isFinite(t.commissionPerSale) || t.commissionPerSale < 0) || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0) || Object.values(payload.monthlyLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.fixedLevels).some(value => !Number.isInteger(value) || value <= 0) || payload.boostPlans.small.price <= 0 || !Number.isInteger(payload.boostPlans.small.connections) || payload.boostPlans.small.connections <= 0 || payload.boostPlans.large.price <= 0 || !Number.isInteger(payload.boostPlans.large.connections) || payload.boostPlans.large.connections <= 0 || !Number.isInteger(payload.boostPlans.maxActive) || payload.boostPlans.maxActive <= 0 || !(payload.monthlyLevels.bronze < payload.monthlyLevels.silver && payload.monthlyLevels.silver < payload.monthlyLevels.gold) || !(payload.fixedLevels.bronze < payload.fixedLevels.silver && payload.fixedLevels.silver < payload.fixedLevels.gold)) {
         throw new Error('Informe valores válidos. As metas devem ser números inteiros e crescentes: Bronze < Prata < Ouro.')
       }
       const result = await api('/api/admin/affiliates', {
@@ -697,10 +687,6 @@ export default function AdminDashboard() {
         largeBoostPrice: String(result.settings.boostPlans?.large?.price ?? 50),
         largeBoostConnections: String(result.settings.boostPlans?.large?.connections ?? 10),
         maxActiveBoosts: String(result.settings.boostPlans?.maxActive ?? 3),
-        resellerHydrant: String(result.settings.resellerPrices?.hydrant ?? 0),
-        resellerHydrantBlister: String(result.settings.resellerPrices?.hydrantBlister ?? 0),
-        resellerStick: String(result.settings.resellerPrices?.stick ?? 0),
-        resellerComplete: String(result.settings.resellerPrices?.complete ?? 0),
       })
       setMessage('Configurações de comissões e metas dos Bônus Mensal e Fixo atualizadas para todas as afiliadas.')
       await loadPanel()
@@ -710,6 +696,7 @@ export default function AdminDashboard() {
       setSavingSettings(false)
     }
   }
+
 
   const saveNewPassword = async (event) => {
     event.preventDefault()
@@ -1228,14 +1215,22 @@ export default function AdminDashboard() {
                     <td className="py-4 pr-4 font-bold text-zinc-700">{affiliate.created_at ? new Date(affiliate.created_at).toLocaleDateString('pt-BR') : '—'}</td>
                     <td className="py-4 pr-4">
                       <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setBoostGrantAffiliate(affiliate)}
-                          title={(boostState.active || []).some(item => Number(item.affiliate_id) === Number(affiliate.id)) ? `Impulso ativo para ${affiliate.name}` : `Conceder impulso gratuito para ${affiliate.name}`}
-                          className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-black transition ${(boostState.active || []).some(item => Number(item.affiliate_id) === Number(affiliate.id)) ? 'border-amber-400 bg-amber-400 text-amber-950 shadow-sm hover:border-amber-500 hover:bg-amber-500' : 'border-pink-200 bg-pink-50 text-pink-700 hover:border-pink-400 hover:bg-pink-100'}`}
-                        >
-                          Impulsionar
-                        </button>
+                        <div className="flex min-w-[92px] flex-col items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setBoostGrantAffiliate(affiliate)}
+                            disabled={(boostState.active || []).some(item => Number(item.affiliate_id) === Number(affiliate.id))}
+                            title={(boostState.active || []).some(item => Number(item.affiliate_id) === Number(affiliate.id)) ? `Impulso ativo para ${affiliate.name}` : `Conceder impulso gratuito para ${affiliate.name}`}
+                            className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-black transition disabled:cursor-not-allowed disabled:opacity-100 ${(boostState.active || []).some(item => Number(item.affiliate_id) === Number(affiliate.id)) ? 'border-amber-300 bg-gradient-to-b from-amber-200 via-amber-400 to-yellow-500 text-amber-950 shadow-[0_2px_8px_rgba(217,119,6,0.24)]' : 'border-pink-200 bg-pink-50 text-pink-700 hover:border-pink-400 hover:bg-pink-100'}`}
+                          >
+                            {(boostState.active || []).some(item => Number(item.affiliate_id) === Number(affiliate.id)) ? 'Impulsionada' : 'Impulsionar'}
+                          </button>
+                          {(boostState.active || []).some(item => Number(item.affiliate_id) === Number(affiliate.id)) && (
+                            <span className="whitespace-nowrap text-[9px] font-medium leading-tight text-zinc-500">
+                              {(boostState.active || []).find(item => Number(item.affiliate_id) === Number(affiliate.id))?.connections_remaining ?? 0} conexões restantes
+                            </span>
+                          )}
+                        </div>
                       <button
                         type="button"
                         onClick={() => toggleAdminStatus(affiliate)}
@@ -1358,7 +1353,7 @@ export default function AdminDashboard() {
         </section>
 
         <section className="mt-6 rounded-[1.5rem] border border-pink-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Operação</p><h2 className="mt-1 text-xl font-black text-zinc-950">Compras Afiliadas</h2><p className="mt-1 text-sm text-zinc-500">Gerencie solicitações, dados de entrega, envio e aprovação financeira.</p></div><span className="rounded-full bg-pink-50 px-3 py-1.5 text-xs font-black text-pink-700">{productPurchases.filter(p=>p.status==='pending').length} pendente(s)</span></div>
+          <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Operação</p><h2 className="mt-1 text-xl font-black text-zinc-950">Loja de benefícios · Compras de produtos</h2><p className="mt-1 text-sm text-zinc-500">A loja de benefícios das afiliadas contém somente Hidratante e Stick. Ajuste os preços aqui e gerencie as solicitações abaixo.</p></div><span className="rounded-full bg-pink-50 px-3 py-1.5 text-xs font-black text-pink-700">{productPurchases.filter(p=>p.status==='pending').length} pendente(s)</span></div>
           <form onSubmit={saveProductPrices} className="mt-5 grid gap-3 rounded-2xl bg-zinc-50 p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
             <label className="grid gap-1 text-xs font-bold text-zinc-600">Preço do Hidratante (R$)<input type="number" min="0.01" step="0.01" required value={productPrices.hydrant} onChange={e=>setProductPrices(v=>({...v,hydrant:e.target.value}))} className="rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900" /></label>
             <label className="grid gap-1 text-xs font-bold text-zinc-600">Preço do Stick (R$)<input type="number" min="0.01" step="0.01" required value={productPrices.stick} onChange={e=>setProductPrices(v=>({...v,stick:e.target.value}))} className="rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900" /></label>
@@ -1458,21 +1453,6 @@ export default function AdminDashboard() {
             </div>
           </form>
 
-          <div className="mt-5 border-t border-zinc-100 pt-5">
-            <div className="flex flex-col gap-1">
-              <p className="text-[10px] font-black uppercase tracking-[.18em] text-pink-500">Revendedora</p>
-              <h3 className="text-xl font-black text-zinc-950">Preços especiais de revenda</h3>
-              <p className="text-sm text-zinc-400">Esses valores alimentam exclusivamente a página /revendedora e não alteram os preços da loja.</p>
-            </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {[[['resellerHydrant','Hidratante'],['resellerHydrantBlister','Hidratante + Blister']],[['resellerStick','Stick'],['resellerComplete','Kit Completo']]].flat().map(([key,label]) => (
-                <label key={key} className="rounded-2xl border border-pink-100 bg-pink-50/50 p-4">
-                  <span className="text-[10px] font-black uppercase tracking-[.14em] text-pink-600">{label}</span>
-                  <div className="mt-2 flex items-center gap-2"><span className="font-black text-zinc-500">R$</span><input value={settingsForm[key]} onChange={e => setSettingsForm(v => ({ ...v, [key]: e.target.value }))} inputMode="decimal" className="w-full rounded-xl border border-pink-100 bg-white px-3 py-2.5 text-lg font-black outline-none focus:border-pink-400" /></div>
-                </label>
-              ))}
-            </div>
-          </div>
 
           <div className="mt-5 border-t border-zinc-100 pt-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
