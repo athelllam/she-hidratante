@@ -227,7 +227,7 @@ module.exports = async function handler(req, res) {
       const [withdrawals, existingBoosts, productPurchases] = await Promise.all([
         supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${affiliate.id}&source=eq.personal&select=amount,status&limit=1000`),
         supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${affiliate.id}&select=price,status&limit=1000`).catch(() => []),
-        supabaseFetch(`/rest/v1/affiliate_product_purchases?affiliate_id=eq.${affiliate.id}&status=in.(pending,shipped,approved)&select=price,status&limit=1000`).catch(() => []),
+        supabaseFetch(`/rest/v1/affiliate_product_purchases?affiliate_id=eq.${affiliate.id}&status=in.(pending,shipped,approved)&select=price,status&limit=1000`),
       ]);
       const reservedProductPurchases = (productPurchases || []).reduce((sum, row) => sum + Number(row.price || 0), 0);
       // A RPC desconta saques pessoais e impulsos reservados; subtraímos as compras
@@ -501,7 +501,7 @@ module.exports = async function handler(req, res) {
     const teamWithdrawals = (withdrawals || []).filter(w => String(w.source || 'personal') === 'team');
     const reserved = personalWithdrawals.filter(w => !['rejected', 'failed'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const boostSpent = (boostRows || []).filter(row => ['queued', 'active', 'completed'].includes(String(row.status || ''))).reduce((sum, row) => sum + Number(row.price || 0), 0);
-    const productPurchaseRows = await supabaseFetch(`/rest/v1/affiliate_product_purchases?affiliate_id=eq.${affiliate.id}&select=id,product,price,status,created_at,freight_paid&order=created_at.desc&limit=1000`).catch(() => []);
+    const productPurchaseRows = await supabaseFetch(`/rest/v1/affiliate_product_purchases?affiliate_id=eq.${affiliate.id}&select=id,product,price,status,created_at,freight_paid&order=created_at.desc&limit=1000`);
     // Compras pendentes/enviadas ficam reservadas; compras aprovadas já foram debitadas.
     // Ambos os estados reduzem o saldo disponível. Recusadas/canceladas liberam a reserva.
     const reservedProductPurchases = (productPurchaseRows || []).filter(row => ['pending', 'shipped', 'approved'].includes(String(row.status || ''))).reduce((sum, row) => sum + Number(row.price || 0), 0);

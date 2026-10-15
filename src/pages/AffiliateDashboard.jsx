@@ -193,8 +193,8 @@ export default function AffiliateDashboard() {
       setPurchaseMessage(result?.freight?.paymentUrl ? 'Solicitação criada e saldo do produto reservado. Pague o frete de R$ 16,00 no card abaixo para liberar o envio.' : 'Solicitação criada e saldo do produto reservado. O link do frete ainda não foi gerado; use a opção de gerar link na solicitação.')
       setPurchaseProduct('')
       const [freshDashboard, shop] = await Promise.all([
-        api(`/api/affiliate/dashboard?month=${encodeURIComponent(selectedMonth || 'all')}`),
-        api('/api/affiliate/product-purchases'),
+        api(`/api/affiliate/dashboard?month=${encodeURIComponent(selectedMonth || 'all')}`, { cache: 'no-store' }),
+        api('/api/affiliate/product-purchases', { cache: 'no-store' }),
       ])
       setDashboard(freshDashboard)
       setProductShop(shop)

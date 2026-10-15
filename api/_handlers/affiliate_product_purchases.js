@@ -1,6 +1,6 @@
 const { requireAffiliate, supabaseFetch, json } = require('../_lib/supabase');
 const { requireAdmin } = require('../_lib/admin');
-const { commissionForOrders, normalizeConfig, DEFAULT_COMMISSION_CONFIG } = require('../_lib/affiliateCommission');
+const { commissionForOrders, reconcileAffiliateOrderCommissions, normalizeConfig, DEFAULT_COMMISSION_CONFIG } = require('../_lib/affiliateCommission');
 const { wooviFetch } = require('../_lib/woovi');
 const FREIGHT_VALUE = 16;
 
@@ -124,9 +124,8 @@ module.exports = async function handler(req, res) {
     const address = String(f.address || '').trim(), email = String(f.email || '').trim().toLowerCase(), phone = String(f.phone || '').trim(), notes = String(f.notes || '').trim();
     if (name.length < 3 || cpf.length !== 11 || cep.length !== 8 || address.length < 8 || !validEmail(email) || phone.replace(/\D/g,'').length < 10) return json(res, 400, { error: 'Preencha corretamente todos os campos obrigatórios.' });
 
-    const [settingsRows, orders, withdrawals, boosts, openPurchases] = await Promise.all([
+    const [settingsRows, withdrawals, boosts, openPurchases] = await Promise.all([
       supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,team_advanced1_members,team_advanced1_sales,team_advanced1_commission,team_advanced2_members,team_advanced2_sales,team_advanced2_commission,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,affiliate_hydrant_price,affiliate_stick_price&limit=1'),
-      supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=status,total,created_at&order=created_at.asc&limit=5000`),
       supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${affiliate.id}&source=eq.personal&select=amount,status&limit=1000`),
       supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${affiliate.id}&select=price,status&limit=1000`).catch(() => []),
       supabaseFetch(`/rest/v1/affiliate_product_purchases?affiliate_id=eq.${affiliate.id}&status=in.(pending,shipped,approved)&select=product,status,price,created_at&limit=1000`)
@@ -140,10 +139,18 @@ module.exports = async function handler(req, res) {
       monthlyLevels: { bronze: row.monthly_bronze_sales, silver: row.monthly_silver_sales, gold: row.monthly_gold_sales },
       fixedLevels: { bronze: row.fixed_bronze_sales, silver: row.fixed_silver_sales, gold: row.fixed_gold_sales }
     } : DEFAULT_COMMISSION_CONFIG);
-    const earned = commissionForOrders(orders || [], settings, { teamJoinedAt: affiliate.team_joined_at }).total;
-    const reservedWithdrawals = (withdrawals || []).filter(w => !['rejected','failed','cancelled'].includes(w.status)).reduce((n,w)=>n+Number(w.amount||0),0);
-    const reservedBoosts = (boosts || []).filter(b => ['queued','active','completed'].includes(b.status)).reduce((n,b)=>n+Number(b.price||0),0);
-    const reservedPurchases = (openPurchases || []).filter(p => ['pending','shipped','approved'].includes(p.status)).reduce((n,p)=>n+Number(p.price||0),0);
+    // Reutiliza a mesma reconciliação e os mesmos snapshots do saque pessoal.
+    // Assim a compra valida o saldo com a mesma comissão que o painel e o saque exibem.
+    const ordersPath = `/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=yampi_order_id,status,total,commission,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot,created_at,updated_at&order=created_at.desc&limit=5000`;
+    const initialOrders = await supabaseFetch(ordersPath);
+    await reconcileAffiliateOrderCommissions(supabaseFetch, affiliate.id, settings, {
+      teamJoinedAt: affiliate.team_joined_at,
+    }).catch(() => null);
+    const reconciledOrders = await supabaseFetch(ordersPath);
+    const earned = commissionForOrders(reconciledOrders || initialOrders || [], settings, { teamJoinedAt: affiliate.team_joined_at }).total;
+    const reservedWithdrawals = (withdrawals || []).filter(w => !['rejected','failed'].includes(String(w.status || ''))).reduce((n,w)=>n+Number(w.amount||0),0);
+    const reservedBoosts = (boosts || []).filter(b => ['queued','active','completed'].includes(String(b.status || ''))).reduce((n,b)=>n+Number(b.price||0),0);
+    const reservedPurchases = (openPurchases || []).filter(p => ['pending','shipped','approved'].includes(String(p.status || ''))).reduce((n,p)=>n+Number(p.price||0),0);
     const price = money(product === 'hydrant' ? (row.affiliate_hydrant_price ?? 80) : (row.affiliate_stick_price ?? 100));
     if (earned - reservedWithdrawals - reservedBoosts - reservedPurchases < price) return json(res, 400, { error: 'Saldo disponível insuficiente para esta compra.' });
     const month = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).format(new Date()).slice(0,7);
