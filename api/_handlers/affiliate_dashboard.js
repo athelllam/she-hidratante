@@ -501,7 +501,7 @@ module.exports = async function handler(req, res) {
     const teamWithdrawals = (withdrawals || []).filter(w => String(w.source || 'personal') === 'team');
     const reserved = personalWithdrawals.filter(w => !['rejected', 'failed'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const boostSpent = (boostRows || []).filter(row => ['queued', 'active', 'completed'].includes(String(row.status || ''))).reduce((sum, row) => sum + Number(row.price || 0), 0);
-    const productPurchaseRows = await supabaseFetch(`/rest/v1/affiliate_product_purchases?affiliate_id=eq.${affiliate.id}&status=in.(pending,shipped,approved)&select=id,product,price,status,created_at&limit=1000`).catch(() => []);
+    const productPurchaseRows = await supabaseFetch(`/rest/v1/affiliate_product_purchases?affiliate_id=eq.${affiliate.id}&status=in.(pending,shipped,approved)&select=id,product,price,status,created_at,freight_paid&limit=1000`).catch(() => []);
     const reservedProductPurchases = (productPurchaseRows || []).reduce((sum, row) => sum + Number(row.price || 0), 0);
     let availableCommission = Math.max(0, totalEarnedCommission - reserved - boostSpent - reservedProductPurchases);
     // O nível é mensal. Em "Todos os meses", usamos o mês atual,

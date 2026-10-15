@@ -38,7 +38,7 @@ function withdrawalStatusLabel(status) {
   return 'Pendente'
 }
 
-function productPurchaseStatusLabel(status) { if (status === 'approved') return 'Aprovado / abatido'; if (status === 'shipped') return 'Enviado — aguardando aprovação'; if (status === 'rejected') return 'Recusado'; if (status === 'cancelled') return 'Cancelado'; return 'Saldo reservado' }
+function productPurchaseStatusLabel(status, freightPaid = true) { if (status === 'approved') return 'Aprovado / abatido'; if (status === 'shipped') return 'Enviado — aguardando aprovação'; if (status === 'rejected') return 'Recusado'; if (status === 'cancelled') return 'Cancelado'; return freightPaid ? 'Saldo reservado · Frete pago' : 'Saldo reservado · Frete pendente' }
 
 function boostStatusLabel(status) {
   if (status === 'active') return 'Ativo'
@@ -186,11 +186,11 @@ export default function AffiliateDashboard() {
     setPurchaseBusy(true)
     setPurchaseMessage('')
     try {
-      await api('/api/affiliate/product-purchases', {
+      const result = await api('/api/affiliate/product-purchases', {
         method: 'POST',
         body: JSON.stringify({ action: 'purchase', product: purchaseProduct, form: { ...purchaseForm, address: [purchaseForm.street, purchaseForm.number ? `nº ${purchaseForm.number}` : '', purchaseForm.complement, purchaseForm.neighborhood, [purchaseForm.city, purchaseForm.state].filter(Boolean).join(' - '), `CEP ${purchaseForm.cep}`].filter(Boolean).join(', ') } }),
       })
-      setPurchaseMessage('Solicitação enviada! O valor está reservado no seu saldo até a aprovação administrativa.')
+      setPurchaseMessage(result?.freight?.paymentUrl ? 'Solicitação criada e saldo do produto reservado. Pague o frete de R$ 16,00 no card abaixo para liberar o envio.' : 'Solicitação criada e saldo do produto reservado. O link do frete ainda não foi gerado; use a opção de gerar link na solicitação.')
       setPurchaseProduct('')
       const [freshDashboard, shop] = await Promise.all([
         api(`/api/affiliate/dashboard?month=${encodeURIComponent(selectedMonth || 'all')}`),
@@ -204,6 +204,18 @@ export default function AffiliateDashboard() {
     } finally {
       setPurchaseBusy(false)
     }
+  }
+
+  const createFreightPaymentLink = async (purchaseId) => {
+    setPurchaseBusy(true)
+    setPurchaseMessage('Gerando link de pagamento do frete…')
+    try {
+      await api('/api/affiliate/product-purchases', { method: 'POST', body: JSON.stringify({ action: 'create_freight_charge', id: purchaseId }) })
+      const shop = await api('/api/affiliate/product-purchases')
+      setProductShop(shop)
+      setPurchaseMessage('Link de pagamento atualizado. Após a confirmação da Woovi, o envio será liberado no painel administrativo.')
+    } catch (e) { setPurchaseMessage(e.message || 'Não foi possível gerar o link de pagamento.') }
+    finally { setPurchaseBusy(false) }
   }
 
   // Mostra a boas-vindas depois que o cadastro conclui e a equipe é carregada.
@@ -1508,8 +1520,9 @@ export default function AffiliateDashboard() {
               </div>
             })}
           </div>
+          {(productShop.purchases || []).some(p => p.freight_paid !== true && !['rejected','cancelled'].includes(p.status)) && <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4"><h3 className="font-black text-amber-950">Pagamento do frete · R$ 16,00</h3><p className="mt-1 text-sm text-amber-900">O pagamento é feito pela Woovi, separado do saldo usado no produto. A confirmação é automática e libera a preparação do envio.</p><div className="mt-3 space-y-3">{productShop.purchases.filter(p => p.freight_paid !== true && !['rejected','cancelled'].includes(p.status)).map(p => <div key={`freight-${p.id}`} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white p-3"><div><p className="text-sm font-black text-zinc-900">Solicitação #{p.id} · {p.product === 'hydrant' ? 'Hidratante' : 'Stick'}</p><p className="mt-1 text-xs text-zinc-500">{p.freight_payment_url ? 'Aguardando confirmação do pagamento' : 'Link de pagamento ainda não disponível'}</p></div><div className="flex flex-wrap gap-2">{p.freight_payment_url && <a href={p.freight_payment_url} target="_blank" rel="noreferrer" className="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-black text-white">Pagar frete · R$ 16</a>}{!p.freight_payment_url && <button type="button" disabled={purchaseBusy} onClick={() => createFreightPaymentLink(p.id)} className="rounded-xl bg-pink-600 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50">{purchaseBusy ? 'Gerando…' : 'Gerar link de pagamento'}</button>}</div></div>)}</div></div>}
           {purchaseMessage && <p className="mt-4 rounded-xl bg-white p-3 text-sm font-semibold text-pink-700">{purchaseMessage}</p>}
-          {(productShop.purchases || []).length > 0 && <div className="mt-5 rounded-2xl border border-pink-100 bg-white/80 p-4"><h3 className="text-sm font-black text-zinc-900">Minhas solicitações</h3><div className="mt-3 space-y-2">{productShop.purchases.map(p => <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-zinc-50 p-3 text-xs"><span className="font-bold">{p.product === 'hydrant' ? 'Hidratante' : 'Stick'} · {brl(p.price)}</span><span className="rounded-full bg-pink-100 px-2 py-1 font-black text-pink-700">{({pending:'Aguardando envio',shipped:'Enviado — aguardando aprovação',approved:'Aprovado',rejected:'Recusado',cancelled:'Cancelado'})[p.status] || p.status}</span>{['pending','shipped'].includes(p.status) && <a href={`https://wa.me/553132784332?text=${encodeURIComponent(`Olá, suporte She. Gostaria de cancelar a solicitação ${p.id} do produto ${p.product === 'hydrant' ? 'Hidratante' : 'Stick'}.`)}`} target="_blank" rel="noreferrer" className="font-bold text-emerald-700 underline">Solicitar cancelamento pelo WhatsApp</a>}</div>)}</div></div>}
+          {(productShop.purchases || []).length > 0 && <div className="mt-5 rounded-2xl border border-pink-100 bg-white/80 p-4"><h3 className="text-sm font-black text-zinc-900">Minhas solicitações</h3><div className="mt-3 space-y-2">{productShop.purchases.map(p => <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-zinc-50 p-3 text-xs"><span className="font-bold">{p.product === 'hydrant' ? 'Hidratante' : 'Stick'} · {brl(p.price)}</span><span className="rounded-full bg-pink-100 px-2 py-1 font-black text-pink-700">{({pending: p.freight_paid === true ? 'Frete pago · Aguardando envio' : 'Aguardando pagamento do frete',shipped:'Enviado — aguardando aprovação',approved:'Aprovado',rejected:'Recusado',cancelled:'Cancelado'})[p.status] || p.status}</span>{['pending','shipped'].includes(p.status) && <a href={`https://wa.me/553132784332?text=${encodeURIComponent(`Olá, suporte She. Gostaria de cancelar a solicitação ${p.id} do produto ${p.product === 'hydrant' ? 'Hidratante' : 'Stick'}.`)}`} target="_blank" rel="noreferrer" className="font-bold text-emerald-700 underline">Solicitar cancelamento pelo WhatsApp</a>}</div>)}</div></div>}
         </section>
 
         {purchaseProduct && <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-zinc-950/60 p-4"><form onSubmit={submitProductPurchase} className="my-auto w-full max-w-xl rounded-3xl bg-white p-5 shadow-2xl md:p-7"><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-widest text-pink-500">Finalizar solicitação</p><h2 className="mt-1 text-xl font-black text-zinc-950">Dados para entrega</h2><p className="mt-1 text-xs text-zinc-500">O valor será reservado. O abatimento definitivo acontece após a aprovação da She.</p></div><button type="button" onClick={() => setPurchaseProduct('')} className="rounded-full bg-zinc-100 px-3 py-1 text-sm font-black">✕</button></div><div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -1559,7 +1572,7 @@ export default function AffiliateDashboard() {
                 <div className="flex items-center gap-3 sm:justify-end">
                   <span className="text-lg font-black text-zinc-950">{brl(movement.amount)}</span>
                   <span className={`rounded-full px-3 py-1 text-[11px] font-black ${movement.kind === 'boost' ? (movement.status === 'active' ? 'bg-emerald-100 text-emerald-800' : movement.status === 'cancelled' ? 'bg-zinc-200 text-zinc-700' : movement.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800') : (movement.status === 'pending' ? 'bg-amber-100 text-amber-800' : movement.status === 'processing' ? 'bg-blue-100 text-blue-800' : movement.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : movement.status === 'failed' || movement.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-zinc-200 text-zinc-700')}`}>
-                    {movement.kind === 'boost' ? boostStatusLabel(movement.status) : movement.kind === 'product_purchase' ? productPurchaseStatusLabel(movement.status) : withdrawalStatusLabel(movement.status)}
+                    {movement.kind === 'boost' ? boostStatusLabel(movement.status) : movement.kind === 'product_purchase' ? productPurchaseStatusLabel(movement.status, movement.productPurchase?.freight_paid === true) : withdrawalStatusLabel(movement.status)}
                   </span>
                 </div>
               </div>

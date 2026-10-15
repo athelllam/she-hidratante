@@ -1,6 +1,34 @@
 const { requireAffiliate, supabaseFetch, json } = require('../_lib/supabase');
 const { requireAdmin } = require('../_lib/admin');
 const { commissionForOrders, normalizeConfig, DEFAULT_COMMISSION_CONFIG } = require('../_lib/affiliateCommission');
+const { wooviFetch } = require('../_lib/woovi');
+const FREIGHT_VALUE = 16;
+
+async function createFreightCharge(purchase, affiliate) {
+  const correlationID = `SHE-FRETE-AF-${purchase.id}-${Date.now()}`;
+  const result = await wooviFetch('/api/v1/charge', {
+    method: 'POST',
+    body: JSON.stringify({
+      correlationID,
+      value: Math.round(FREIGHT_VALUE * 100),
+      comment: `Frete loja de benefícios She - solicitação ${purchase.id}`.slice(0, 140),
+      customer: { name: purchase.full_name || affiliate.name, email: purchase.email || affiliate.email, taxID: String(purchase.cpf || '').replace(/\D/g, '') },
+    }),
+  });
+  const charge = result?.charge || result;
+  const paymentUrl = result?.paymentLinkUrl || charge?.paymentLinkUrl || charge?.url || result?.url || '';
+  if (!paymentUrl) {
+    const error = new Error('A Woovi criou/consultou a cobrança, mas não retornou o link de pagamento. Confira a cobrança no painel Woovi antes de tentar novamente.');
+    error.statusCode = 502;
+    error.uncertain = true;
+    throw error;
+  }
+  const updated = await supabaseFetch(`/rest/v1/affiliate_product_purchases?id=eq.${Number(purchase.id)}`, {
+    method: 'PATCH', headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({ freight_amount: FREIGHT_VALUE, freight_paid: false, freight_payment_url: paymentUrl, freight_correlation_id: correlationID, freight_charge_id: String(charge?.identifier || charge?.id || charge?.correlationID || correlationID), updated_at: new Date().toISOString() }),
+  });
+  return updated?.[0] || { ...purchase, freight_amount: FREIGHT_VALUE, freight_paid: false, freight_payment_url: paymentUrl, freight_correlation_id: correlationID };
+}
 
 const money = v => Math.round((Number(v) || 0) * 100) / 100;
 const validEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim());
@@ -66,6 +94,8 @@ module.exports = async function handler(req, res) {
       const purchase = rows?.[0];
       if (!purchase) return json(res, 404, { error: 'Compra não encontrada.' });
       if (purchase.status !== 'pending' && !(purchase.status === 'shipped' && actionStatus === 'approved')) return json(res, 409, { error: 'Esta solicitação já foi processada.' });
+      if (actionStatus === 'shipped' && purchase.freight_paid !== true) return json(res, 409, { error: 'O frete de R$ 16,00 ainda não foi confirmado pela Woovi.' });
+      if (actionStatus === 'approved' && purchase.status !== 'shipped') return json(res, 409, { error: 'Marque o produto como enviado antes de aprovar e debitar o saldo.' });
       const patch = { status: actionStatus, updated_at: new Date().toISOString() };
       if (actionStatus === 'approved') patch.approved_at = new Date().toISOString();
       if (actionStatus === 'shipped') patch.shipped_at = new Date().toISOString();
@@ -75,6 +105,17 @@ module.exports = async function handler(req, res) {
     }
 
     const { affiliate } = await requireAffiliate(req);
+    if (req.method === 'POST' && String(req.body?.action || '') === 'create_freight_charge') {
+      const purchaseId = Number(req.body?.id);
+      if (!Number.isSafeInteger(purchaseId) || purchaseId < 1) return json(res, 400, { error: 'Solicitação inválida.' });
+      const found = await supabaseFetch(`/rest/v1/affiliate_product_purchases?id=eq.${purchaseId}&affiliate_id=eq.${Number(affiliate.id)}&select=*&limit=1`);
+      const purchase = found?.[0];
+      if (!purchase) return json(res, 404, { error: 'Solicitação não encontrada.' });
+      if (purchase.freight_paid === true) return json(res, 200, { purchase, alreadyPaid: true });
+      if (purchase.freight_payment_url) return json(res, 200, { purchase });
+      const updated = await createFreightCharge(purchase, affiliate);
+      return json(res, 200, { purchase: updated });
+    }
     if (req.method !== 'POST' || String(req.body?.action || '') !== 'purchase') return json(res, 400, { error: 'Ação inválida.' });
     const product = String(req.body?.product || '');
     if (!['hydrant','stick'].includes(product)) return json(res, 400, { error: 'Produto inválido.' });
@@ -108,8 +149,16 @@ module.exports = async function handler(req, res) {
     const month = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).format(new Date()).slice(0,7);
     const monthRows = await supabaseFetch(`/rest/v1/affiliate_product_purchases?affiliate_id=eq.${affiliate.id}&product=eq.${product}&created_at=gte.${month}-01T00:00:00-03:00&status=not.in.(rejected,cancelled)&select=id&limit=1`);
     if (monthRows?.length) return json(res, 409, { error: 'Você já solicitou este produto neste mês.' });
-    const rows = await supabaseFetch('/rest/v1/affiliate_product_purchases', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ affiliate_id: Number(affiliate.id), product, price, status: 'pending', full_name: name, cpf, cep, address, email, phone, notes }) });
-    return json(res, 201, { purchase: rows?.[0] });
+    const rows = await supabaseFetch('/rest/v1/affiliate_product_purchases', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ affiliate_id: Number(affiliate.id), product, price, status: 'pending', freight_amount: FREIGHT_VALUE, freight_paid: false, full_name: name, cpf, cep, address, email, phone, notes }) });
+    const purchase = rows?.[0];
+    if (!purchase) return json(res, 500, { error: 'Não foi possível registrar a solicitação.' });
+    try {
+      const withCharge = await createFreightCharge(purchase, affiliate);
+      return json(res, 201, { purchase: withCharge, freight: { amount: FREIGHT_VALUE, paymentUrl: withCharge.freight_payment_url, paid: false } });
+    } catch (chargeError) {
+      // Keep the product amount reserved; the affiliate can retry link creation from the request card.
+      return json(res, 201, { purchase, freight: { amount: FREIGHT_VALUE, paymentUrl: null, paid: false, error: chargeError.message } });
+    }
   } catch (error) {
     return json(res, error.statusCode || 500, { error: error.message || 'Não foi possível processar a solicitação.' });
   }

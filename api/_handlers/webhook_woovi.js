@@ -77,13 +77,14 @@ module.exports = async function handler(req, res) {
     const payload = req.body || {};
     const event = String(payload.event || payload.name || '').trim();
     const payment = payload.payment || payload.data?.payment || {};
+    const charge = payload.charge || payload.data?.charge || {};
     const movement = payload.movement || payload.data?.movement || {};
     const transaction = payload.transaction || payload.data?.transaction || {};
     const correlationID = String(
-      payment.correlationID || movement.correlationID || transaction.correlationID ||
+      payment.correlationID || charge.correlationID || movement.correlationID || transaction.correlationID ||
       payload.correlationID || payload.correlationId || ''
     ).trim();
-    const paymentId = String(payment.id || movement.paymentId || payload.paymentId || '').trim();
+    const paymentId = String(payment.id || charge.identifier || charge.id || movement.paymentId || payload.paymentId || '').trim();
     const eventId = String(payload.id || payload.eventId || payload.webhookId || '').trim() ||
       crypto.createHash('sha256').update(req.rawBody).digest('hex');
 
@@ -99,6 +100,24 @@ module.exports = async function handler(req, res) {
       }),
     });
     if (!Array.isArray(inserted) || inserted.length === 0) return json(res, 200, { received: true, duplicate: true });
+
+    // Incoming freight charge for affiliate benefit-store product purchases.
+    // Only a signed, authenticated Woovi CHARGE_COMPLETED event can mark freight as paid.
+    if (event === 'OPENPIX:CHARGE_COMPLETED' || event === 'OPENPIX:CHARGE_CONFIRMED') {
+      if (!correlationID) return json(res, 200, { received: true, ignored: true, reason: 'missing charge correlation' });
+      const purchases = await supabaseFetch(`/rest/v1/affiliate_product_purchases?freight_correlation_id=eq.${encodeURIComponent(correlationID)}&select=id,affiliate_id,freight_paid,freight_amount&limit=1`);
+      const purchase = purchases?.[0];
+      if (!purchase) return json(res, 200, { received: true, unmatched: true });
+      if (purchase.freight_paid === true) return json(res, 200, { received: true, alreadyPaid: true });
+      const updated = await supabaseFetch(`/rest/v1/affiliate_product_purchases?id=eq.${Number(purchase.id)}`, {
+        method: 'PATCH', headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ freight_paid: true, freight_paid_at: new Date().toISOString(), freight_charge_id: paymentId || null, updated_at: new Date().toISOString() }),
+      });
+      if (updated?.[0]) {
+        try { await sendToAffiliate(purchase.affiliate_id, { title: 'Frete confirmado!', body: `O pagamento do frete da sua solicitação ${purchase.id} foi confirmado. A She já pode preparar o envio.`, url: '/afiliado', tag: `product-freight-${purchase.id}` }); } catch {}
+      }
+      return json(res, 200, { received: true, freightPaid: true, purchaseId: Number(purchase.id) });
+    }
 
     let status = null;
     if (event === 'OPENPIX:MOVEMENT_CONFIRMED') status = 'paid';
