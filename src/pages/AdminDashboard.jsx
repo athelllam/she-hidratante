@@ -1231,10 +1231,10 @@ export default function AdminDashboard() {
                         <button
                           type="button"
                           onClick={() => setBoostGrantAffiliate(affiliate)}
-                          title={`Conceder impulso gratuito para ${affiliate.name}`}
-                          className="rounded-lg border border-pink-200 bg-pink-50 px-2.5 py-1.5 text-[10px] font-black text-pink-700 transition hover:border-pink-400 hover:bg-pink-100"
+                          title={(boostState.active || []).some(item => Number(item.affiliate_id) === Number(affiliate.id)) ? `Impulso ativo para ${affiliate.name}` : `Conceder impulso gratuito para ${affiliate.name}`}
+                          className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-black transition ${(boostState.active || []).some(item => Number(item.affiliate_id) === Number(affiliate.id)) ? 'border-amber-400 bg-amber-400 text-amber-950 shadow-sm hover:border-amber-500 hover:bg-amber-500' : 'border-pink-200 bg-pink-50 text-pink-700 hover:border-pink-400 hover:bg-pink-100'}`}
                         >
-                          Impulso
+                          Impulsionar
                         </button>
                       <button
                         type="button"
