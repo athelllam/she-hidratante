@@ -75,7 +75,7 @@ module.exports = async function handler(req, res) {
         supabaseFetch('/rest/v1/affiliate_admin_status_history?select=affiliate_id,admin_active,effective_at&order=effective_at.asc&limit=20000').catch(() => []),
         supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,team_advanced1_members,team_advanced1_sales,team_advanced1_commission,team_advanced2_members,team_advanced2_sales,team_advanced2_commission,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active,reseller_hydrant_price,reseller_hydrant_blister_price,reseller_stick_price,reseller_complete_price,average_sale_cost&limit=1'),
         supabaseFetch('/rest/v1/rpc/she_team_boost_admin_state', { method: 'POST', body: '{}' }).catch(() => ({ activeCount: 0, queueCount: 0, completedCount: 0, active: [] })),
-        supabaseFetch('/rest/v1/affiliate_team_boosts?status=neq.cancelled&select=affiliate_id,price&limit=20000').catch(() => []),
+        supabaseFetch('/rest/v1/affiliate_team_boosts?status=neq.cancelled&select=affiliate_id,price,admin_granted&limit=20000').catch(() => []),
       ]);
 
       const settings = normalizeConfig(settingRows?.[0] ? {
@@ -203,6 +203,7 @@ module.exports = async function handler(req, res) {
 
       const boostSpentByAffiliate = new Map();
       for (const boost of boostRows || []) {
+        if (boost.admin_granted) continue;
         const aid = Number(boost.affiliate_id);
         boostSpentByAffiliate.set(aid, (boostSpentByAffiliate.get(aid) || 0) + Number(boost.price || 0));
       }
@@ -612,6 +613,24 @@ module.exports = async function handler(req, res) {
 
     if (req.method === 'PATCH') {
       const { id, active, adminActive, commissionRate, password, settings: requestedSettings } = req.body || {};
+
+      if (String(req.body?.action || '') === 'grant_team_boost') {
+        const affiliateId = Number(req.body?.id);
+        const connections = Number(req.body?.connections);
+        if (!Number.isInteger(affiliateId) || affiliateId <= 0) {
+          return json(res, 400, { error: 'ID da afiliada inválido.' });
+        }
+        if (![5, 10].includes(connections)) {
+          return json(res, 400, { error: 'Escolha um impulso de 5 ou 10 conexões.' });
+        }
+        const affiliateRows = await supabaseFetch(`/rest/v1/affiliates?id=eq.${affiliateId}&select=id,name&limit=1`);
+        if (!affiliateRows?.[0]) return json(res, 404, { error: 'Afiliada não encontrada.' });
+        const result = await supabaseFetch('/rest/v1/rpc/she_team_boost_admin_grant', {
+          method: 'POST',
+          body: JSON.stringify({ p_affiliate_id: affiliateId, p_connections: connections }),
+        });
+        return json(res, 200, { boost: result, status: result?.status || result?.[0]?.status || 'queued' });
+      }
 
       // Metas dos Bônus Mensal/Fixo: tratadas separadamente para que a alteração
       // dessas seis configurações nunca dependa das demais configurações do painel.
