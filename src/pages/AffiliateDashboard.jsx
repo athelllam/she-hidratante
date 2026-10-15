@@ -125,19 +125,26 @@ export default function AffiliateDashboard() {
 
   useEffect(() => {
     if (!dashboard?.affiliate?.id) return
-    // Os preços vêm da mesma resposta do dashboard, que consulta diretamente o Supabase.
-    const hydrant = Number(dashboard?.productPrices?.hydrant)
-    const stick = Number(dashboard?.productPrices?.stick)
-    const validPrices = Number.isFinite(hydrant) && hydrant > 0 && Number.isFinite(stick) && stick > 0
-    setProductShop(current => ({
-      ...current,
-      prices: validPrices ? { hydrant, stick } : null,
-    }))
-    // Esta rota fica responsável pelas solicitações; não é a fonte dos preços exibidos.
+    let cancelled = false
+    // A rota existente lê os preços diretamente de affiliate_settings no Supabase.
+    // Usamos a mesma resposta para preços e solicitações, sem depender de campos
+    // derivados no dashboard e sem criar uma nova Serverless Function.
     api('/api/affiliate/product-purchases')
-      .then(data => setProductShop(current => ({ ...current, purchases: Array.isArray(data?.purchases) ? data.purchases : [] })))
-      .catch(() => {})
-  }, [dashboard?.affiliate?.id, dashboard?.productPrices?.hydrant, dashboard?.productPrices?.stick])
+      .then(data => {
+        if (cancelled) return
+        const hydrant = Number(data?.prices?.hydrant)
+        const stick = Number(data?.prices?.stick)
+        const validPrices = Number.isFinite(hydrant) && hydrant > 0 && Number.isFinite(stick) && stick > 0
+        setProductShop({
+          prices: validPrices ? { hydrant, stick } : null,
+          purchases: Array.isArray(data?.purchases) ? data.purchases : [],
+        })
+      })
+      .catch(() => {
+        if (!cancelled) setProductShop(current => ({ ...current, prices: null }))
+      })
+    return () => { cancelled = true }
+  }, [dashboard?.affiliate?.id])
 
   const submitProductPurchase = async (event) => {
     event.preventDefault()
