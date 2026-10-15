@@ -32,8 +32,27 @@ module.exports = async function handler(req, res) {
       if (action === 'set_prices') {
         const hydrant = Number(req.body?.hydrant), stick = Number(req.body?.stick);
         if (!Number.isFinite(hydrant) || hydrant <= 0 || !Number.isFinite(stick) || stick <= 0) return json(res, 400, { error: 'Informe preços válidos.' });
-        const rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1', { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ affiliate_hydrant_price: money(hydrant), affiliate_stick_price: money(stick) }) });
-        return json(res, 200, { prices: { hydrant: Number(rows?.[0]?.affiliate_hydrant_price ?? hydrant), stick: Number(rows?.[0]?.affiliate_stick_price ?? stick) } });
+        const payload = { affiliate_hydrant_price: money(hydrant), affiliate_stick_price: money(stick) };
+        let rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1', {
+          method: 'PATCH',
+          headers: { Prefer: 'return=representation' },
+          body: JSON.stringify(payload),
+        });
+        // A PATCH against a missing settings row returns HTTP 204/200 with an empty
+        // array, which previously looked like success in the admin UI but saved nothing.
+        if (!Array.isArray(rows) || rows.length === 0) {
+          rows = await supabaseFetch('/rest/v1/affiliate_settings?on_conflict=id', {
+            method: 'POST',
+            headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+            body: JSON.stringify({ id: 1, ...payload }),
+          });
+        }
+        const saved = rows?.[0];
+        if (!saved || Number(saved.affiliate_hydrant_price) !== payload.affiliate_hydrant_price ||
+            Number(saved.affiliate_stick_price) !== payload.affiliate_stick_price) {
+          throw new Error('O banco não confirmou a gravação dos preços. Confira a configuração affiliate_settings no Supabase.');
+        }
+        return json(res, 200, { prices: { hydrant: Number(saved.affiliate_hydrant_price), stick: Number(saved.affiliate_stick_price) } });
       }
       const id = Number(req.body?.id), actionStatus = String(req.body?.status || '');
       if (!id || !['approved','rejected','shipped'].includes(actionStatus)) return json(res, 400, { error: 'Ação de compra inválida.' });
