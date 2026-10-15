@@ -1026,6 +1026,9 @@ export default function AffiliateDashboard() {
           <Link to="/" className="shrink-0 text-sm font-black tracking-tight text-zinc-950 md:text-base">SHE<span className="text-pink-500">.</span><span className="ml-1.5 text-[10px] font-bold text-zinc-400 md:text-xs">AFILIADAS</span></Link>
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5 md:gap-2">
             <div className="relative">
+              {!isStandaloneApp && !isAdminPreview && <button type="button" onClick={handleInstallApp} className="inline-flex items-center gap-1.5 rounded-lg border border-pink-200 bg-white/80 px-3 py-2 text-[11px] font-black text-pink-700 shadow-sm transition hover:bg-pink-50 md:text-xs" aria-label="Baixar App">
+                <span aria-hidden="true">⬇</span><span>Baixar App</span>
+              </button>}
               <button type="button" aria-haspopup="menu" aria-expanded={affiliateNavOpen} onClick={() => setAffiliateNavOpen(open => !open)} className="inline-flex items-center gap-1.5 rounded-lg border border-pink-200 bg-white px-3 py-2 text-[11px] font-black text-pink-700 shadow-sm transition hover:bg-pink-50 md:text-xs">
                 Menu <span aria-hidden="true" className={`transition-transform ${affiliateNavOpen ? 'rotate-180' : ''}`}>⌄</span>
               </button>
