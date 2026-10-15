@@ -100,11 +100,6 @@ export default function AdminDashboard() {
   const [wooviPixKeyCopied, setWooviPixKeyCopied] = useState(false)
   const [withdrawals, setWithdrawals] = useState([])
   const [videoSubmissions, setVideoSubmissions] = useState([])
-  const [productPurchases, setProductPurchases] = useState([])
-  const [productPrices, setProductPrices] = useState({ hydrant: '80', stick: '100' })
-  const [productPurchaseBusy, setProductPurchaseBusy] = useState(null)
-  const [productPriceBusy, setProductPriceBusy] = useState(false)
-
   const [videoFilter, setVideoFilter] = useState('pending')
   const [videoNoteId, setVideoNoteId] = useState(null)
   const [videoNote, setVideoNote] = useState('')
@@ -731,40 +726,6 @@ export default function AdminDashboard() {
     }
   }
 
-  const loadProductPurchases = async () => {
-    try {
-      const data = await api('/api/admin/product-purchases?admin=1')
-      setProductPurchases(data.purchases || [])
-      setProductPrices({ hydrant: String(data.prices?.hydrant ?? 80), stick: String(data.prices?.stick ?? 100) })
-    } catch (e) { setMessage(e.message || 'Não foi possível carregar Compras Afiliadas.') }
-  }
-
-  const saveProductPrices = async (event) => {
-    event.preventDefault()
-    setProductPriceBusy(true)
-    try {
-      const data = await api('/api/admin/product-purchases?admin=1', { method: 'POST', body: JSON.stringify({ action: 'set_prices', hydrant: Number(productPrices.hydrant), stick: Number(productPrices.stick) }) })
-      setProductPrices({ hydrant: String(data.prices.hydrant), stick: String(data.prices.stick) })
-      setMessage('Preços dos produtos para afiliadas atualizados.')
-      await loadProductPurchases()
-    } catch (e) { setMessage(e.message || 'Não foi possível salvar os preços.') }
-    finally { setProductPriceBusy(false) }
-  }
-
-  const updateProductPurchase = async (purchase, status) => {
-    setProductPurchaseBusy(purchase.id)
-    try {
-      await api('/api/admin/product-purchases?admin=1', { method: 'PATCH', body: JSON.stringify({ id: purchase.id, status }) })
-      await loadProductPurchases()
-      setMessage(status === 'approved' ? 'Compra aprovada e saldo abatido definitivamente.' : status === 'shipped' ? 'Compra marcada como enviada.' : 'Solicitação recusada; a reserva de saldo foi liberada.')
-    } catch (e) { setMessage(e.message || 'Não foi possível atualizar a compra.') }
-    finally { setProductPurchaseBusy(null) }
-  }
-
-  useEffect(() => {
-    if (authenticated) loadProductPurchases()
-  }, [authenticated])
-
   const stats = useMemo(() => {
     if (!selectedMonths.length) {
       const totalSales = Number(globalStatsData.all?.sales || 0)
@@ -1355,22 +1316,6 @@ export default function AdminDashboard() {
             ))}
             {!videoSubmissions.filter(video => videoFilter === 'all' || video.status === videoFilter).length && <div className="rounded-2xl border border-dashed border-zinc-200 px-4 py-8 text-center text-sm text-zinc-400">Nenhuma solicitação de vídeo neste filtro.</div>}
           </div>
-        </section>
-
-        <section className="mt-6 rounded-[1.5rem] border border-pink-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Operação</p><h2 className="mt-1 text-xl font-black text-zinc-950">Compras Afiliadas</h2><p className="mt-1 text-sm text-zinc-500">Gerencie solicitações, dados de entrega, envio e aprovação financeira.</p></div><span className="rounded-full bg-pink-50 px-3 py-1.5 text-xs font-black text-pink-700">{productPurchases.filter(p=>p.status==='pending').length} pendente(s)</span></div>
-          <form onSubmit={saveProductPrices} className="mt-5 grid gap-3 rounded-2xl bg-zinc-50 p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-            <label className="grid gap-1 text-xs font-bold text-zinc-600">Preço do Hidratante (R$)<input type="number" min="0.01" step="0.01" required value={productPrices.hydrant} onChange={e=>setProductPrices(v=>({...v,hydrant:e.target.value}))} className="rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900" /></label>
-            <label className="grid gap-1 text-xs font-bold text-zinc-600">Preço do Stick (R$)<input type="number" min="0.01" step="0.01" required value={productPrices.stick} onChange={e=>setProductPrices(v=>({...v,stick:e.target.value}))} className="rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900" /></label>
-            <button disabled={productPriceBusy} className="rounded-xl bg-pink-600 px-4 py-3 text-xs font-black text-white disabled:opacity-50">{productPriceBusy?'Salvando…':'Salvar preços'}</button>
-          </form>
-          <div className="mt-4 space-y-3">{productPurchases.map(p=> <article key={p.id} className="rounded-2xl border border-zinc-200 p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-black text-zinc-950">#{p.id} · {p.product==='hydrant'?'Hidratante She':'Stick Clareador She'} · {brl(p.price)}</h3><p className="mt-1 text-xs text-zinc-500">{p.affiliate?.name || `Afiliada #${p.affiliate_id}`} · {dateTime(p.created_at)} · {({pending:'Pendente',shipped:'Enviado',approved:'Aprovado',rejected:'Recusado',cancelled:'Cancelado'})[p.status] || p.status}</p></div>
-            {p.status==='pending' && <div className="flex flex-wrap gap-2"><button disabled={productPurchaseBusy===p.id} onClick={()=>updateProductPurchase(p,'shipped')} className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-black text-white">Marcar como enviado</button><button disabled={productPurchaseBusy===p.id} onClick={()=>updateProductPurchase(p,'rejected')} className="rounded-lg bg-red-50 px-3 py-2 text-xs font-black text-red-700">Recusar</button></div>}
-            {p.status==='shipped' && <button disabled={productPurchaseBusy===p.id} onClick={()=>updateProductPurchase(p,'approved')} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white">Aprovar e abater saldo</button>}
-            </div>
-            <div className="mt-3 grid gap-2 text-xs text-zinc-700 sm:grid-cols-2"><p><strong>Nome:</strong> {p.full_name}</p><p><strong>CPF:</strong> {p.cpf}</p><p><strong>CEP:</strong> {p.cep}</p><p><strong>E-mail:</strong> {p.email}</p><p><strong>Telefone:</strong> {p.phone}</p><p className="sm:col-span-2"><strong>Endereço:</strong> {p.address}</p>{p.notes && <p className="sm:col-span-2"><strong>Observações:</strong> {p.notes}</p>}</div>
-          </article>)}{!productPurchases.length && <div className="rounded-xl border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-400">Nenhuma compra solicitada ainda.</div>}</div>
         </section>
 
         <section className="mt-6 rounded-[1.5rem] border border-pink-200 bg-white p-6 shadow-sm">

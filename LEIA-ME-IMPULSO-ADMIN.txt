@@ -1,0 +1,30 @@
+# Alteração: Impulso gratuito pelo painel administrativo
+
+## O que mudou
+- Botão pequeno **Impulso** à esquerda do seletor de status administrativo na linha de cada afiliada.
+- Ao clicar, o administrador escolhe 5 ou 10 conexões.
+- A concessão é gratuita: não desconta do saldo da afiliada.
+- A concessão usa a mesma tabela, fila FIFO, limite de impulsos ativos e carrossel de distribuição existentes.
+- Não permite criar outro impulso enquanto a afiliada já tiver um impulso ativo ou aguardando.
+- O painel administrativo identifica os impulsos concedidos como **Gratuito**.
+- Os impulsos administrativos não entram nos cálculos de saldo disponível, gasto de impulso ou extrato financeiro da afiliada.
+
+## IMPORTANTE — aplicar a migração no Supabase
+Antes de publicar o código, abra o SQL Editor do projeto Supabase da She Afiliadas e execute o conteúdo completo do arquivo:
+
+`supabase/migration_admin_granted_team_boost.sql`
+
+A migração cria a coluna `admin_granted` e a função RPC `she_team_boost_admin_grant`, além de ajustar o cálculo de saldo do impulso comprado. Sem essa migração, o botão não conseguirá conceder o impulso.
+
+Depois:
+1. Execute a migração SQL.
+2. Publique os arquivos do ZIP no GitHub/Vercel como de costume.
+3. Abra o painel admin e teste a concessão com uma afiliada que não tenha impulso ativo ou na fila.
+
+O arquivo `supabase/boost_schema_append.sql` também inclui a migração para instalações novas.
+
+
+CORREÇÃO IMPORTANTE — IMPULSO ADMINISTRATIVO GRATUITO
+A função she_team_boost_admin_grant agora grava price = 0 no registro do impulso administrativo. Assim, a concessão não pode ser contabilizada como gasto de saldo, mesmo por cálculos que não considerem admin_granted. O preço equivalente do plano é mantido apenas como referência no retorno da função.
+
+ATENÇÃO: execute novamente o arquivo supabase/migration_admin_granted_team_boost.sql no SQL Editor do Supabase para atualizar a função no banco; depois publique este ZIP na Vercel.
