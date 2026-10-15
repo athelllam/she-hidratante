@@ -128,25 +128,31 @@ export default function AffiliateDashboard() {
   useEffect(() => {
     if (!dashboard?.affiliate?.id) return
     let cancelled = false
-    setProductShopLoading(true)
-    setProductShopError('')
+    const hydrant = Number(dashboard?.productPrices?.hydrant)
+    const stick = Number(dashboard?.productPrices?.stick)
+    if (Number.isFinite(hydrant) && hydrant > 0 && Number.isFinite(stick) && stick > 0) {
+      setProductShop(prev => ({ ...prev, prices: { hydrant, stick } }))
+      setProductShopError('')
+      setProductShopLoading(false)
+    } else {
+      setProductShopError('O painel não retornou os preços configurados em affiliate_settings.')
+      setProductShopLoading(false)
+    }
+    // A rota de compras é usada apenas para listar solicitações existentes.
+    // Os preços vêm do endpoint de dashboard já existente, sem criar Serverless Function.
     api('/api/affiliate/product-purchases')
       .then((data) => {
         if (cancelled) return
-        const hydrant = Number(data?.prices?.hydrant)
-        const stick = Number(data?.prices?.stick)
-        if (!Number.isFinite(hydrant) || hydrant <= 0 || !Number.isFinite(stick) || stick <= 0) {
-          throw new Error('A API não retornou preços válidos para a loja de benefícios.')
-        }
-        setProductShop({ purchases: Array.isArray(data.purchases) ? data.purchases : [], prices: { hydrant, stick } })
+        setProductShop(prev => ({
+          ...prev,
+          purchases: Array.isArray(data.purchases) ? data.purchases : [],
+        }))
       })
-      .catch((err) => {
-        if (cancelled) return
-        setProductShopError(err?.message || 'Não foi possível carregar os preços atuais da loja. Atualize a página ou contate o suporte.')
+      .catch(() => {
+        // Não sobrescreve nem bloqueia os preços já carregados pelo dashboard.
       })
-      .finally(() => { if (!cancelled) setProductShopLoading(false) })
     return () => { cancelled = true }
-  }, [dashboard?.affiliate?.id])
+  }, [dashboard?.affiliate?.id, dashboard?.productPrices?.hydrant, dashboard?.productPrices?.stick])
 
   const submitProductPurchase = async (event) => {
     event.preventDefault()

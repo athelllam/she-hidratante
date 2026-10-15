@@ -210,7 +210,7 @@ module.exports = async function handler(req, res) {
           ? { price: Number(s.team_boost_large_price ?? 50), connections: Number(s.team_boost_large_connections ?? 10) }
           : null;
       if (!selected) return json(res, 400, { error: 'Plano de impulso inválido.' });
-      const settingsRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,team_advanced1_members,team_advanced1_sales,team_advanced1_commission,team_advanced2_members,team_advanced2_sales,team_advanced2_commission,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales&limit=1');
+      const settingsRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,team_advanced1_members,team_advanced1_sales,team_advanced1_commission,team_advanced2_members,team_advanced2_sales,team_advanced2_commission,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,affiliate_hydrant_price,affiliate_stick_price&limit=1');
       const row = settingsRows?.[0];
       const settings = normalizeConfig(row ? {
         ticketThreshold: row.ticket_threshold,
@@ -758,6 +758,10 @@ module.exports = async function handler(req, res) {
     return json(res, 200, {
       affiliate,
       settings,
+      productPrices: {
+        hydrant: Number(settingRows?.[0]?.affiliate_hydrant_price),
+        stick: Number(settingRows?.[0]?.affiliate_stick_price),
+      },
       monthlyCommissionRates: displayMonthlyCommissionRates,
       selectedMonth: requestedMonth,
       isAllMonths: requestedMonth === 'all',
