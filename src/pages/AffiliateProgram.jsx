@@ -71,10 +71,10 @@ function BonusCard({ title, value, description, tone = 'white' }) {
       ? 'border-zinc-800 bg-zinc-950 text-white'
       : 'border-zinc-100 bg-white'
   return (
-    <motion.div whileHover={{ y: -4 }} className={`rounded-[1.7rem] border p-5 shadow-sm ${toneClass}`}>
-      <p className={`text-[10px] font-black uppercase tracking-[.18em] ${tone === 'pink' ? 'text-pink-500' : tone === 'dark' ? 'text-white/45' : 'text-zinc-400'}`}>{title}</p>
-      {value && <p className={`mt-3 text-2xl font-black ${tone === 'pink' ? 'text-pink-600' : tone === 'dark' ? 'text-white' : 'text-zinc-950'}`}>{value}</p>}
-      <p className={`mt-2 text-sm leading-6 ${tone === 'dark' ? 'text-white/60' : 'text-zinc-500'}`}>{description}</p>
+    <motion.div whileHover={{ y: -4 }} className={`box-border min-w-0 w-full overflow-hidden rounded-[1.7rem] border p-4 sm:p-5 shadow-sm ${toneClass}`}>
+      <p className={`break-words [overflow-wrap:anywhere] text-[10px] font-black uppercase tracking-[.18em] ${tone === 'pink' ? 'text-pink-500' : tone === 'dark' ? 'text-white/45' : 'text-zinc-400'}`}>{title}</p>
+      {value && <p className={`mt-3 break-words [overflow-wrap:anywhere] text-2xl font-black ${tone === 'pink' ? 'text-pink-600' : tone === 'dark' ? 'text-white' : 'text-zinc-950'}`}>{value}</p>}
+      <p className={`mt-2 break-words [overflow-wrap:anywhere] text-sm leading-6 ${tone === 'dark' ? 'text-white/60' : 'text-zinc-500'}`}>{description}</p>
     </motion.div>
   )
 }
@@ -214,7 +214,7 @@ export default function AffiliateProgram() {
               <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">Cinco formas de construir sua bonificação.</h2>
               <p className="mt-5 text-base md:text-lg leading-8 text-zinc-500">Na She, oferecemos 5 tipos de bonificação que se combinam de maneiras diferentes para valorizar sua evolução, suas vendas e sua equipe.</p>
             </div>
-            <div className="mt-10 grid md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="mt-10 grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
               <BonusCard title="Bônus de Equipe" description={`Bronze garantido por ${integer(cfg.teamBonusDays)} dias ao entrar em uma equipe.`} />
               <BonusCard title="Bônus Fixo" description="Seu histórico de vendas acumuladas pode transformar seu nível em um piso permanente." />
               <BonusCard title="Bônus Mensal" description="Suas vendas no mês definem seu nível e a bonificação aplicada às vendas do mês" />
@@ -318,7 +318,6 @@ export default function AffiliateProgram() {
             <div>
               <p className="text-xs font-black uppercase tracking-[.22em] text-pink-500">Potencial de ganhos</p>
               <h2 className="mt-3 text-4xl md:text-6xl font-black tracking-tight leading-[.95]">No Ouro, seu potencial pode chegar a {brl(maximumPersonal)} por pedido.</h2>
-              <p className="mt-5 text-base md:text-lg leading-8 text-zinc-500">Essa soma considera a bonificação do nível Ouro + o Bônus de Valor + a Venda de Equipe, sempre acompanhando os valores configurados no painel administrativo.</p>
 
             </div>
           </div>
