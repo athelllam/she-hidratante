@@ -102,6 +102,7 @@ export default function AdminDashboard() {
   const [videoSubmissions, setVideoSubmissions] = useState([])
   const [productPurchases, setProductPurchases] = useState([])
   const [productPrices, setProductPrices] = useState({ hydrant: '80', stick: '100' })
+  const [productTrackingLinks, setProductTrackingLinks] = useState({})
   const [productPurchaseBusy, setProductPurchaseBusy] = useState(null)
   const [productPriceBusy, setProductPriceBusy] = useState(false)
 
@@ -752,17 +753,79 @@ export default function AdminDashboard() {
   }
 
   const updateProductPurchase = async (purchase, status) => {
+    const trackingUrl = String(productTrackingLinks[purchase.id] || purchase.tracking_url || '').trim()
+    if (status === 'shipped' && !/^https?:\/\//i.test(trackingUrl)) {
+      setMessage('Informe um link de rastreio válido começando com http:// ou https:// antes de marcar como enviado.')
+      return
+    }
     if (status === 'rejected') {
       const confirmed = window.confirm(`Confirma recusar a compra #${purchase.id} (${purchase.product === 'hydrant' ? 'Hidratante' : 'Stick'}) de ${brl(purchase.price)}? A reserva do saldo será liberada para a afiliada.`)
       if (!confirmed) return
     }
     setProductPurchaseBusy(purchase.id)
     try {
-      await api('/api/admin/product-purchases?admin=1', { method: 'PATCH', body: JSON.stringify({ id: purchase.id, status }) })
+      await api('/api/admin/product-purchases?admin=1', { method: 'PATCH', body: JSON.stringify({ id: purchase.id, status, ...(status === 'shipped' ? { tracking_url: trackingUrl } : {}) }) })
+      if (status === 'shipped') setProductTrackingLinks(current => ({ ...current, [purchase.id]: trackingUrl }))
       await loadProductPurchases()
       setMessage(status === 'approved' ? 'Compra aprovada e saldo abatido definitivamente.' : status === 'shipped' ? 'Compra marcada como enviada.' : 'Solicitação recusada; a reserva de saldo foi liberada.')
     } catch (e) { setMessage(e.message || 'Não foi possível atualizar a compra.') }
     finally { setProductPurchaseBusy(null) }
+  }
+
+  const exportPendingProductPurchasesCsv = () => {
+    const pending = productPurchases.filter(p => p.status === 'pending' && p.freight_paid === true)
+    if (!pending.length) {
+      setMessage('Não há compras aguardando envio com frete aprovado para exportar.')
+      return
+    }
+    const parseAddress = (p) => {
+      const out = {
+        street: p.street || '', number: p.house_number || '', complement: p.complement || '',
+        neighborhood: p.neighborhood || '', city: p.city || '', state: p.state || '', postal_code: String(p.cep || '').replace(/\D/g, ''),
+      }
+      // Compatibilidade com solicitações antigas, que salvaram o endereço em uma única string.
+      if (!out.street && p.address) {
+        const parts = String(p.address).split(',').map(v => v.trim()).filter(Boolean)
+        out.street = parts[0] || ''
+        const numberPart = parts.find(v => /^n[ºo.]?\s*/i.test(v))
+        if (!out.number && numberPart) out.number = numberPart.replace(/^n[ºo.]?\s*/i, '').trim()
+        const cepPart = parts.find(v => /CEP/i.test(v))
+        if (!out.postal_code && cepPart) out.postal_code = cepPart.replace(/\D/g, '')
+        const cityState = parts.find(v => / - [A-Z]{2}$/.test(v))
+        if (!out.city && cityState) {
+          const m = cityState.match(/^(.*?)\s+-\s+([A-Z]{2})$/)
+          if (m) { out.city = m[1].trim(); out.state = m[2].trim() }
+        }
+        if (!out.neighborhood) {
+          const beforeCity = cityState ? parts.indexOf(cityState) - 1 : -1
+          if (beforeCity >= 0) out.neighborhood = parts[beforeCity]
+        }
+        if (!out.complement) {
+          const reserved = new Set([parts[0], numberPart, cepPart, cityState, out.neighborhood].filter(Boolean))
+          const other = parts.find(v => !reserved.has(v))
+          if (other) out.complement = other
+        }
+      }
+      return out
+    }
+    const headers = ['reference', 'recipient_name', 'recipient_phone', 'recipient_email', 'recipient_document', 'recipient_postal_code', 'recipient_address', 'recipient_number', 'recipient_complement', 'recipient_district', 'recipient_city', 'recipient_state', 'product']
+    const quote = value => `"${String(value ?? '').replace(/"/g, '""').replace(/[\r\n]+/g, ' ')}"`
+    const rows = pending.map(p => {
+      const a = parseAddress(p)
+      return [
+        `SHE-AF-${p.id}`, p.full_name, p.phone, p.email, String(p.cpf || '').replace(/\D/g, ''), a.postal_code,
+        a.street, a.number, a.complement, a.neighborhood, a.city, a.state,
+        p.product === 'hydrant' ? 'Hidratante Íntimo She' : 'Stick Clareador She',
+      ].map(quote).join(',')
+    })
+    const csv = '\uFEFF' + [headers.map(quote).join(','), ...rows].join('\r\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `she-afiliadas-aguardando-envio-${new Date().toISOString().slice(0,10)}.csv`
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+    setMessage(`CSV gerado com ${pending.length} solicitação(ões) aguardando envio. Pedidos já marcados como enviados foram excluídos.`)
   }
 
   useEffect(() => {
@@ -1362,7 +1425,7 @@ export default function AdminDashboard() {
         </section>
 
         <section className="mt-6 rounded-[1.5rem] border border-pink-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Operação</p><h2 className="mt-1 text-xl font-black text-zinc-950">Compras Afiliadas</h2><p className="mt-1 text-sm text-zinc-500">Gerencie solicitações, dados de entrega, envio e aprovação financeira.</p></div><span className="rounded-full bg-pink-50 px-3 py-1.5 text-xs font-black text-pink-700">{productPurchases.filter(p=>p.status==='pending').length} pendente(s)</span></div>
+          <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Operação</p><h2 className="mt-1 text-xl font-black text-zinc-950">Compras Afiliadas</h2><p className="mt-1 text-sm text-zinc-500">Gerencie solicitações, dados de entrega, envio e aprovação financeira.</p></div><div className="flex flex-wrap items-center gap-2"><button type="button" onClick={exportPendingProductPurchasesCsv} title="Baixar CSV das compras aguardando envio" className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs font-black text-emerald-800 hover:bg-emerald-100"><svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor"><path d="M4 3h10l6 6v12H4V3zm9 1.5V10h5.5L13 4.5zM7 13h10v1.5H7V13zm0 3h10v1.5H7V16zm0 3h7v1.5H7V19z"/></svg>CSV</button><span className="rounded-full bg-pink-50 px-3 py-1.5 text-xs font-black text-pink-700">{productPurchases.filter(p=>p.status==='pending').length} pendente(s)</span></div></div>
           <form onSubmit={saveProductPrices} className="mt-5 grid gap-3 rounded-2xl bg-zinc-50 p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
             <label className="grid gap-1 text-xs font-bold text-zinc-600">Preço do Hidratante (R$)<input type="number" min="0.01" step="0.01" required value={productPrices.hydrant} onChange={e=>setProductPrices(v=>({...v,hydrant:e.target.value}))} className="rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900" /></label>
             <label className="grid gap-1 text-xs font-bold text-zinc-600">Preço do Stick (R$)<input type="number" min="0.01" step="0.01" required value={productPrices.stick} onChange={e=>setProductPrices(v=>({...v,stick:e.target.value}))} className="rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900" /></label>
@@ -1370,10 +1433,10 @@ export default function AdminDashboard() {
           </form>
           <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-3"><div className="h-[570px] space-y-3 overflow-y-auto pr-2">{productPurchases.map(p=> <article key={p.id} className="min-h-[180px] rounded-2xl border border-zinc-200 bg-white p-4">
             <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-black text-zinc-950">#{p.id} · {p.product==='hydrant'?'Hidratante She':'Stick Clareador She'} · {brl(p.price)}</h3><p className="mt-1 text-xs text-zinc-500">{p.affiliate?.name || `Afiliada #${p.affiliate_id}`} · {dateTime(p.created_at)} · {({pending: p.freight_paid === true ? 'Frete pago · Pendente de envio' : 'Aguardando pagamento do frete',shipped:'Enviado',approved:'Aprovado / saldo abatido',rejected:'Recusado',cancelled:'Cancelado'})[p.status] || p.status}</p></div>
-            {p.status==='pending' && <div className="flex flex-wrap items-start gap-2"><div className="flex flex-col items-start gap-1"><button disabled={productPurchaseBusy===p.id || p.freight_paid !== true} title={p.freight_paid === true ? 'Marcar como enviado' : 'Aguardando confirmação do frete pela Woovi'} onClick={()=>updateProductPurchase(p,'shipped')} className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-black text-white disabled:opacity-40">Marcar como enviado</button><span className={`text-[10px] font-semibold ${p.freight_paid === true ? 'text-emerald-700' : 'text-amber-700'}`}>{p.freight_paid === true ? 'Pagamento do frete aprovado' : 'Aguardando pagamento do frete'}</span></div><button disabled={productPurchaseBusy===p.id} onClick={()=>updateProductPurchase(p,'rejected')} className="rounded-lg bg-red-50 px-3 py-2 text-xs font-black text-red-700">Recusar</button></div>}
+            {p.status==='pending' && <div className="flex w-full flex-col items-stretch gap-2 sm:w-[360px]"><label className="grid gap-1 text-[10px] font-bold text-zinc-500">Link de rastreio<input type="url" value={productTrackingLinks[p.id] ?? p.tracking_url ?? ''} onChange={e=>setProductTrackingLinks(current=>({...current,[p.id]:e.target.value}))} placeholder="https://..." className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-900 outline-none focus:border-sky-400" /></label><div className="flex flex-wrap items-start gap-2"><div className="flex flex-col items-start gap-1"><button disabled={productPurchaseBusy===p.id || p.freight_paid !== true || !/^https?:\/\//i.test(String(productTrackingLinks[p.id] ?? p.tracking_url ?? '').trim())} title={p.freight_paid !== true ? 'Aguardando confirmação do frete pela Woovi' : 'Marcar como enviado'} onClick={()=>updateProductPurchase(p,'shipped')} className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-black text-white disabled:opacity-40">Marcar como enviado</button><span className={`text-[10px] font-semibold ${p.freight_paid === true ? 'text-emerald-700' : 'text-amber-700'}`}>{p.freight_paid === true ? 'Pagamento do frete aprovado' : 'Aguardando pagamento do frete'}</span></div><button disabled={productPurchaseBusy===p.id} onClick={()=>updateProductPurchase(p,'rejected')} className="rounded-lg bg-red-50 px-3 py-2 text-xs font-black text-red-700">Recusar</button></div></div>}
             {p.status==='shipped' && <button disabled={productPurchaseBusy===p.id} onClick={()=>updateProductPurchase(p,'approved')} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white">Aprovar e abater saldo</button>}
             </div>
-            <div className="mt-3 grid gap-2 text-xs text-zinc-700 sm:grid-cols-2"><p><strong>Nome:</strong> {p.full_name}</p><p><strong>CPF:</strong> {p.cpf}</p><p><strong>CEP:</strong> {p.cep}</p><p><strong>E-mail:</strong> {p.email}</p><p><strong>Telefone:</strong> {p.phone}</p><p className="sm:col-span-2"><strong>Endereço:</strong> {p.address}</p>{p.notes && <p className="sm:col-span-2"><strong>Observações:</strong> {p.notes}</p>}</div>
+            {p.tracking_url && ['shipped','approved'].includes(p.status) && <p className="mt-3 text-xs font-semibold text-sky-800">Rastreio salvo: <a href={p.tracking_url} target="_blank" rel="noreferrer" className="break-all underline">{p.tracking_url}</a></p>}<div className="mt-3 grid gap-2 text-xs text-zinc-700 sm:grid-cols-2"><p><strong>Nome:</strong> {p.full_name}</p><p><strong>CPF:</strong> {p.cpf}</p><p><strong>CEP:</strong> {p.cep}</p><p><strong>E-mail:</strong> {p.email}</p><p><strong>Telefone:</strong> {p.phone}</p><p className="sm:col-span-2"><strong>Endereço:</strong> {p.address}</p>{p.notes && <p className="sm:col-span-2"><strong>Observações:</strong> {p.notes}</p>}</div>
           </article>)}{!productPurchases.length && <div className="rounded-xl border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-400">Nenhuma compra solicitada ainda.</div>}</div></div>
         </section>
 

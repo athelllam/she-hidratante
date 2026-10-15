@@ -90,7 +90,13 @@ module.exports = async function handler(req, res) {
         return json(res, 200, { prices: { hydrant: Number(verified.affiliate_hydrant_price), stick: Number(verified.affiliate_stick_price) } });
       }
       const id = Number(req.body?.id), actionStatus = String(req.body?.status || '');
+      const trackingUrl = String(req.body?.tracking_url || '').trim();
       if (!id || !['approved','rejected','shipped'].includes(actionStatus)) return json(res, 400, { error: 'Ação de compra inválida.' });
+      if (actionStatus === 'shipped') {
+        let parsedTrackingUrl;
+        try { parsedTrackingUrl = new URL(trackingUrl); } catch { parsedTrackingUrl = null; }
+        if (!parsedTrackingUrl || !['http:', 'https:'].includes(parsedTrackingUrl.protocol)) return json(res, 400, { error: 'Informe um link de rastreio válido (http:// ou https://) antes de marcar como enviado.' });
+      }
       const rows = await supabaseFetch(`/rest/v1/affiliate_product_purchases?id=eq.${id}&select=*&limit=1`);
       const purchase = rows?.[0];
       if (!purchase) return json(res, 404, { error: 'Compra não encontrada.' });
@@ -99,7 +105,10 @@ module.exports = async function handler(req, res) {
       if (actionStatus === 'approved' && purchase.status !== 'shipped') return json(res, 409, { error: 'Marque o produto como enviado antes de aprovar e debitar o saldo.' });
       const patch = { status: actionStatus, updated_at: new Date().toISOString() };
       if (actionStatus === 'approved') patch.approved_at = new Date().toISOString();
-      if (actionStatus === 'shipped') patch.shipped_at = new Date().toISOString();
+      if (actionStatus === 'shipped') {
+        patch.shipped_at = new Date().toISOString();
+        patch.tracking_url = trackingUrl;
+      }
       if (actionStatus === 'rejected') patch.rejected_at = new Date().toISOString();
       const updated = await supabaseFetch(`/rest/v1/affiliate_product_purchases?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(patch) });
       return json(res, 200, { purchase: updated?.[0] || { ...purchase, ...patch } });
@@ -123,6 +132,12 @@ module.exports = async function handler(req, res) {
     const f = req.body?.form || {};
     const name = String(f.name || '').trim(), cpf = String(f.cpf || '').replace(/\D/g, ''), cep = String(f.cep || '').replace(/\D/g, '');
     const address = String(f.address || '').trim(), email = String(f.email || '').trim().toLowerCase(), phone = String(f.phone || '').trim(), notes = String(f.notes || '').trim();
+    const street = String(f.street || '').trim();
+    const house_number = String(f.number || '').trim();
+    const complement = String(f.complement || '').trim();
+    const neighborhood = String(f.neighborhood || '').trim();
+    const city = String(f.city || '').trim();
+    const state = String(f.state || '').trim().toUpperCase();
     if (name.length < 3 || cpf.length !== 11 || cep.length !== 8 || address.length < 8 || !validEmail(email) || phone.replace(/\D/g,'').length < 10) return json(res, 400, { error: 'Preencha corretamente todos os campos obrigatórios.' });
 
     const [settingsRows, withdrawals, boosts, openPurchases] = await Promise.all([
@@ -157,7 +172,7 @@ module.exports = async function handler(req, res) {
     const month = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).format(new Date()).slice(0,7);
     const monthRows = await supabaseFetch(`/rest/v1/affiliate_product_purchases?affiliate_id=eq.${affiliate.id}&product=eq.${product}&created_at=gte.${month}-01T00:00:00-03:00&status=not.in.(rejected,cancelled)&select=id&limit=1`);
     if (monthRows?.length) return json(res, 409, { error: 'Você já solicitou este produto neste mês.' });
-    const rows = await supabaseFetch('/rest/v1/affiliate_product_purchases', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ affiliate_id: Number(affiliate.id), product, price, status: 'pending', freight_amount: FREIGHT_VALUE, freight_paid: false, full_name: name, cpf, cep, address, email, phone, notes }) });
+    const rows = await supabaseFetch('/rest/v1/affiliate_product_purchases', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ affiliate_id: Number(affiliate.id), product, price, status: 'pending', freight_amount: FREIGHT_VALUE, freight_paid: false, full_name: name, cpf, cep, address, street, house_number, complement, neighborhood, city, state, email, phone, notes }) });
     const purchase = rows?.[0];
     if (!purchase) return json(res, 500, { error: 'Não foi possível registrar a solicitação.' });
     try {
