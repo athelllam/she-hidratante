@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getRememberedAffiliate, clearRememberedAffiliate } from '../utils/affiliateTracking'
+import hidratanteProductImage from '../assets/cart/hidratante.webp'
+import stickProductImage from '../assets/cart/stick-clareador.webp'
 
 function brl(value) {
   return `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`
@@ -35,6 +37,8 @@ function withdrawalStatusLabel(status) {
   if (status === 'cancelled') return 'Cancelado'
   return 'Pendente'
 }
+
+function productPurchaseStatusLabel(status) { if (status === 'approved') return 'Aprovado / abatido'; if (status === 'shipped') return 'Enviado — aguardando aprovação'; if (status === 'rejected') return 'Recusado'; if (status === 'cancelled') return 'Cancelado'; return 'Saldo reservado' }
 
 function boostStatusLabel(status) {
   if (status === 'active') return 'Ativo'
@@ -111,7 +115,46 @@ export default function AffiliateDashboard() {
   const [forgotMessage, setForgotMessage] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [productShop, setProductShop] = useState({ purchases: [], prices: { hydrant: 80, stick: 100 } })
+  const [purchaseProduct, setPurchaseProduct] = useState('')
+  const [purchaseForm, setPurchaseForm] = useState({ name: '', cpf: '', cep: '', address: '', email: '', phone: '', notes: '' })
+  const [purchaseBusy, setPurchaseBusy] = useState(false)
+  const [purchaseMessage, setPurchaseMessage] = useState('')
 
+
+
+  useEffect(() => {
+    if (!dashboard?.affiliate?.id) return
+    api('/api/affiliate/product-purchases')
+      .then(setProductShop)
+      .catch(() => {})
+  }, [dashboard?.affiliate?.id])
+
+  const submitProductPurchase = async (event) => {
+    event.preventDefault()
+    if (!purchaseProduct) return
+    setPurchaseBusy(true)
+    setPurchaseMessage('')
+    try {
+      await api('/api/affiliate/product-purchases', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'purchase', product: purchaseProduct, form: purchaseForm }),
+      })
+      setPurchaseMessage('Solicitação enviada! O valor está reservado no seu saldo até a aprovação administrativa.')
+      setPurchaseProduct('')
+      const [freshDashboard, shop] = await Promise.all([
+        api(`/api/affiliate/dashboard?month=${encodeURIComponent(selectedMonth || 'all')}`),
+        api('/api/affiliate/product-purchases'),
+      ])
+      setDashboard(freshDashboard)
+      setProductShop(shop)
+      setPurchaseForm({ name: '', cpf: '', cep: '', address: '', email: '', phone: '', notes: '' })
+    } catch (e) {
+      setPurchaseMessage(e.message || 'Não foi possível solicitar a compra.')
+    } finally {
+      setPurchaseBusy(false)
+    }
+  }
 
   // Mostra a boas-vindas depois que o cadastro conclui e a equipe é carregada.
   useEffect(() => {
@@ -1396,6 +1439,36 @@ export default function AffiliateDashboard() {
           {!dashboard?.orders?.length && <div className="py-10 text-center text-sm text-zinc-400">Nenhuma venda aprovada ainda.</div>}
         </section>
 
+        <section className="mt-6 overflow-hidden rounded-[1.8rem] border border-pink-100 bg-gradient-to-br from-white via-pink-50 to-rose-100 p-5 shadow-sm md:p-7">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div><p className="text-[10px] font-black uppercase tracking-[.25em] text-pink-500">Benefícios She</p><h2 className="mt-1 text-2xl font-black text-zinc-950">Sua loja de benefícios</h2><p className="mt-1 max-w-xl text-sm text-zinc-600">Use suas comissões para adquirir os produtos She. Uma unidade de cada produto por mês.</p></div>
+            <span className="rounded-full border border-pink-200 bg-white/80 px-3 py-1.5 text-xs font-bold text-pink-700">Pagamento com saldo</span>
+          </div>
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            {[{key:'hydrant',name:'Hidratante Íntimo She',image:hidratanteProductImage,desc:'Cuidado íntimo premium',price:productShop.prices?.hydrant ?? 80},{key:'stick',name:'Stick Clareador She',image:stickProductImage,desc:'Praticidade para sua rotina',price:productShop.prices?.stick ?? 100}].map(product => {
+              const now = new Date()
+              const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
+              const boughtThisMonth = (productShop.purchases || []).some(p => p.product === product.key && !['rejected','cancelled'].includes(p.status) && String(p.created_at || '').slice(0,7) === thisMonth)
+              const available = Number(dashboard?.metrics?.availableCommission || 0)
+              return <div key={product.key} className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-white bg-white shadow-sm sm:flex-row">
+                <div className="flex min-h-[180px] items-center justify-center bg-white p-3 sm:w-[42%]"><img src={product.image} alt={product.name} className="max-h-48 w-full object-contain" /></div>
+                <div className="flex flex-1 flex-col p-4"><p className="text-[10px] font-black uppercase tracking-widest text-pink-500">Produto exclusivo</p><h3 className="mt-1 text-lg font-black text-zinc-950">{product.name}</h3><p className="mt-1 text-xs text-zinc-500">{product.desc}</p><p className="mt-4 text-2xl font-black text-zinc-950">{brl(product.price)}</p><p className="mt-1 text-[11px] text-zinc-500">Saldo disponível: {brl(available)}</p>
+                <button type="button" disabled={boughtThisMonth || available < product.price} onClick={() => {setPurchaseProduct(product.key); setPurchaseMessage('')}} className="mt-4 rounded-xl bg-gradient-to-r from-pink-600 to-rose-500 px-4 py-3 text-xs font-black text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400">{boughtThisMonth ? 'Já solicitado neste mês' : available < product.price ? 'Saldo insuficiente' : 'Adquirir com meu saldo'}</button>
+                {boughtThisMonth && <p className="mt-2 text-[11px] text-amber-700">Você já solicitou este produto neste mês.</p>}</div>
+              </div>
+            })}
+          </div>
+          {purchaseMessage && <p className="mt-4 rounded-xl bg-white p-3 text-sm font-semibold text-pink-700">{purchaseMessage}</p>}
+          {(productShop.purchases || []).length > 0 && <div className="mt-5 rounded-2xl border border-pink-100 bg-white/80 p-4"><h3 className="text-sm font-black text-zinc-900">Minhas solicitações</h3><div className="mt-3 space-y-2">{productShop.purchases.map(p => <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-zinc-50 p-3 text-xs"><span className="font-bold">{p.product === 'hydrant' ? 'Hidratante' : 'Stick'} · {brl(p.price)}</span><span className="rounded-full bg-pink-100 px-2 py-1 font-black text-pink-700">{({pending:'Aguardando envio',shipped:'Enviado — aguardando aprovação',approved:'Aprovado',rejected:'Recusado',cancelled:'Cancelado'})[p.status] || p.status}</span>{['pending','shipped'].includes(p.status) && <a href={`https://wa.me/553132784332?text=${encodeURIComponent(`Olá, suporte She. Gostaria de cancelar a solicitação ${p.id} do produto ${p.product === 'hydrant' ? 'Hidratante' : 'Stick'}.`)}`} target="_blank" rel="noreferrer" className="font-bold text-emerald-700 underline">Solicitar cancelamento pelo WhatsApp</a>}</div>)}</div></div>}
+        </section>
+
+        {purchaseProduct && <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-zinc-950/60 p-4"><form onSubmit={submitProductPurchase} className="my-auto w-full max-w-xl rounded-3xl bg-white p-5 shadow-2xl md:p-7"><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-widest text-pink-500">Finalizar solicitação</p><h2 className="mt-1 text-xl font-black text-zinc-950">Dados para entrega</h2><p className="mt-1 text-xs text-zinc-500">O valor será reservado. O abatimento definitivo acontece após a aprovação da She.</p></div><button type="button" onClick={() => setPurchaseProduct('')} className="rounded-full bg-zinc-100 px-3 py-1 text-sm font-black">✕</button></div><div className="mt-5 grid gap-3 sm:grid-cols-2">
+          {[['name','Nome completo','text'],['cpf','CPF','text'],['cep','CEP','text'],['email','E-mail','email'],['phone','Telefone','tel']].map(([key,label,type]) => <label key={key} className="grid gap-1 text-xs font-bold text-zinc-600">{label}<input required value={purchaseForm[key]} onChange={e=>setPurchaseForm(v=>({...v,[key]:e.target.value}))} type={type} className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-medium text-zinc-900 outline-none focus:border-pink-400" /></label>)}
+          <label className="grid gap-1 text-xs font-bold text-zinc-600 sm:col-span-2">Endereço completo<input required value={purchaseForm.address} onChange={e=>setPurchaseForm(v=>({...v,address:e.target.value}))} className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-medium text-zinc-900 outline-none focus:border-pink-400" placeholder="Rua, número, complemento, bairro, cidade e UF" /></label>
+          <label className="grid gap-1 text-xs font-bold text-zinc-600 sm:col-span-2">Observações<textarea value={purchaseForm.notes} onChange={e=>setPurchaseForm(v=>({...v,notes:e.target.value}))} rows={2} className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-medium text-zinc-900 outline-none focus:border-pink-400" /></label></div>
+          <p className="mt-4 rounded-xl bg-pink-50 p-3 text-sm font-black text-pink-800">{purchaseProduct === 'hydrant' ? 'Hidratante' : 'Stick'} · {brl(purchaseProduct === 'hydrant' ? productShop.prices?.hydrant ?? 80 : productShop.prices?.stick ?? 100)}</p>
+          <button disabled={purchaseBusy} className="mt-4 w-full rounded-xl bg-pink-600 px-4 py-3 font-black text-white disabled:opacity-50">{purchaseBusy ? 'Enviando solicitação…' : 'Confirmar solicitação'}</button></form></div>}
+
         <section className="mt-6 rounded-[1.5rem] bg-white p-6 border border-pink-100 shadow-sm">
           <div className="flex items-end justify-between gap-4">
             <div>
@@ -1429,7 +1502,7 @@ export default function AffiliateDashboard() {
                 <div className="flex items-center gap-3 sm:justify-end">
                   <span className="text-lg font-black text-zinc-950">{brl(movement.amount)}</span>
                   <span className={`rounded-full px-3 py-1 text-[11px] font-black ${movement.kind === 'boost' ? (movement.status === 'active' ? 'bg-emerald-100 text-emerald-800' : movement.status === 'cancelled' ? 'bg-zinc-200 text-zinc-700' : movement.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800') : (movement.status === 'pending' ? 'bg-amber-100 text-amber-800' : movement.status === 'processing' ? 'bg-blue-100 text-blue-800' : movement.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : movement.status === 'failed' || movement.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-zinc-200 text-zinc-700')}`}>
-                    {movement.kind === 'boost' ? boostStatusLabel(movement.status) : withdrawalStatusLabel(movement.status)}
+                    {movement.kind === 'boost' ? boostStatusLabel(movement.status) : movement.kind === 'product_purchase' ? productPurchaseStatusLabel(movement.status) : withdrawalStatusLabel(movement.status)}
                   </span>
                 </div>
               </div>
