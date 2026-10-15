@@ -1026,9 +1026,6 @@ export default function AffiliateDashboard() {
           <Link to="/" className="shrink-0 text-sm font-black tracking-tight text-zinc-950 md:text-base">SHE<span className="text-pink-500">.</span><span className="ml-1.5 text-[10px] font-bold text-zinc-400 md:text-xs">AFILIADAS</span></Link>
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5 md:gap-2">
             <div className="relative">
-              {!isStandaloneApp && !isAdminPreview && <button type="button" onClick={handleInstallApp} className="inline-flex items-center gap-1.5 rounded-lg border border-pink-200 bg-white/80 px-3 py-2 text-[11px] font-black text-pink-700 shadow-sm transition hover:bg-pink-50 md:text-xs" aria-label="Baixar App">
-                <span aria-hidden="true">⬇</span><span>Baixar App</span>
-              </button>}
               <button type="button" aria-haspopup="menu" aria-expanded={affiliateNavOpen} onClick={() => setAffiliateNavOpen(open => !open)} className="inline-flex items-center gap-1.5 rounded-lg border border-pink-200 bg-white px-3 py-2 text-[11px] font-black text-pink-700 shadow-sm transition hover:bg-pink-50 md:text-xs">
                 Menu <span aria-hidden="true" className={`transition-transform ${affiliateNavOpen ? 'rotate-180' : ''}`}>⌄</span>
               </button>
@@ -1036,14 +1033,22 @@ export default function AffiliateDashboard() {
                 <button type="button" aria-label="Fechar menu" className="fixed inset-0 z-40 cursor-default" onClick={() => setAffiliateNavOpen(false)} />
                 <div role="menu" className="absolute right-0 top-full z-50 mt-2 w-52 overflow-hidden rounded-2xl border border-pink-100 bg-white p-2 shadow-[0_16px_45px_rgba(30,10,20,.18)]">
                   {[
-                    ['🏆', 'Qualificação', 'qualificacao'],
-                    ['📊', 'Desempenho', 'desempenho'],
-                    ['💸', 'Saque', 'saque'],
-                    ['🔗', 'Meu Link', 'meu-link'],
-                    ['👥', 'Equipe', 'equipe'],
-                    ['🎬', 'Divulgar Vídeo', 'divulgar-video'],
-                    ['🛍️', 'Loja de Afiliadas', 'loja-afiliadas'],
-                  ].map(([icon, label, sectionId]) => <button key={sectionId} type="button" role="menuitem" onClick={() => scrollToAffiliateSection(sectionId)} className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-zinc-700 transition hover:bg-pink-50 hover:text-pink-700 focus:bg-pink-50 focus:outline-none"><span aria-hidden="true" className="w-4 shrink-0 text-center text-[13px] leading-none">{icon}</span><span>{label}</span></button>)}
+                    ['award', 'Qualificação', 'qualificacao'],
+                    ['chart', 'Desempenho', 'desempenho'],
+                    ['wallet', 'Saque', 'saque'],
+                    ['link', 'Meu Link', 'meu-link'],
+                    ['team', 'Equipe', 'equipe'],
+                    ['video', 'Divulgar Vídeo', 'divulgar-video'],
+                    ['shop', 'Loja de Afiliadas', 'loja-afiliadas'],
+                  ].map(([icon, label, sectionId]) => <button key={sectionId} type="button" role="menuitem" onClick={() => scrollToAffiliateSection(sectionId)} className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-zinc-700 transition hover:bg-pink-50 hover:text-pink-700 focus:bg-pink-50 focus:outline-none"><span aria-hidden="true" className="flex h-4 w-4 shrink-0 items-center justify-center text-pink-500">
+                    {icon === 'award' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M8 4h8l2 4-6 5-6-5 2-4Z"/><path d="m6 13-1 7 7-3 7 3-1-7M8 4l4 9 4-9"/></svg>
+                    : icon === 'chart' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M4 19V5M4 19h17"/><rect x="7" y="12" width="3" height="5" rx="1"/><rect x="12" y="8" width="3" height="9" rx="1"/><rect x="17" y="4" width="3" height="13" rx="1"/></svg>
+                    : icon === 'wallet' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="3" y="6" width="18" height="14" rx="3"/><path d="M3 9V6a3 3 0 0 1 3-3h12M15 13h6"/><circle cx="15" cy="13" r="1"/></svg>
+                    : icon === 'link' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M10 13a5 5 0 0 0 7 .2l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7-.2l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
+                    : icon === 'team' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 5v1"/></svg>
+                    : icon === 'video' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="3" y="5" width="13" height="14" rx="3"/><path d="m16 10 5-3v10l-5-3z"/><path d="m8 9 4 3-4 3z" fill="currentColor" stroke="none"/></svg>
+                    : <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M3 9h18l-2-5H5L3 9Z"/><path d="M5 9v11h14V9M9 20v-7h6v7"/></svg>}
+                  </span><span>{label}</span></button>)}
                 </div>
               </>}
             </div>
@@ -1115,6 +1120,11 @@ export default function AffiliateDashboard() {
           </section>
         )}
 
+        {!isStandaloneApp && !isAdminPreview && <div className="mb-3 mt-4 flex justify-start">
+          <button type="button" onClick={handleInstallApp} className="rounded-lg border border-pink-200 bg-white/80 px-4 py-2 text-xs font-black text-pink-700 shadow-sm transition hover:bg-pink-50" aria-label="Baixar App">
+            Baixar App
+          </button>
+        </div>}
         <section id="qualificacao" style={{ scrollMarginTop: 82 }} className={`relative mt-7 overflow-hidden rounded-[2rem] border border-white bg-gradient-to-r ${levelTone(level.key)} p-5 shadow-sm md:p-7`}>
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div>

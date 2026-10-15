@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { trackAffiliateAccess, rememberAffiliate } from './utils/affiliateTracking'
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom'
 import Welcome from './pages/Welcome'
 import AffiliateDashboard from './pages/AffiliateDashboard'
 import AdminDashboard from './pages/AdminDashboard'
@@ -18,6 +18,27 @@ const Hidratante = lazy(() => import('./pages/Hidratante'))
 const Stick = lazy(() => import('./pages/Stick'))
 const Gummies = lazy(() => import('./pages/Gummies'))
 const Ovinhos = lazy(() => import('./pages/Ovinhos'))
+
+
+function ScrollToTop() {
+  const location = useLocation()
+
+  useEffect(() => {
+    const path = String(location.pathname || '').replace(/\\/+$/, '') || '/'
+    // Preservar a posição de scroll nas páginas do Hidratante e do Stick.
+    const isProductPage = path === '/hidratante'
+      || path === '/stick'
+      || /^\\/[^/]+\\/(hidratante|stick)$/.test(path)
+
+    if (isProductPage) return
+
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    document.documentElement.scrollTop = 0
+    document.body.scrollTop = 0
+  }, [location.pathname])
+
+  return null
+}
 
 function PageFallback() {
   return <div className="min-h-screen bg-[#fffafc]" />
@@ -71,6 +92,7 @@ function AffiliateProduct({ Product }) {
 export default function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Suspense fallback={<PageFallback />}>
         <Routes>
           <Route path="/" element={<Welcome />} />
