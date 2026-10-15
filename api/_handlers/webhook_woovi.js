@@ -4,13 +4,6 @@ const { sendToAffiliate } = require('../_lib/push');
 
 function json(res, status, body) { return res.status(status).json(body); }
 
-function safeEqual(a, b) {
-  if (a === undefined || a === null || b === undefined || b === null) return false;
-  const aa = Buffer.from(String(a));
-  const bb = Buffer.from(String(b));
-  return aa.length === bb.length && crypto.timingSafeEqual(aa, bb);
-}
-
 let cachedPublicKeys = [];
 let cachedPublicKeysAt = 0;
 const PUBLIC_KEYS_TTL_MS = 60 * 60 * 1000;
@@ -60,21 +53,24 @@ async function verifyWooviSignature(rawBody, signature) {
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Método não permitido.' });
 
-  // Shared random token is an additional layer; URL query tokens are deliberately
-  // not accepted to avoid exposing the secret in access logs.
-  const expectedToken = String(process.env.WOOVI_WEBHOOK_TOKEN || '').trim();
-  if (!expectedToken) return json(res, 500, { error: 'WOOVI_WEBHOOK_TOKEN não configurado.' });
-  const receivedToken = req.headers?.['x-she-webhook-token'];
-  if (!safeEqual(receivedToken, expectedToken)) return json(res, 401, { error: 'Não autorizado.' });
-
   try {
-    // Verify the official Woovi RSA-SHA256 signature over the exact raw bytes
-    // before trusting any payload field or writing to Supabase.
+    const payload = req.body || {};
+
+    // Woovi sends a test payload when a webhook is registered in the dashboard.
+    // Acknowledge that handshake without touching the database; otherwise the
+    // endpoint would reject the registration before real payment events can arrive.
+    const testMarker = String(payload.evento || payload.event || payload.type || '').trim().toLowerCase();
+    if (testMarker === 'teste_webhook' || testMarker === 'test_webhook' || testMarker === 'webhook_test') {
+      return json(res, 200, { received: true, test: true });
+    }
+
+    // Real events are authenticated using Woovi's official RSA-SHA256 signature
+    // over the exact raw request bytes. This avoids requiring an extra custom
+    // header that is not automatically sent by the webhook configuration.
     const signature = req.headers?.['x-webhook-signature'];
     const validSignature = await verifyWooviSignature(req.rawBody, signature);
     if (!validSignature) return json(res, 401, { error: 'Assinatura do webhook Woovi inválida ou ausente.' });
 
-    const payload = req.body || {};
     const event = String(payload.event || payload.name || '').trim();
     const payment = payload.payment || payload.data?.payment || {};
     const charge = payload.charge || payload.data?.charge || {};
