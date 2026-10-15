@@ -324,18 +324,35 @@ export default function AffiliateDashboard() {
 
       if (sync) {
         setSyncing(true)
-        setSyncMessage('Atualizando vendas…')
+        setSyncMessage('Atualizando vendas e painel…')
         try {
           const result = await api('/api/affiliate/yampi-sync', { method: 'POST', body: '{}' })
           if (result.configured === false) {
             setSyncMessage('Integração de vendas ainda não configurada.')
           } else {
-            setSyncMessage(`${result.synced || 0} pedido(s) sincronizado(s).`)
-            const refreshed = await api(dashboardUrl)
-            setDashboard(refreshed)
+            setSyncMessage(`${result.synced || 0} pedido(s) sincronizado(s). Atualizando painel…`)
           }
         } catch (e) {
-          setSyncMessage(e.message || 'Não foi possível atualizar as vendas.')
+          setSyncMessage(e.message || 'Não foi possível atualizar as vendas; atualizando os demais dados…')
+        }
+        // Atualiza todos os dados do painel, não somente os pedidos da Yampi.
+        try {
+          const [freshDashboard, boostData, videoData, shopData] = await Promise.all([
+            api(dashboardUrl, { cache: 'no-store' }),
+            api('/api/affiliate/dashboard?boost=1', { cache: 'no-store' }).catch(() => null),
+            api('/api/affiliate/dashboard?videos=1', { cache: 'no-store' }).catch(() => ({ videos: [] })),
+            api('/api/affiliate/product-purchases', { cache: 'no-store' }).catch(() => null),
+          ])
+          setAffiliate(freshDashboard.affiliate)
+          setPixKey(freshDashboard.affiliate?.pix_key || '')
+          setPixKeyType(freshDashboard.affiliate?.pix_key_type || 'CPF')
+          setDashboard(freshDashboard)
+          if (boostData) setTeamBoost(boostData)
+          setVideoSubmissions(videoData?.videos || [])
+          if (shopData) setProductShop(shopData)
+          setSyncMessage(current => current && current.includes('pedido(s) sincronizado(s)') ? current.replace('Atualizando painel…', 'Painel atualizado.') : current)
+        } catch (e) {
+          setSyncMessage(e.message || 'Não foi possível atualizar todos os dados do painel.')
         } finally {
           setSyncing(false)
         }
@@ -1004,8 +1021,8 @@ export default function AffiliateDashboard() {
           <button type="button" onClick={() => setInstallHelpOpen(false)} className="mt-5 w-full rounded-xl bg-zinc-950 px-4 py-3 text-sm font-black text-white transition hover:bg-zinc-800">Entendi</button>
         </div>
       </div>}
-      <header className="fixed inset-x-0 top-0 z-[80] border-b border-white/80 bg-white/90 shadow-[0_4px_24px_rgba(30,10,20,.06)] backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2 md:px-8">
+      <header className="fixed inset-x-0 top-2 z-[80] px-3 sm:top-3 sm:px-4">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 rounded-2xl border border-white/60 bg-white/65 px-4 py-2 shadow-[0_8px_30px_rgba(30,10,20,.10)] ring-1 ring-pink-100/40 backdrop-blur-2xl md:px-6">
           <Link to="/" className="shrink-0 text-sm font-black tracking-tight text-zinc-950 md:text-base">SHE<span className="text-pink-500">.</span><span className="ml-1.5 text-[10px] font-bold text-zinc-400 md:text-xs">AFILIADAS</span></Link>
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5 md:gap-2">
             <div className="relative">
@@ -1027,10 +1044,8 @@ export default function AffiliateDashboard() {
                 </div>
               </>}
             </div>
-            <button type="button" onClick={openProfile} className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-[11px] font-black text-zinc-700 transition hover:border-pink-300 hover:text-pink-600 md:text-xs">Meus Dados</button>
-            <button type="button" onClick={() => load({ sync: true })} disabled={syncing} className="rounded-lg bg-pink-500 px-3 py-2 text-[11px] font-black text-white shadow-sm transition hover:bg-pink-600 disabled:opacity-60 md:text-xs">{syncing ? 'Atualizando…' : 'Atualizar vendas'}</button>
+            <button type="button" onClick={() => load({ sync: true })} disabled={syncing} className="rounded-lg bg-pink-500 px-3 py-2 text-[11px] font-black text-white shadow-sm transition hover:bg-pink-600 disabled:opacity-60 md:text-xs">{syncing ? 'Atualizando…' : 'Atualizar'}</button>
             {hasAffiliateLink && <Link to={`/${affiliate.slug}`} className="hidden rounded-lg border border-zinc-200 bg-white px-3 py-2 text-[11px] font-black text-zinc-700 sm:inline-flex">Ver página</Link>}
-            <button onClick={logout} className="rounded-lg bg-zinc-950 px-3 py-2 text-[11px] font-black text-white">Sair</button>
           </div>
         </div>
       </header>
@@ -1040,6 +1055,10 @@ export default function AffiliateDashboard() {
           <h1 className="mt-1 text-2xl font-black text-zinc-950 md:text-3xl">Olá, {affiliate.name}.</h1>
           <p className="mt-1 text-xs text-zinc-500">{selectedMonth === 'all' ? 'Indicadores acumulados de todo o período' : `Indicadores de ${monthLabel(selectedMonth)}`}</p>
           {syncMessage && <p className="mt-1 text-[11px] font-semibold text-zinc-400">{syncMessage}</p>}
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button type="button" onClick={openProfile} className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-[11px] font-black text-zinc-700 transition hover:border-pink-300 hover:text-pink-600 md:text-xs">Meus Dados</button>
+          <button type="button" onClick={logout} className="rounded-lg bg-zinc-950 px-3 py-2 text-[11px] font-black text-white transition hover:bg-zinc-800 md:text-xs">Sair</button>
         </div>
 
         {!hasAffiliateLink && (
