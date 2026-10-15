@@ -117,7 +117,9 @@ export default function AffiliateDashboard() {
   const [loading, setLoading] = useState(true)
   const [productShop, setProductShop] = useState({ purchases: [], prices: null })
   const [purchaseProduct, setPurchaseProduct] = useState('')
-  const [purchaseForm, setPurchaseForm] = useState({ name: '', cpf: '', cep: '', address: '', email: '', phone: '', notes: '' })
+  const [purchaseForm, setPurchaseForm] = useState({ name: '', cpf: '', cep: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '', email: '', phone: '', notes: '' })
+  const [purchaseCepLoading, setPurchaseCepLoading] = useState(false)
+  const [purchaseCepError, setPurchaseCepError] = useState('')
   const [purchaseBusy, setPurchaseBusy] = useState(false)
   const [purchaseMessage, setPurchaseMessage] = useState('')
 
@@ -146,6 +148,38 @@ export default function AffiliateDashboard() {
     return () => { cancelled = true }
   }, [dashboard?.affiliate?.id])
 
+  useEffect(() => {
+    const cep = String(purchaseForm.cep || '').replace(/\D/g, '')
+    if (cep.length !== 8) {
+      setPurchaseCepError('')
+      setPurchaseCepLoading(false)
+      setPurchaseForm(current => ({ ...current, street: '', neighborhood: '', city: '', state: '' }))
+      return
+    }
+    let cancelled = false
+    setPurchaseCepLoading(true)
+    setPurchaseCepError('')
+    fetch(`https://viacep.com.br/ws/${cep}/json/`)
+      .then(async response => {
+        if (!response.ok) throw new Error('Não foi possível consultar o CEP.')
+        return response.json()
+      })
+      .then(data => {
+        if (cancelled) return
+        if (data.erro) throw new Error('CEP não encontrado. Confira os números digitados.')
+        setPurchaseForm(current => ({
+          ...current,
+          street: data.logradouro || '',
+          neighborhood: data.bairro || '',
+          city: data.localidade || '',
+          state: data.uf || '',
+        }))
+      })
+      .catch(err => { if (!cancelled) setPurchaseCepError(err.message || 'Não foi possível consultar o CEP.') })
+      .finally(() => { if (!cancelled) setPurchaseCepLoading(false) })
+    return () => { cancelled = true }
+  }, [purchaseForm.cep])
+
   const submitProductPurchase = async (event) => {
     event.preventDefault()
     if (!purchaseProduct) return
@@ -154,7 +188,7 @@ export default function AffiliateDashboard() {
     try {
       await api('/api/affiliate/product-purchases', {
         method: 'POST',
-        body: JSON.stringify({ action: 'purchase', product: purchaseProduct, form: purchaseForm }),
+        body: JSON.stringify({ action: 'purchase', product: purchaseProduct, form: { ...purchaseForm, address: [purchaseForm.street, purchaseForm.number ? `nº ${purchaseForm.number}` : '', purchaseForm.complement, purchaseForm.neighborhood, [purchaseForm.city, purchaseForm.state].filter(Boolean).join(' - '), `CEP ${purchaseForm.cep}`].filter(Boolean).join(', ') } }),
       })
       setPurchaseMessage('Solicitação enviada! O valor está reservado no seu saldo até a aprovação administrativa.')
       setPurchaseProduct('')
@@ -164,7 +198,7 @@ export default function AffiliateDashboard() {
       ])
       setDashboard(freshDashboard)
       setProductShop(shop)
-      setPurchaseForm({ name: '', cpf: '', cep: '', address: '', email: '', phone: '', notes: '' })
+      setPurchaseForm({ name: '', cpf: '', cep: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '', email: '', phone: '', notes: '' })
     } catch (e) {
       setPurchaseMessage(e.message || 'Não foi possível solicitar a compra.')
     } finally {
@@ -1479,11 +1513,18 @@ export default function AffiliateDashboard() {
         </section>
 
         {purchaseProduct && <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-zinc-950/60 p-4"><form onSubmit={submitProductPurchase} className="my-auto w-full max-w-xl rounded-3xl bg-white p-5 shadow-2xl md:p-7"><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-widest text-pink-500">Finalizar solicitação</p><h2 className="mt-1 text-xl font-black text-zinc-950">Dados para entrega</h2><p className="mt-1 text-xs text-zinc-500">O valor será reservado. O abatimento definitivo acontece após a aprovação da She.</p></div><button type="button" onClick={() => setPurchaseProduct('')} className="rounded-full bg-zinc-100 px-3 py-1 text-sm font-black">✕</button></div><div className="mt-5 grid gap-3 sm:grid-cols-2">
-          {[['name','Nome completo','text'],['cpf','CPF','text'],['cep','CEP','text'],['email','E-mail','email'],['phone','Telefone','tel']].map(([key,label,type]) => <label key={key} className="grid gap-1 text-xs font-bold text-zinc-600">{label}<input required value={purchaseForm[key]} onChange={e=>setPurchaseForm(v=>({...v,[key]:e.target.value}))} type={type} className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-medium text-zinc-900 outline-none focus:border-pink-400" /></label>)}
-          <label className="grid gap-1 text-xs font-bold text-zinc-600 sm:col-span-2">Endereço completo<input required value={purchaseForm.address} onChange={e=>setPurchaseForm(v=>({...v,address:e.target.value}))} className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-medium text-zinc-900 outline-none focus:border-pink-400" placeholder="Rua, número, complemento, bairro, cidade e UF" /></label>
+          {[['name','Nome completo','text'],['cpf','CPF','text'],['cep','CEP','text'],['email','E-mail','email'],['phone','Telefone','tel']].map(([key,label,type]) => <label key={key} className="grid gap-1 text-xs font-bold text-zinc-600">{label}<input required value={purchaseForm[key]} onChange={e=>setPurchaseForm(v=>({...v,[key]:key === 'cep' ? e.target.value.replace(/[^0-9-]/g, '').slice(0, 9) : e.target.value}))} type={type} inputMode={key === 'cep' ? 'numeric' : undefined} maxLength={key === 'cep' ? 9 : undefined} placeholder={key === 'cep' ? '00000-000' : ''} className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-medium text-zinc-900 outline-none focus:border-pink-400" /></label>)}
+          {purchaseCepLoading && <p className="sm:col-span-2 text-xs font-semibold text-pink-600">Buscando endereço pelo CEP…</p>}
+          {purchaseCepError && <p className="sm:col-span-2 text-xs font-semibold text-red-600">{purchaseCepError}</p>}
+          <label className="grid gap-1 text-xs font-bold text-zinc-600">Estado<input required readOnly value={purchaseForm.state} className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm font-medium text-zinc-900" placeholder="UF preenchida pelo CEP" /></label>
+          <label className="grid gap-1 text-xs font-bold text-zinc-600">Cidade<input required readOnly value={purchaseForm.city} className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm font-medium text-zinc-900" placeholder="Preenchida pelo CEP" /></label>
+          <label className="grid gap-1 text-xs font-bold text-zinc-600">Bairro<input required value={purchaseForm.neighborhood} onChange={e=>setPurchaseForm(v=>({...v,neighborhood:e.target.value}))} className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-medium text-zinc-900 outline-none focus:border-pink-400" /></label>
+          <label className="grid gap-1 text-xs font-bold text-zinc-600">Rua<input required value={purchaseForm.street} onChange={e=>setPurchaseForm(v=>({...v,street:e.target.value}))} className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-medium text-zinc-900 outline-none focus:border-pink-400" /></label>
+          <label className="grid gap-1 text-xs font-bold text-zinc-600">Número da residência<input required value={purchaseForm.number} onChange={e=>setPurchaseForm(v=>({...v,number:e.target.value}))} className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-medium text-zinc-900 outline-none focus:border-pink-400" placeholder="Nº" /></label>
+          <label className="grid gap-1 text-xs font-bold text-zinc-600">Complemento (opcional)<input value={purchaseForm.complement} onChange={e=>setPurchaseForm(v=>({...v,complement:e.target.value}))} className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-medium text-zinc-900 outline-none focus:border-pink-400" placeholder="Apto, bloco…" /></label>
           <label className="grid gap-1 text-xs font-bold text-zinc-600 sm:col-span-2">Observações<textarea value={purchaseForm.notes} onChange={e=>setPurchaseForm(v=>({...v,notes:e.target.value}))} rows={2} className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-medium text-zinc-900 outline-none focus:border-pink-400" /></label></div>
           <p className="mt-4 rounded-xl bg-pink-50 p-3 text-sm font-black text-pink-800">{purchaseProduct === 'hydrant' ? 'Hidratante' : 'Stick'} · {brl(purchaseProduct === 'hydrant' ? productShop.prices?.hydrant : productShop.prices?.stick)}</p>
-          <button disabled={purchaseBusy} className="mt-4 w-full rounded-xl bg-pink-600 px-4 py-3 font-black text-white disabled:opacity-50">{purchaseBusy ? 'Enviando solicitação…' : 'Confirmar solicitação'}</button></form></div>}
+          <button disabled={purchaseBusy || purchaseCepLoading || !purchaseForm.state || !purchaseForm.city || !purchaseForm.street || !purchaseForm.number} className="mt-4 w-full rounded-xl bg-pink-600 px-4 py-3 font-black text-white disabled:opacity-50">{purchaseBusy ? 'Enviando solicitação…' : 'Confirmar solicitação'}</button></form></div>}
 
         <section className="mt-6 rounded-[1.5rem] bg-white p-6 border border-pink-100 shadow-sm">
           <div className="flex items-end justify-between gap-4">
