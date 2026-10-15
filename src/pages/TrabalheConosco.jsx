@@ -17,7 +17,7 @@ export default function TrabalheConosco() {
             <p className="text-xs font-black uppercase tracking-[.2em] text-pink-500">Afiliadas</p>
             <h2 className="mt-2 text-2xl font-black">Divulgue seus produtos favoritos.</h2>
             <p className="mt-4 text-sm leading-6 text-zinc-500">Crie seu link exclusivo, divulgue a She nos seus canais e receba comissão pelas vendas elegíveis atribuídas ao seu link. O programa é uma parceria comercial independente.</p>
-            <Link to="/afiliado" className="mt-6 inline-flex rounded-xl bg-pink-500 px-5 py-3 text-sm font-black text-white transition hover:bg-pink-600">Quero ser afiliada</Link>
+            <Link to="/programa-afiliadas" className="mt-6 inline-flex rounded-xl bg-pink-500 px-5 py-3 text-sm font-black text-white transition hover:bg-pink-600">Quero ser afiliada</Link>
           </article>
 
           <article className="rounded-[2rem] border border-zinc-200 bg-white p-7 shadow-sm md:p-9">
