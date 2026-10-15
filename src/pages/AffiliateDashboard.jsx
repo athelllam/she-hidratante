@@ -1022,7 +1022,7 @@ export default function AffiliateDashboard() {
         </div>
       </div>}
       <header className="fixed inset-x-0 top-2 z-[80] px-3 sm:top-3 sm:px-4">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 rounded-2xl border border-white/60 bg-white/65 px-4 py-2 shadow-[0_8px_30px_rgba(30,10,20,.10)] ring-1 ring-pink-100/40 backdrop-blur-2xl md:px-6">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 rounded-2xl border border-white/50 bg-white/45 px-4 py-2 shadow-[0_8px_30px_rgba(30,10,20,.10)] ring-1 ring-pink-100/30 backdrop-blur-2xl md:px-6">
           <Link to="/" className="shrink-0 text-sm font-black tracking-tight text-zinc-950 md:text-base">SHE<span className="text-pink-500">.</span><span className="ml-1.5 text-[10px] font-bold text-zinc-400 md:text-xs">AFILIADAS</span></Link>
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5 md:gap-2">
             <div className="relative">
@@ -1033,14 +1033,14 @@ export default function AffiliateDashboard() {
                 <button type="button" aria-label="Fechar menu" className="fixed inset-0 z-40 cursor-default" onClick={() => setAffiliateNavOpen(false)} />
                 <div role="menu" className="absolute right-0 top-full z-50 mt-2 w-52 overflow-hidden rounded-2xl border border-pink-100 bg-white p-2 shadow-[0_16px_45px_rgba(30,10,20,.18)]">
                   {[
-                    ['Qualificação', 'qualificacao'],
-                    ['Desempenho', 'desempenho'],
-                    ['Saque', 'saque'],
-                    ['Meu Link', 'meu-link'],
-                    ['Equipe', 'equipe'],
-                    ['Divulgar Vídeo', 'divulgar-video'],
-                    ['Loja de Afiliadas', 'loja-afiliadas'],
-                  ].map(([label, sectionId]) => <button key={sectionId} type="button" role="menuitem" onClick={() => scrollToAffiliateSection(sectionId)} className="block w-full rounded-xl px-3 py-2.5 text-left text-xs font-bold text-zinc-700 transition hover:bg-pink-50 hover:text-pink-700 focus:bg-pink-50 focus:outline-none">{label}</button>)}
+                    ['🏆', 'Qualificação', 'qualificacao'],
+                    ['📊', 'Desempenho', 'desempenho'],
+                    ['💸', 'Saque', 'saque'],
+                    ['🔗', 'Meu Link', 'meu-link'],
+                    ['👥', 'Equipe', 'equipe'],
+                    ['🎬', 'Divulgar Vídeo', 'divulgar-video'],
+                    ['🛍️', 'Loja de Afiliadas', 'loja-afiliadas'],
+                  ].map(([icon, label, sectionId]) => <button key={sectionId} type="button" role="menuitem" onClick={() => scrollToAffiliateSection(sectionId)} className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-zinc-700 transition hover:bg-pink-50 hover:text-pink-700 focus:bg-pink-50 focus:outline-none"><span aria-hidden="true" className="w-4 shrink-0 text-center text-[13px] leading-none">{icon}</span><span>{label}</span></button>)}
                 </div>
               </>}
             </div>
@@ -1051,16 +1051,10 @@ export default function AffiliateDashboard() {
       </header>
       <div className="mx-auto max-w-7xl">
         <div className="mb-2 border-b border-pink-100/80 pb-4">
-          <p className="text-[10px] font-bold uppercase tracking-[.28em] text-pink-500">She Afiliadas</p>
-          <h1 className="mt-1 text-2xl font-black text-zinc-950 md:text-3xl">Olá, {affiliate.name}.</h1>
+          <h1 className="text-2xl font-black text-zinc-950 md:text-3xl">Olá, {affiliate.name}.</h1>
           <p className="mt-1 text-xs text-zinc-500">{selectedMonth === 'all' ? 'Indicadores acumulados de todo o período' : `Indicadores de ${monthLabel(selectedMonth)}`}</p>
           {syncMessage && <p className="mt-1 text-[11px] font-semibold text-zinc-400">{syncMessage}</p>}
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button type="button" onClick={openProfile} className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-[11px] font-black text-zinc-700 transition hover:border-pink-300 hover:text-pink-600 md:text-xs">Meus Dados</button>
-          <button type="button" onClick={logout} className="rounded-lg bg-zinc-950 px-3 py-2 text-[11px] font-black text-white transition hover:bg-zinc-800 md:text-xs">Sair</button>
-        </div>
-
         {!hasAffiliateLink && (
           <section className="relative mt-7 overflow-hidden rounded-[2rem] border-2 border-pink-200 bg-white p-6 shadow-[0_0_35px_rgba(236,72,153,.28)] md:p-8">
             <div className="absolute -inset-1 -z-10 rounded-[2rem] bg-pink-300/20 blur-2xl" />
@@ -1626,6 +1620,11 @@ export default function AffiliateDashboard() {
             )}
           </div>
         </section>
+
+        <div className="mt-8 mb-2 flex flex-wrap items-center justify-end gap-2 border-t border-pink-100/80 pt-5">
+          <button type="button" onClick={openProfile} className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-[11px] font-black text-zinc-700 transition hover:border-pink-300 hover:text-pink-600 md:text-xs">Meus Dados</button>
+          <button type="button" onClick={logout} className="rounded-lg bg-zinc-950 px-3 py-2 text-[11px] font-black text-white transition hover:bg-zinc-800 md:text-xs">Sair</button>
+        </div>
 
         <footer className="relative mt-10 overflow-hidden rounded-[2rem] bg-[#0b0b0d] px-6 pt-12 pb-7 text-white shadow-sm md:px-10">
           <div className="absolute -top-32 left-1/2 h-[260px] w-[620px] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_at_top,#3A1835_0%,#170D16_42%,rgba(9,8,10,0)_78%)] blur-[80px] pointer-events-none" />
