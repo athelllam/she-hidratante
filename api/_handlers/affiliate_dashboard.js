@@ -103,6 +103,7 @@ function normalizeWhatsapp(value) {
 }
 
 module.exports = async function handler(req, res) {
+  if (req.method === 'GET') { res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); res.setHeader('Pragma', 'no-cache'); res.setHeader('Expires', '0'); }
   if (req.method === 'POST' && getAdminPreviewId(req)) return json(res, 403, { error: 'Modo de visualização administrativa: ações que alteram a conta estão bloqueadas.' });
   if (req.method === 'POST' && String(req.body?.action || '') === 'update_profile') {
     try {
@@ -227,9 +228,9 @@ module.exports = async function handler(req, res) {
       const [withdrawals, existingBoosts, productPurchases] = await Promise.all([
         supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${affiliate.id}&source=eq.personal&select=amount,status&limit=1000`),
         supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${affiliate.id}&select=price,status&limit=1000`).catch(() => []),
-        supabaseFetch(`/rest/v1/affiliate_product_purchases?affiliate_id=eq.${affiliate.id}&status=in.(pending,shipped,approved)&select=price,status&limit=1000`),
+        supabaseFetch(`/rest/v1/affiliate_product_purchases?affiliate_id=eq.${affiliate.id}&select=price,status&limit=5000`),
       ]);
-      const reservedProductPurchases = (productPurchases || []).reduce((sum, row) => sum + Number(row.price || 0), 0);
+      const reservedProductPurchases = (productPurchases || []).filter(row => !['rejected', 'cancelled'].includes(String(row.status || '').toLowerCase())).reduce((sum, row) => sum + Number(row.price || 0), 0);
       // A RPC desconta saques pessoais e impulsos reservados; subtraímos as compras
       // de produtos antes de chamá-la para que elas também não possam ser gastas novamente.
       const earnedAfterProductPurchases = Math.max(0, earned - reservedProductPurchases);
@@ -501,10 +502,10 @@ module.exports = async function handler(req, res) {
     const teamWithdrawals = (withdrawals || []).filter(w => String(w.source || 'personal') === 'team');
     const reserved = personalWithdrawals.filter(w => !['rejected', 'failed'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const boostSpent = (boostRows || []).filter(row => ['queued', 'active', 'completed'].includes(String(row.status || ''))).reduce((sum, row) => sum + Number(row.price || 0), 0);
-    const productPurchaseRows = await supabaseFetch(`/rest/v1/affiliate_product_purchases?affiliate_id=eq.${affiliate.id}&select=id,product,price,status,created_at,freight_paid&order=created_at.desc&limit=1000`);
+    const productPurchaseRows = await supabaseFetch(`/rest/v1/affiliate_product_purchases?affiliate_id=eq.${affiliate.id}&select=id,product,price,status,created_at,freight_paid&order=created_at.desc&limit=5000`);
     // Compras pendentes/enviadas ficam reservadas; compras aprovadas já foram debitadas.
     // Ambos os estados reduzem o saldo disponível. Recusadas/canceladas liberam a reserva.
-    const reservedProductPurchases = (productPurchaseRows || []).filter(row => ['pending', 'shipped', 'approved'].includes(String(row.status || ''))).reduce((sum, row) => sum + Number(row.price || 0), 0);
+    const reservedProductPurchases = (productPurchaseRows || []).filter(row => !['rejected', 'cancelled'].includes(String(row.status || '').toLowerCase())).reduce((sum, row) => sum + Number(row.price || 0), 0);
     let availableCommission = Math.max(0, totalEarnedCommission - reserved - boostSpent - reservedProductPurchases);
     // O nível é mensal. Em "Todos os meses", usamos o mês atual,
     // porque o nível reinicia no primeiro dia de cada mês.

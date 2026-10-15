@@ -34,6 +34,7 @@ const money = v => Math.round((Number(v) || 0) * 100) / 100;
 const validEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim());
 
 module.exports = async function handler(req, res) {
+  if (req.method === 'GET') { res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); res.setHeader('Pragma', 'no-cache'); res.setHeader('Expires', '0'); }
   try {
     if (req.method === 'GET') {
       if (req.query?.admin === '1') {
@@ -128,7 +129,7 @@ module.exports = async function handler(req, res) {
       supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,team_advanced1_members,team_advanced1_sales,team_advanced1_commission,team_advanced2_members,team_advanced2_sales,team_advanced2_commission,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,affiliate_hydrant_price,affiliate_stick_price&limit=1'),
       supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${affiliate.id}&source=eq.personal&select=amount,status&limit=1000`),
       supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${affiliate.id}&select=price,status&limit=1000`).catch(() => []),
-      supabaseFetch(`/rest/v1/affiliate_product_purchases?affiliate_id=eq.${affiliate.id}&status=in.(pending,shipped,approved)&select=product,status,price,created_at&limit=1000`)
+      supabaseFetch(`/rest/v1/affiliate_product_purchases?affiliate_id=eq.${affiliate.id}&select=product,status,price,created_at&limit=5000`)
     ]);
     const row = settingsRows?.[0] || {};
     const settings = normalizeConfig(row ? {
@@ -150,7 +151,7 @@ module.exports = async function handler(req, res) {
     const earned = commissionForOrders(reconciledOrders || initialOrders || [], settings, { teamJoinedAt: affiliate.team_joined_at }).total;
     const reservedWithdrawals = (withdrawals || []).filter(w => !['rejected','failed'].includes(String(w.status || ''))).reduce((n,w)=>n+Number(w.amount||0),0);
     const reservedBoosts = (boosts || []).filter(b => ['queued','active','completed'].includes(String(b.status || ''))).reduce((n,b)=>n+Number(b.price||0),0);
-    const reservedPurchases = (openPurchases || []).filter(p => ['pending','shipped','approved'].includes(String(p.status || ''))).reduce((n,p)=>n+Number(p.price||0),0);
+    const reservedPurchases = (openPurchases || []).filter(p => !['rejected','cancelled'].includes(String(p.status || '').toLowerCase())).reduce((n,p)=>n+Number(p.price||0),0);
     const price = money(product === 'hydrant' ? (row.affiliate_hydrant_price ?? 80) : (row.affiliate_stick_price ?? 100));
     if (earned - reservedWithdrawals - reservedBoosts - reservedPurchases < price) return json(res, 400, { error: 'Saldo disponível insuficiente para esta compra.' });
     const month = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).format(new Date()).slice(0,7);
