@@ -115,7 +115,9 @@ export default function AffiliateDashboard() {
   const [forgotMessage, setForgotMessage] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
-  const [productShop, setProductShop] = useState({ purchases: [], prices: { hydrant: 80, stick: 100 } })
+  const [productShop, setProductShop] = useState({ purchases: [], prices: null })
+  const [productShopLoading, setProductShopLoading] = useState(false)
+  const [productShopError, setProductShopError] = useState('')
   const [purchaseProduct, setPurchaseProduct] = useState('')
   const [purchaseForm, setPurchaseForm] = useState({ name: '', cpf: '', cep: '', address: '', email: '', phone: '', notes: '' })
   const [purchaseBusy, setPurchaseBusy] = useState(false)
@@ -125,9 +127,25 @@ export default function AffiliateDashboard() {
 
   useEffect(() => {
     if (!dashboard?.affiliate?.id) return
+    let cancelled = false
+    setProductShopLoading(true)
+    setProductShopError('')
     api('/api/affiliate/product-purchases')
-      .then(setProductShop)
-      .catch(() => {})
+      .then((data) => {
+        if (cancelled) return
+        const hydrant = Number(data?.prices?.hydrant)
+        const stick = Number(data?.prices?.stick)
+        if (!Number.isFinite(hydrant) || hydrant <= 0 || !Number.isFinite(stick) || stick <= 0) {
+          throw new Error('A API não retornou preços válidos para a loja de benefícios.')
+        }
+        setProductShop({ purchases: Array.isArray(data.purchases) ? data.purchases : [], prices: { hydrant, stick } })
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setProductShopError(err?.message || 'Não foi possível carregar os preços atuais da loja. Atualize a página ou contate o suporte.')
+      })
+      .finally(() => { if (!cancelled) setProductShopLoading(false) })
+    return () => { cancelled = true }
   }, [dashboard?.affiliate?.id])
 
   const submitProductPurchase = async (event) => {
@@ -147,7 +165,11 @@ export default function AffiliateDashboard() {
         api('/api/affiliate/product-purchases'),
       ])
       setDashboard(freshDashboard)
-      setProductShop(shop)
+      const hydrant = Number(shop?.prices?.hydrant)
+      const stick = Number(shop?.prices?.stick)
+      if (!Number.isFinite(hydrant) || hydrant <= 0 || !Number.isFinite(stick) || stick <= 0) throw new Error('A API não retornou preços válidos para a loja de benefícios.')
+      setProductShop({ purchases: Array.isArray(shop.purchases) ? shop.purchases : [], prices: { hydrant, stick } })
+      setProductShopError('')
       setPurchaseForm({ name: '', cpf: '', cep: '', address: '', email: '', phone: '', notes: '' })
     } catch (e) {
       setPurchaseMessage(e.message || 'Não foi possível solicitar a compra.')
@@ -1444,16 +1466,19 @@ export default function AffiliateDashboard() {
             <div><p className="text-[10px] font-black uppercase tracking-[.25em] text-pink-500">Benefícios She</p><h2 className="mt-1 text-2xl font-black text-zinc-950">Sua loja de benefícios</h2><p className="mt-1 max-w-xl text-sm text-zinc-600">Use suas comissões para adquirir os produtos She. Uma unidade de cada produto por mês.</p></div>
             <span className="rounded-full border border-pink-200 bg-white/80 px-3 py-1.5 text-xs font-bold text-pink-700">Pagamento com saldo</span>
           </div>
+          {productShopLoading && <p role="status" className="mt-4 rounded-xl border border-zinc-200 bg-white p-3 text-sm font-semibold text-zinc-600">Carregando preços atuais da loja…</p>}
+          {productShopError && <div role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">Não foi possível carregar os preços atuais. {productShopError} Os produtos ficarão indisponíveis até que os preços sejam carregados corretamente.</div>}
           <div className="mt-5 grid gap-4 md:grid-cols-2">
-            {[{key:'hydrant',name:'Hidratante Íntimo She',image:hidratanteProductImage,desc:'Cuidado íntimo premium',price:productShop.prices?.hydrant ?? 80},{key:'stick',name:'Stick Clareador She',image:stickProductImage,desc:'Praticidade para sua rotina',price:productShop.prices?.stick ?? 100}].map(product => {
+            {[{key:'hydrant',name:'Hidratante Íntimo She',image:hidratanteProductImage,desc:'Cuidado íntimo premium',price:productShop.prices?.hydrant},{key:'stick',name:'Stick Clareador She',image:stickProductImage,desc:'Praticidade para sua rotina',price:productShop.prices?.stick}].map(product => {
               const now = new Date()
               const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
               const boughtThisMonth = (productShop.purchases || []).some(p => p.product === product.key && !['rejected','cancelled'].includes(p.status) && String(p.created_at || '').slice(0,7) === thisMonth)
               const available = Number(dashboard?.metrics?.availableCommission || 0)
+              const priceLoaded = Number.isFinite(Number(product.price)) && Number(product.price) > 0 && !productShopLoading && !productShopError
               return <div key={product.key} className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-white bg-white shadow-sm sm:flex-row">
                 <div className="flex min-h-[180px] items-center justify-center bg-white p-3 sm:w-[42%]"><img src={product.image} alt={product.name} className="max-h-48 w-full object-contain" /></div>
                 <div className="flex flex-1 flex-col p-4"><p className="text-[10px] font-black uppercase tracking-widest text-pink-500">Produto exclusivo</p><h3 className="mt-1 text-lg font-black text-zinc-950">{product.name}</h3><p className="mt-1 text-xs text-zinc-500">{product.desc}</p><p className="mt-4 text-2xl font-black text-zinc-950">{brl(product.price)}</p><p className="mt-1 text-[11px] text-zinc-500">Saldo disponível: {brl(available)}</p>
-                <button type="button" disabled={boughtThisMonth || available < product.price} onClick={() => {setPurchaseProduct(product.key); setPurchaseMessage('')}} className="mt-4 rounded-xl bg-gradient-to-r from-pink-600 to-rose-500 px-4 py-3 text-xs font-black text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400">{boughtThisMonth ? 'Já solicitado neste mês' : available < product.price ? 'Saldo insuficiente' : 'Adquirir com meu saldo'}</button>
+                <button type="button" disabled={!priceLoaded || boughtThisMonth || available < product.price} onClick={() => {setPurchaseProduct(product.key); setPurchaseMessage('')}} className="mt-4 rounded-xl bg-gradient-to-r from-pink-600 to-rose-500 px-4 py-3 text-xs font-black text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400">{!priceLoaded ? 'Preço indisponível' : boughtThisMonth ? 'Já solicitado neste mês' : available < product.price ? 'Saldo insuficiente' : 'Adquirir com meu saldo'}</button>
                 {boughtThisMonth && <p className="mt-2 text-[11px] text-amber-700">Você já solicitou este produto neste mês.</p>}</div>
               </div>
             })}
@@ -1466,7 +1491,7 @@ export default function AffiliateDashboard() {
           {[['name','Nome completo','text'],['cpf','CPF','text'],['cep','CEP','text'],['email','E-mail','email'],['phone','Telefone','tel']].map(([key,label,type]) => <label key={key} className="grid gap-1 text-xs font-bold text-zinc-600">{label}<input required value={purchaseForm[key]} onChange={e=>setPurchaseForm(v=>({...v,[key]:e.target.value}))} type={type} className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-medium text-zinc-900 outline-none focus:border-pink-400" /></label>)}
           <label className="grid gap-1 text-xs font-bold text-zinc-600 sm:col-span-2">Endereço completo<input required value={purchaseForm.address} onChange={e=>setPurchaseForm(v=>({...v,address:e.target.value}))} className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-medium text-zinc-900 outline-none focus:border-pink-400" placeholder="Rua, número, complemento, bairro, cidade e UF" /></label>
           <label className="grid gap-1 text-xs font-bold text-zinc-600 sm:col-span-2">Observações<textarea value={purchaseForm.notes} onChange={e=>setPurchaseForm(v=>({...v,notes:e.target.value}))} rows={2} className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-medium text-zinc-900 outline-none focus:border-pink-400" /></label></div>
-          <p className="mt-4 rounded-xl bg-pink-50 p-3 text-sm font-black text-pink-800">{purchaseProduct === 'hydrant' ? 'Hidratante' : 'Stick'} · {brl(purchaseProduct === 'hydrant' ? productShop.prices?.hydrant ?? 80 : productShop.prices?.stick ?? 100)}</p>
+          <p className="mt-4 rounded-xl bg-pink-50 p-3 text-sm font-black text-pink-800">{purchaseProduct === 'hydrant' ? 'Hidratante' : 'Stick'} · {brl(purchaseProduct === 'hydrant' ? productShop.prices?.hydrant : productShop.prices?.stick)}</p>
           <button disabled={purchaseBusy} className="mt-4 w-full rounded-xl bg-pink-600 px-4 py-3 font-black text-white disabled:opacity-50">{purchaseBusy ? 'Enviando solicitação…' : 'Confirmar solicitação'}</button></form></div>}
 
         <section className="mt-6 rounded-[1.5rem] bg-white p-6 border border-pink-100 shadow-sm">

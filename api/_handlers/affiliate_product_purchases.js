@@ -4,6 +4,17 @@ const { commissionForOrders, normalizeConfig, DEFAULT_COMMISSION_CONFIG } = requ
 
 const money = v => Math.round((Number(v) || 0) * 100) / 100;
 const validEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim());
+const pricesFromSettings = rows => {
+  const row = rows?.[0];
+  const hydrant = Number(row?.affiliate_hydrant_price);
+  const stick = Number(row?.affiliate_stick_price);
+  if (!row || !Number.isFinite(hydrant) || hydrant <= 0 || !Number.isFinite(stick) || stick <= 0) {
+    const error = new Error('Os preços atuais da loja de benefícios não foram encontrados no Supabase. Confira affiliate_settings (id = 1).');
+    error.statusCode = 503;
+    throw error;
+  }
+  return { hydrant, stick };
+};
 
 module.exports = async function handler(req, res) {
   try {
@@ -14,14 +25,14 @@ module.exports = async function handler(req, res) {
           supabaseFetch('/rest/v1/affiliate_product_purchases?select=*,affiliate:affiliates(id,name,email,whatsapp)&order=created_at.desc&limit=500'),
           supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=affiliate_hydrant_price,affiliate_stick_price&limit=1')
         ]);
-        return json(res, 200, { purchases: purchases || [], prices: { hydrant: Number(settings?.[0]?.affiliate_hydrant_price ?? 80), stick: Number(settings?.[0]?.affiliate_stick_price ?? 100) } });
+        return json(res, 200, { purchases: purchases || [], prices: pricesFromSettings(settings) });
       }
       const { affiliate } = await requireAffiliate(req);
       const [purchases, settings] = await Promise.all([
         supabaseFetch(`/rest/v1/affiliate_product_purchases?affiliate_id=eq.${affiliate.id}&select=*&order=created_at.desc&limit=100`),
         supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=affiliate_hydrant_price,affiliate_stick_price&limit=1')
       ]);
-      return json(res, 200, { purchases: purchases || [], prices: { hydrant: Number(settings?.[0]?.affiliate_hydrant_price ?? 80), stick: Number(settings?.[0]?.affiliate_stick_price ?? 100) } });
+      return json(res, 200, { purchases: purchases || [], prices: pricesFromSettings(settings) });
     }
 
     if (req.method !== 'POST' && req.method !== 'PATCH') return json(res, 405, { error: 'Método não permitido.' });
