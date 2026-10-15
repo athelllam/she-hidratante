@@ -117,11 +117,16 @@ module.exports = async function handler(req, res) {
 
     const reserved = (withdrawals || []).filter(w => !['rejected', 'failed'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
     let reservedBoosts = 0;
+    let reservedProductPurchases = 0;
     if (source === 'personal') {
-      const boosts = await supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${affiliate.id}&select=price,status&limit=5000`).catch(() => []);
+      const [boosts, productPurchases] = await Promise.all([
+        supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${affiliate.id}&select=price,status&limit=5000`).catch(() => []),
+        supabaseFetch(`/rest/v1/affiliate_product_purchases?affiliate_id=eq.${affiliate.id}&status=in.(pending,shipped,approved)&select=price,status&limit=1000`).catch(() => []),
+      ]);
       reservedBoosts = (boosts || []).filter(row => ['queued', 'active', 'completed'].includes(String(row.status || ''))).reduce((sum, row) => sum + Number(row.price || 0), 0);
+      reservedProductPurchases = (productPurchases || []).reduce((sum, row) => sum + Number(row.price || 0), 0);
     }
-    const available = Math.max(0, earned - reserved - reservedBoosts);
+    const available = Math.max(0, earned - reserved - reservedBoosts - reservedProductPurchases);
 
     if (amount > available + 0.001) {
       return json(res, 400, { error: source === 'team' ? 'Comissão de equipe disponível insuficiente.' : 'Saldo disponível insuficiente.', available });

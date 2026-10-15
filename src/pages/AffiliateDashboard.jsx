@@ -38,7 +38,7 @@ function withdrawalStatusLabel(status) {
   return 'Pendente'
 }
 
-function productPurchaseStatusLabel(status, freightPaid = true) { if (status === 'approved') return 'Aprovado / abatido'; if (status === 'shipped') return 'Enviado — aguardando aprovação'; if (status === 'rejected') return 'Recusado'; if (status === 'cancelled') return 'Cancelado'; return freightPaid ? 'Saldo reservado · Frete pago' : 'Saldo reservado · Frete pendente' }
+function productPurchaseStatusLabel(status, freightPaid = true) { if (status === 'approved') return 'Aprovado'; if (status === 'shipped' || status === 'pending') return 'Reserva'; if (status === 'rejected') return 'Recusado · Reserva liberada'; if (status === 'cancelled') return 'Cancelado · Reserva liberada'; return freightPaid ? 'Reserva · Frete pago' : 'Reserva · Frete pendente' }
 
 function boostStatusLabel(status) {
   if (status === 'active') return 'Ativo'
@@ -1543,7 +1543,7 @@ export default function AffiliateDashboard() {
           <div className="flex items-end justify-between gap-4">
             <div>
               <h2 className="font-black text-xl">Movimentações de saldo</h2>
-              <p className="mt-1 text-sm text-zinc-400">Solicitações de saque de todo o período.</p>
+              <p className="mt-1 text-sm text-zinc-400">Saques, impulsos e compras de produtos de todo o período.</p>
             </div>
             <span className="rounded-full bg-zinc-50 px-3 py-1 text-xs font-black text-zinc-500">{(dashboard?.movements || []).length} movimentação(ões)</span>
           </div>
@@ -1571,7 +1571,7 @@ export default function AffiliateDashboard() {
                 </div>
                 <div className="flex items-center gap-3 sm:justify-end">
                   <span className="text-lg font-black text-zinc-950">{brl(movement.amount)}</span>
-                  <span className={`rounded-full px-3 py-1 text-[11px] font-black ${movement.kind === 'boost' ? (movement.status === 'active' ? 'bg-emerald-100 text-emerald-800' : movement.status === 'cancelled' ? 'bg-zinc-200 text-zinc-700' : movement.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800') : (movement.status === 'pending' ? 'bg-amber-100 text-amber-800' : movement.status === 'processing' ? 'bg-blue-100 text-blue-800' : movement.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : movement.status === 'failed' || movement.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-zinc-200 text-zinc-700')}`}>
+                  <span className={`rounded-full px-3 py-1 text-[11px] font-black ${movement.kind === 'boost' ? (movement.status === 'active' ? 'bg-emerald-100 text-emerald-800' : movement.status === 'cancelled' ? 'bg-zinc-200 text-zinc-700' : movement.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800') : movement.kind === 'product_purchase' ? (movement.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : ['rejected','cancelled'].includes(movement.status) ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800') : (movement.status === 'pending' ? 'bg-amber-100 text-amber-800' : movement.status === 'processing' ? 'bg-blue-100 text-blue-800' : movement.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : movement.status === 'failed' || movement.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-zinc-200 text-zinc-700')}`}>
                     {movement.kind === 'boost' ? boostStatusLabel(movement.status) : movement.kind === 'product_purchase' ? productPurchaseStatusLabel(movement.status, movement.productPurchase?.freight_paid === true) : withdrawalStatusLabel(movement.status)}
                   </span>
                 </div>

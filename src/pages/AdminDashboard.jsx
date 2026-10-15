@@ -752,6 +752,10 @@ export default function AdminDashboard() {
   }
 
   const updateProductPurchase = async (purchase, status) => {
+    if (status === 'rejected') {
+      const confirmed = window.confirm(`Confirma recusar a compra #${purchase.id} (${purchase.product === 'hydrant' ? 'Hidratante' : 'Stick'}) de ${brl(purchase.price)}? A reserva do saldo será liberada para a afiliada.`)
+      if (!confirmed) return
+    }
     setProductPurchaseBusy(purchase.id)
     try {
       await api('/api/admin/product-purchases?admin=1', { method: 'PATCH', body: JSON.stringify({ id: purchase.id, status }) })
@@ -1364,13 +1368,13 @@ export default function AdminDashboard() {
             <label className="grid gap-1 text-xs font-bold text-zinc-600">Preço do Stick (R$)<input type="number" min="0.01" step="0.01" required value={productPrices.stick} onChange={e=>setProductPrices(v=>({...v,stick:e.target.value}))} className="rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900" /></label>
             <button disabled={productPriceBusy} className="rounded-xl bg-pink-600 px-4 py-3 text-xs font-black text-white disabled:opacity-50">{productPriceBusy?'Salvando…':'Salvar preços'}</button>
           </form>
-          <div className="mt-4 space-y-3">{productPurchases.map(p=> <article key={p.id} className="rounded-2xl border border-zinc-200 p-4">
+          <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-3"><div className="h-[570px] space-y-3 overflow-y-auto pr-2">{productPurchases.map(p=> <article key={p.id} className="min-h-[180px] rounded-2xl border border-zinc-200 bg-white p-4">
             <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-black text-zinc-950">#{p.id} · {p.product==='hydrant'?'Hidratante She':'Stick Clareador She'} · {brl(p.price)}</h3><p className="mt-1 text-xs text-zinc-500">{p.affiliate?.name || `Afiliada #${p.affiliate_id}`} · {dateTime(p.created_at)} · {({pending: p.freight_paid === true ? 'Frete pago · Pendente de envio' : 'Aguardando pagamento do frete',shipped:'Enviado',approved:'Aprovado / saldo abatido',rejected:'Recusado',cancelled:'Cancelado'})[p.status] || p.status}</p></div>
             {p.status==='pending' && <div className="flex flex-wrap gap-2"><button disabled={productPurchaseBusy===p.id || p.freight_paid !== true} title={p.freight_paid === true ? 'Marcar como enviado' : 'Aguardando confirmação do frete pela Woovi'} onClick={()=>updateProductPurchase(p,'shipped')} className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-black text-white disabled:opacity-40">Marcar como enviado</button><button disabled={productPurchaseBusy===p.id} onClick={()=>updateProductPurchase(p,'rejected')} className="rounded-lg bg-red-50 px-3 py-2 text-xs font-black text-red-700">Recusar</button></div>}
             {p.status==='shipped' && <button disabled={productPurchaseBusy===p.id} onClick={()=>updateProductPurchase(p,'approved')} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white">Aprovar e abater saldo</button>}
             </div>
             <div className="mt-3 grid gap-2 text-xs text-zinc-700 sm:grid-cols-2"><p><strong>Nome:</strong> {p.full_name}</p><p><strong>CPF:</strong> {p.cpf}</p><p><strong>CEP:</strong> {p.cep}</p><p><strong>E-mail:</strong> {p.email}</p><p><strong>Telefone:</strong> {p.phone}</p><p className="sm:col-span-2"><strong>Endereço:</strong> {p.address}</p>{p.notes && <p className="sm:col-span-2"><strong>Observações:</strong> {p.notes}</p>}</div>
-          </article>)}{!productPurchases.length && <div className="rounded-xl border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-400">Nenhuma compra solicitada ainda.</div>}</div>
+          </article>)}{!productPurchases.length && <div className="rounded-xl border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-400">Nenhuma compra solicitada ainda.</div>}</div></div>
         </section>
 
         <section className="mt-6 rounded-[1.5rem] border border-pink-200 bg-white p-6 shadow-sm">

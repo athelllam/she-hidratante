@@ -143,7 +143,7 @@ module.exports = async function handler(req, res) {
     const earned = commissionForOrders(orders || [], settings, { teamJoinedAt: affiliate.team_joined_at }).total;
     const reservedWithdrawals = (withdrawals || []).filter(w => !['rejected','failed','cancelled'].includes(w.status)).reduce((n,w)=>n+Number(w.amount||0),0);
     const reservedBoosts = (boosts || []).filter(b => ['queued','active','completed'].includes(b.status)).reduce((n,b)=>n+Number(b.price||0),0);
-    const reservedPurchases = (openPurchases || []).filter(p => ['pending','shipped'].includes(p.status)).reduce((n,p)=>n+Number(p.price||0),0);
+    const reservedPurchases = (openPurchases || []).filter(p => ['pending','shipped','approved'].includes(p.status)).reduce((n,p)=>n+Number(p.price||0),0);
     const price = money(product === 'hydrant' ? (row.affiliate_hydrant_price ?? 80) : (row.affiliate_stick_price ?? 100));
     if (earned - reservedWithdrawals - reservedBoosts - reservedPurchases < price) return json(res, 400, { error: 'Saldo disponível insuficiente para esta compra.' });
     const month = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).format(new Date()).slice(0,7);
