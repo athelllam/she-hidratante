@@ -7,6 +7,11 @@ function json(res, status, body) { res.status(status).json(body); }
 function money(value) { return Math.round((Number(value) || 0) * 100) / 100; }
 
 module.exports = async function handler(req, res) {
+  // Reuse this already-deployed function for product-purchase administration; do not create a new Vercel function.
+  if (String(req.query?.__handler || '') === 'product-purchases') {
+    req.query.admin = '1';
+    return require('../_handlers/affiliate_product_purchases')(req, res);
+  }
   // Keep the existing admin-data rewrite on this route to respect Vercel's function limit.
   if (String(req.query?.__handler || '') === 'admin-data') {
     return require('../_handlers/admin_data')(req, res);
