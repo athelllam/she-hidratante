@@ -97,7 +97,6 @@ export default function AdminDashboard() {
   const [wooviBalance, setWooviBalance] = useState(null)
   const [wooviBalanceError, setWooviBalanceError] = useState('')
   const [wooviBalanceLoading, setWooviBalanceLoading] = useState(false)
-  const [wooviPixKeyCopied, setWooviPixKeyCopied] = useState(false)
   const [withdrawals, setWithdrawals] = useState([])
   const [videoSubmissions, setVideoSubmissions] = useState([])
   const [videoFilter, setVideoFilter] = useState('pending')
@@ -118,11 +117,6 @@ export default function AdminDashboard() {
   const [detailMonth, setDetailMonth] = useState('all')
   const [detailData, setDetailData] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
-  const [previewAffiliate, setPreviewAffiliate] = useState(null)
-  const [previewMonth, setPreviewMonth] = useState('all')
-  const [previewData, setPreviewData] = useState(null)
-  const [previewLoading, setPreviewLoading] = useState(false)
-  const [previewError, setPreviewError] = useState('')
   const [withdrawalFilter, setWithdrawalFilter] = useState('all')
   const [withdrawalSearch, setWithdrawalSearch] = useState('')
   const [withdrawalMonth, setWithdrawalMonth] = useState('all')
@@ -236,18 +230,15 @@ export default function AdminDashboard() {
       .finally(() => setLoading(false))
   }, [])
 
+  // Atualiza a página inteira a cada minuto somente enquanto o painel admin
+  // está autenticado. Não dispara reload em segundo plano para evitar gasto inútil.
   useEffect(() => {
-    if (!previewAffiliate) return
-    let cancelled = false
-    setPreviewLoading(true)
-    setPreviewError('')
-    setPreviewData(null)
-    api(`/api/admin/affiliates?detail=${encodeURIComponent(previewAffiliate.id)}&month=${encodeURIComponent(previewMonth)}`)
-      .then(data => { if (!cancelled) setPreviewData(data) })
-      .catch(error => { if (!cancelled) setPreviewError(error.message || 'Não foi possível carregar o painel da afiliada.') })
-      .finally(() => { if (!cancelled) setPreviewLoading(false) })
-    return () => { cancelled = true }
-  }, [previewAffiliate, previewMonth])
+    if (!authenticated) return undefined
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') window.location.reload()
+    }, 60_000)
+    return () => window.clearInterval(timer)
+  }, [authenticated])
 
   useEffect(() => {
     if (!detailAffiliate) return
@@ -999,9 +990,10 @@ export default function AdminDashboard() {
 
           <div className="my-5 h-px w-full bg-zinc-200/70" aria-hidden="true" />
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
             {[
               ['Afiliadas', stats.affiliates],
+              ['Com notificações', pushEnabledAffiliates],
               ['Ativas', stats.active],
               ['Inativas', stats.inactive],
               ['Saldo das afiliadas', brl(stats.totalBalance)],
@@ -1015,6 +1007,9 @@ export default function AdminDashboard() {
                 {label === 'Saldo das afiliadas' && (
                   <p className="mt-1 text-xs font-medium text-pink-700/80">Saldo total Afiliadas + Equipes</p>
                 )}
+                {label === 'Com notificações' && (
+                  <p className="mt-1 text-xs font-medium text-emerald-700/80">Afiliadas com push ativo no app</p>
+                )}
               </div>
             ))}
             <div className={`rounded-[1.5rem] border p-5 shadow-sm ${!wooviBalance ? 'border-zinc-200 bg-zinc-50/70' : wooviBalance.available < stats.totalBalance ? 'border-red-200 bg-red-50/70' : 'border-emerald-200 bg-emerald-50/70'}`}>
@@ -1022,44 +1017,9 @@ export default function AdminDashboard() {
               <p className="mt-2 text-2xl font-black text-zinc-950">
                 {wooviBalanceLoading ? 'Consultando…' : wooviBalance ? brl(wooviBalance.available) : 'Indisponível'}
               </p>
-              {!wooviBalance && wooviBalanceError && (
-                <p className="mt-1 text-xs font-medium text-zinc-500">{wooviBalanceError}</p>
-              )}
-              <button
-                type="button"
-                onClick={async () => {
-                  const pixKey = 'b2145008-648c-460c-a31b-cb022db8b669'
-                  try {
-                    if (navigator.clipboard?.writeText) {
-                      await navigator.clipboard.writeText(pixKey)
-                    } else {
-                      const field = document.createElement('textarea')
-                      field.value = pixKey
-                      field.setAttribute('readonly', '')
-                      field.style.position = 'fixed'
-                      field.style.opacity = '0'
-                      document.body.appendChild(field)
-                      field.select()
-                      const copied = document.execCommand('copy')
-                      field.remove()
-                      if (!copied) throw new Error('Não foi possível copiar a chave Pix.')
-                    }
-                    setWooviPixKeyCopied(true)
-                    window.setTimeout(() => setWooviPixKeyCopied(false), 1800)
-                  } catch {
-                    setMessage('Não foi possível copiar a chave Pix. Verifique a permissão de área de transferência do navegador.')
-                  }
-                }}
-                title="Copiar chave Pix da Woovi"
-                aria-label="Copiar chave Pix da Woovi"
-                className="mt-3 inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-black text-zinc-700 shadow-sm transition hover:border-pink-300 hover:bg-pink-50"
-              >
-                {wooviPixKeyCopied ? (
-                  <><svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.2 7.26a1 1 0 0 1-1.42.003L3.29 9.202a1 1 0 1 1 1.415-1.414l4.08 4.08 6.493-6.572a1 1 0 0 1 1.426-.006Z" clipRule="evenodd" /></svg>Copiado!</>
-                ) : (
-                  <><svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true"><path d="M6 2.75A1.75 1.75 0 0 1 7.75 1h8.5A1.75 1.75 0 0 1 18 2.75v10.5A1.75 1.75 0 0 1 16.25 15h-8.5A1.75 1.75 0 0 1 6 13.25V2.75Z"/><path d="M3.75 5A1.75 1.75 0 0 0 2 6.75v10.5A1.75 1.75 0 0 0 3.75 19h8.5A1.75 1.75 0 0 0 14 17.25V17H7.75A3.75 3.75 0 0 1 4 13.25V5h-.25Z"/></svg>Copiar chave Pix</>
-                )}
-              </button>
+              <p className={`mt-1 text-xs font-medium ${!wooviBalance ? 'text-zinc-500' : wooviBalance.available < stats.totalBalance ? 'text-red-800/80' : 'text-emerald-800/80'}`}>
+                {wooviBalance ? `Disponível para pagamentos · Total: ${brl(wooviBalance.total)}${wooviBalance.blocked > 0 ? ` · Bloqueado: ${brl(wooviBalance.blocked)}` : ''}` : (wooviBalanceError || 'Não foi possível consultar o saldo.')}
+              </p>
             </div>
           </div>
         </section>
@@ -1190,31 +1150,20 @@ export default function AdminDashboard() {
                     <td className="py-4 pr-4">
                       <button
                         type="button"
-                        onClick={() => { setDetailAffiliate(affiliate); setDetailMonth('all'); setDetailData(null) }}
+                        onClick={() => { setDetailAffiliate(affiliate); setDetailMonth('all') }}
                         className="rounded-xl bg-zinc-950 px-3 py-2 text-xs font-black text-white transition hover:bg-pink-500"
                       >
                         Ver desempenho
                       </button>
                     </td>
                     <td className="py-4 pr-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => { setCredentialsAffiliate(affiliate); setNewPassword('') }}
-                          className="whitespace-nowrap rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-black text-zinc-700 transition hover:border-pink-300 hover:text-pink-600"
-                        >
-                          Ver dados
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { window.open(`/afiliado?adminPreviewId=${encodeURIComponent(affiliate.id)}`, '_blank', 'noopener,noreferrer') }}
-                          aria-label={`Visualizar painel de ${affiliate.name}`}
-                          title={`Visualizar painel de ${affiliate.name}`}
-                          className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-pink-200 bg-pink-50 text-pink-700 transition hover:border-pink-400 hover:bg-pink-100"
-                        >
-                          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setCredentialsAffiliate(affiliate); setNewPassword('') }}
+                        className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-black text-zinc-700 transition hover:border-pink-300 hover:text-pink-600"
+                      >
+                        Ver dados
+                      </button>
                     </td>
                     <td className="py-4">
                       <button
@@ -1563,7 +1512,7 @@ export default function AdminDashboard() {
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Desempenho detalhado</p>
                 <h3 className="mt-1 text-2xl font-black text-zinc-950">{detailAffiliate.name}</h3>
-                <p className="mt-1 text-sm text-zinc-400">Modo de visualização administrativa. Os dados abaixo são um resumo de desempenho; ações da conta não são executadas nesta janela.</p>
+                <p className="mt-1 text-sm text-zinc-400">Vendas da afiliada em rosa e vendas da equipe em preto, no mesmo período.</p>
               </div>
               <div className="flex items-center gap-2">
                 <select value={detailMonth} onChange={event => setDetailMonth(event.target.value)} className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-black text-zinc-700 outline-none focus:border-pink-400">
