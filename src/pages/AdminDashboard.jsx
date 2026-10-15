@@ -101,6 +101,7 @@ export default function AdminDashboard() {
   const [withdrawals, setWithdrawals] = useState([])
   const [videoSubmissions, setVideoSubmissions] = useState([])
   const [productPurchases, setProductPurchases] = useState([])
+  const [productPrices, setProductPrices] = useState({ hydrant: '80', stick: '100' })
   const [productPurchaseBusy, setProductPurchaseBusy] = useState(null)
   const [productPriceBusy, setProductPriceBusy] = useState(false)
 
@@ -140,7 +141,7 @@ export default function AdminDashboard() {
   const [deletePhrase, setDeletePhrase] = useState('')
   const [deletingIds, setDeletingIds] = useState([])
   const [settings, setSettings] = useState({ ticketThreshold: 170, ticketBonus: 5, teamCommissionPerSale: 10, commissions: { none: 30, bronze: 40, silver: 50, gold: 60 }, monthlyLevels: { bronze: 10, silver: 50, gold: 101 }, fixedLevels: { bronze: 100, silver: 300, gold: 500 } })
-  const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', ticketBonus: '5', teamCommissionPerSale: '10', teamAdvanced1Members: '10', teamAdvanced1Sales: '20', teamAdvanced1Commission: '15', teamAdvanced2Members: '20', teamAdvanced2Sales: '40', teamAdvanced2Commission: '20', none: '30', bronze: '40', silver: '50', gold: '60', monthlyBronze: '10', monthlySilver: '50', monthlyGold: '101', fixedBronze: '100', fixedSilver: '300', fixedGold: '500', smallBoostPrice: '30', smallBoostConnections: '5', largeBoostPrice: '50', largeBoostConnections: '10', maxActiveBoosts: '3', resellerHydrant: '0', resellerHydrantBlister: '0', resellerStick: '0', resellerComplete: '0', affiliateHydrantPrice: '80', affiliateStickPrice: '100' })
+  const [settingsForm, setSettingsForm] = useState({ ticketThreshold: '170', ticketBonus: '5', teamCommissionPerSale: '10', teamAdvanced1Members: '10', teamAdvanced1Sales: '20', teamAdvanced1Commission: '15', teamAdvanced2Members: '20', teamAdvanced2Sales: '40', teamAdvanced2Commission: '20', none: '30', bronze: '40', silver: '50', gold: '60', monthlyBronze: '10', monthlySilver: '50', monthlyGold: '101', fixedBronze: '100', fixedSilver: '300', fixedGold: '500', smallBoostPrice: '30', smallBoostConnections: '5', largeBoostPrice: '50', largeBoostConnections: '10', maxActiveBoosts: '3', resellerHydrant: '0', resellerHydrantBlister: '0', resellerStick: '0', resellerComplete: '0' })
   const [savingSettings, setSavingSettings] = useState(false)
   const [savingBonusLevels, setSavingBonusLevels] = useState(false)
   const [globalStatsData, setGlobalStatsData] = useState({ all: { sales: 0, revenue: 0, averageTicket: 0, accesses: 0 }, byMonth: {}, snapshots: {} })
@@ -228,8 +229,6 @@ export default function AdminDashboard() {
       resellerHydrantBlister: String(nextSettings.resellerPrices?.hydrantBlister ?? 0),
       resellerStick: String(nextSettings.resellerPrices?.stick ?? 0),
       resellerComplete: String(nextSettings.resellerPrices?.complete ?? 0),
-      affiliateHydrantPrice: String(nextSettings.affiliatePrices?.hydrant ?? 80),
-      affiliateStickPrice: String(nextSettings.affiliatePrices?.stick ?? 100),
     })
     setSelectedAffiliateIds(new Set())
     setDeleteModalOpen(false)
@@ -664,12 +663,8 @@ export default function AdminDashboard() {
           stick: Number(String(settingsForm.resellerStick).replace(',', '.')),
           complete: Number(String(settingsForm.resellerComplete).replace(',', '.')),
         },
-        affiliatePrices: {
-          hydrant: Number(String(settingsForm.affiliateHydrantPrice).replace(',', '.')),
-          stick: Number(String(settingsForm.affiliateStickPrice).replace(',', '.')),
-        },
       }
-      if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || !Number.isFinite(payload.ticketBonus) || payload.ticketBonus < 0 || !Number.isFinite(payload.teamCommissionPerSale) || payload.teamCommissionPerSale < 0 || [payload.teamAdvanced1, payload.teamAdvanced2].some(t => !Number.isInteger(t.members) || t.members <= 0 || !Number.isInteger(t.sales) || t.sales <= 0 || !Number.isFinite(t.commissionPerSale) || t.commissionPerSale < 0) || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0) || Object.values(payload.monthlyLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.fixedLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.resellerPrices).some(value => !Number.isFinite(value) || value < 0) || Object.values(payload.affiliatePrices).some(value => !Number.isFinite(value) || value <= 0) || payload.boostPlans.small.price <= 0 || !Number.isInteger(payload.boostPlans.small.connections) || payload.boostPlans.small.connections <= 0 || payload.boostPlans.large.price <= 0 || !Number.isInteger(payload.boostPlans.large.connections) || payload.boostPlans.large.connections <= 0 || !Number.isInteger(payload.boostPlans.maxActive) || payload.boostPlans.maxActive <= 0 || !(payload.monthlyLevels.bronze < payload.monthlyLevels.silver && payload.monthlyLevels.silver < payload.monthlyLevels.gold) || !(payload.fixedLevels.bronze < payload.fixedLevels.silver && payload.fixedLevels.silver < payload.fixedLevels.gold)) {
+      if (!Number.isFinite(payload.ticketThreshold) || payload.ticketThreshold <= 0 || !Number.isFinite(payload.ticketBonus) || payload.ticketBonus < 0 || !Number.isFinite(payload.teamCommissionPerSale) || payload.teamCommissionPerSale < 0 || [payload.teamAdvanced1, payload.teamAdvanced2].some(t => !Number.isInteger(t.members) || t.members <= 0 || !Number.isInteger(t.sales) || t.sales <= 0 || !Number.isFinite(t.commissionPerSale) || t.commissionPerSale < 0) || Object.values(payload.commissions).some(value => !Number.isFinite(value) || value < 0) || Object.values(payload.monthlyLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.fixedLevels).some(value => !Number.isInteger(value) || value <= 0) || Object.values(payload.resellerPrices).some(value => !Number.isFinite(value) || value < 0) || payload.boostPlans.small.price <= 0 || !Number.isInteger(payload.boostPlans.small.connections) || payload.boostPlans.small.connections <= 0 || payload.boostPlans.large.price <= 0 || !Number.isInteger(payload.boostPlans.large.connections) || payload.boostPlans.large.connections <= 0 || !Number.isInteger(payload.boostPlans.maxActive) || payload.boostPlans.maxActive <= 0 || !(payload.monthlyLevels.bronze < payload.monthlyLevels.silver && payload.monthlyLevels.silver < payload.monthlyLevels.gold) || !(payload.fixedLevels.bronze < payload.fixedLevels.silver && payload.fixedLevels.silver < payload.fixedLevels.gold)) {
         throw new Error('Informe valores válidos. As metas devem ser números inteiros e crescentes: Bronze < Prata < Ouro.')
       }
       const result = await api('/api/admin/affiliates', {
@@ -706,8 +701,6 @@ export default function AdminDashboard() {
         resellerHydrantBlister: String(result.settings.resellerPrices?.hydrantBlister ?? 0),
         resellerStick: String(result.settings.resellerPrices?.stick ?? 0),
         resellerComplete: String(result.settings.resellerPrices?.complete ?? 0),
-        affiliateHydrantPrice: String(result.settings.affiliatePrices?.hydrant ?? 80),
-        affiliateStickPrice: String(result.settings.affiliatePrices?.stick ?? 100),
       })
       setMessage('Configurações de comissões e metas dos Bônus Mensal e Fixo atualizadas para todas as afiliadas.')
       await loadPanel()
@@ -717,7 +710,6 @@ export default function AdminDashboard() {
       setSavingSettings(false)
     }
   }
-
 
   const saveNewPassword = async (event) => {
     event.preventDefault()
@@ -743,9 +735,21 @@ export default function AdminDashboard() {
     try {
       const data = await api('/api/admin/product-purchases?admin=1')
       setProductPurchases(data.purchases || [])
+      setProductPrices({ hydrant: String(data.prices?.hydrant ?? 80), stick: String(data.prices?.stick ?? 100) })
     } catch (e) { setMessage(e.message || 'Não foi possível carregar Compras Afiliadas.') }
   }
 
+  const saveProductPrices = async (event) => {
+    event.preventDefault()
+    setProductPriceBusy(true)
+    try {
+      const data = await api('/api/admin/product-purchases?admin=1', { method: 'POST', body: JSON.stringify({ action: 'set_prices', hydrant: Number(productPrices.hydrant), stick: Number(productPrices.stick) }) })
+      setProductPrices({ hydrant: String(data.prices.hydrant), stick: String(data.prices.stick) })
+      setMessage('Preços dos produtos para afiliadas atualizados.')
+      await loadProductPurchases()
+    } catch (e) { setMessage(e.message || 'Não foi possível salvar os preços.') }
+    finally { setProductPriceBusy(false) }
+  }
 
   const updateProductPurchase = async (purchase, status) => {
     setProductPurchaseBusy(purchase.id)
@@ -1224,22 +1228,14 @@ export default function AdminDashboard() {
                     <td className="py-4 pr-4 font-bold text-zinc-700">{affiliate.created_at ? new Date(affiliate.created_at).toLocaleDateString('pt-BR') : '—'}</td>
                     <td className="py-4 pr-4">
                       <div className="flex items-center gap-2">
-                        <div className="flex min-w-[92px] flex-col items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => setBoostGrantAffiliate(affiliate)}
-                            disabled={(boostState.active || []).some(item => Number(item.affiliate_id) === Number(affiliate.id))}
-                            title={(boostState.active || []).some(item => Number(item.affiliate_id) === Number(affiliate.id)) ? `Impulso ativo para ${affiliate.name}` : `Conceder impulso gratuito para ${affiliate.name}`}
-                            className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-black transition disabled:cursor-not-allowed disabled:opacity-100 ${(boostState.active || []).some(item => Number(item.affiliate_id) === Number(affiliate.id)) ? 'border-amber-300 bg-gradient-to-b from-amber-200 via-amber-400 to-yellow-500 text-amber-950 shadow-[0_2px_8px_rgba(217,119,6,0.24)]' : 'border-pink-200 bg-pink-50 text-pink-700 hover:border-pink-400 hover:bg-pink-100'}`}
-                          >
-                            {(boostState.active || []).some(item => Number(item.affiliate_id) === Number(affiliate.id)) ? 'Impulsionada' : 'Impulsionar'}
-                          </button>
-                          {(boostState.active || []).some(item => Number(item.affiliate_id) === Number(affiliate.id)) && (
-                            <span className="whitespace-nowrap text-[9px] font-medium leading-tight text-zinc-500">
-                              {(boostState.active || []).find(item => Number(item.affiliate_id) === Number(affiliate.id))?.connections_remaining ?? 0} conexões restantes
-                            </span>
-                          )}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setBoostGrantAffiliate(affiliate)}
+                          title={`Conceder impulso gratuito para ${affiliate.name}`}
+                          className="rounded-lg border border-pink-200 bg-pink-50 px-2.5 py-1.5 text-[10px] font-black text-pink-700 transition hover:border-pink-400 hover:bg-pink-100"
+                        >
+                          Impulso
+                        </button>
                       <button
                         type="button"
                         onClick={() => toggleAdminStatus(affiliate)}
@@ -1362,7 +1358,12 @@ export default function AdminDashboard() {
         </section>
 
         <section className="mt-6 rounded-[1.5rem] border border-pink-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Operação</p><h2 className="mt-1 text-xl font-black text-zinc-950">Loja de benefícios · Compras de produtos</h2><p className="mt-1 text-sm text-zinc-500">Gerencie as solicitações de compra de produtos feitas pelas afiliadas.</p></div><span className="rounded-full bg-pink-50 px-3 py-1.5 text-xs font-black text-pink-700">{productPurchases.filter(p=>p.status==='pending').length} pendente(s)</span></div>
+          <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Operação</p><h2 className="mt-1 text-xl font-black text-zinc-950">Compras Afiliadas</h2><p className="mt-1 text-sm text-zinc-500">Gerencie solicitações, dados de entrega, envio e aprovação financeira.</p></div><span className="rounded-full bg-pink-50 px-3 py-1.5 text-xs font-black text-pink-700">{productPurchases.filter(p=>p.status==='pending').length} pendente(s)</span></div>
+          <form onSubmit={saveProductPrices} className="mt-5 grid gap-3 rounded-2xl bg-zinc-50 p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+            <label className="grid gap-1 text-xs font-bold text-zinc-600">Preço do Hidratante (R$)<input type="number" min="0.01" step="0.01" required value={productPrices.hydrant} onChange={e=>setProductPrices(v=>({...v,hydrant:e.target.value}))} className="rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900" /></label>
+            <label className="grid gap-1 text-xs font-bold text-zinc-600">Preço do Stick (R$)<input type="number" min="0.01" step="0.01" required value={productPrices.stick} onChange={e=>setProductPrices(v=>({...v,stick:e.target.value}))} className="rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900" /></label>
+            <button disabled={productPriceBusy} className="rounded-xl bg-pink-600 px-4 py-3 text-xs font-black text-white disabled:opacity-50">{productPriceBusy?'Salvando…':'Salvar preços'}</button>
+          </form>
           <div className="mt-4 space-y-3">{productPurchases.map(p=> <article key={p.id} className="rounded-2xl border border-zinc-200 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-black text-zinc-950">#{p.id} · {p.product==='hydrant'?'Hidratante She':'Stick Clareador She'} · {brl(p.price)}</h3><p className="mt-1 text-xs text-zinc-500">{p.affiliate?.name || `Afiliada #${p.affiliate_id}`} · {dateTime(p.created_at)} · {({pending:'Pendente',shipped:'Enviado',approved:'Aprovado',rejected:'Recusado',cancelled:'Cancelado'})[p.status] || p.status}</p></div>
             {p.status==='pending' && <div className="flex flex-wrap gap-2"><button disabled={productPurchaseBusy===p.id} onClick={()=>updateProductPurchase(p,'shipped')} className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-black text-white">Marcar como enviado</button><button disabled={productPurchaseBusy===p.id} onClick={()=>updateProductPurchase(p,'rejected')} className="rounded-lg bg-red-50 px-3 py-2 text-xs font-black text-red-700">Recusar</button></div>}
@@ -1468,22 +1469,6 @@ export default function AdminDashboard() {
                 <label key={key} className="rounded-2xl border border-pink-100 bg-pink-50/50 p-4">
                   <span className="text-[10px] font-black uppercase tracking-[.14em] text-pink-600">{label}</span>
                   <div className="mt-2 flex items-center gap-2"><span className="font-black text-zinc-500">R$</span><input value={settingsForm[key]} onChange={e => setSettingsForm(v => ({ ...v, [key]: e.target.value }))} inputMode="decimal" className="w-full rounded-xl border border-pink-100 bg-white px-3 py-2.5 text-lg font-black outline-none focus:border-pink-400" /></div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-5 border-t border-zinc-100 pt-5">
-            <div className="flex flex-col gap-1">
-              <p className="text-[10px] font-black uppercase tracking-[.18em] text-pink-500">Loja de benefícios das afiliadas</p>
-              <h3 className="text-xl font-black text-zinc-950">Preços dos produtos para afiliadas</h3>
-              <p className="text-sm text-zinc-400">Esses valores alteram somente a loja de benefícios no painel da afiliada. Serão salvos pelo botão “Atualizar configurações” acima, sem alterar os preços da revendedora.</p>
-            </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {[[['affiliateHydrantPrice','Hidratante She'],['affiliateStickPrice','Stick Clareador She']]].flat().map(([key,label]) => (
-                <label key={key} className="rounded-2xl border border-pink-100 bg-pink-50/50 p-4">
-                  <span className="text-[10px] font-black uppercase tracking-[.14em] text-pink-600">{label}</span>
-                  <div className="mt-2 flex items-center gap-2"><span className="font-black text-zinc-500">R$</span><input type="number" min="0.01" step="0.01" required value={settingsForm[key]} onChange={e => setSettingsForm(v => ({ ...v, [key]: e.target.value }))} className="w-full rounded-xl border border-pink-100 bg-white px-3 py-2.5 text-lg font-black outline-none focus:border-pink-400" /></div>
                 </label>
               ))}
             </div>

@@ -103,23 +103,6 @@ function normalizeWhatsapp(value) {
 }
 
 module.exports = async function handler(req, res) {
-  // Consulta direta dos preços da loja de benefícios usando esta mesma função
-  // serverless já existente. Não depende do objeto de configurações normalizado.
-  if (req.method === 'GET' && String(req.query?.prices || '') === '1') {
-    try {
-      await resolveDashboardAffiliate(req);
-      const rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=affiliate_hydrant_price,affiliate_stick_price&limit=1');
-      const row = rows?.[0];
-      const hydrant = Number(row?.affiliate_hydrant_price);
-      const stick = Number(row?.affiliate_stick_price);
-      if (!row || !Number.isFinite(hydrant) || hydrant <= 0 || !Number.isFinite(stick) || stick <= 0) {
-        return json(res, 503, { error: 'Não foi possível ler affiliate_hydrant_price e affiliate_stick_price em affiliate_settings (id = 1).' });
-      }
-      return json(res, 200, { prices: { hydrant, stick } });
-    } catch (error) {
-      return json(res, error.statusCode || 500, { error: error.message || 'Não foi possível carregar os preços da loja.' });
-    }
-  }
   if (req.method === 'POST' && getAdminPreviewId(req)) return json(res, 403, { error: 'Modo de visualização administrativa: ações que alteram a conta estão bloqueadas.' });
   if (req.method === 'POST' && String(req.body?.action || '') === 'update_profile') {
     try {
@@ -227,7 +210,7 @@ module.exports = async function handler(req, res) {
           ? { price: Number(s.team_boost_large_price ?? 50), connections: Number(s.team_boost_large_connections ?? 10) }
           : null;
       if (!selected) return json(res, 400, { error: 'Plano de impulso inválido.' });
-      const settingsRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,team_advanced1_members,team_advanced1_sales,team_advanced1_commission,team_advanced2_members,team_advanced2_sales,team_advanced2_commission,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,affiliate_hydrant_price,affiliate_stick_price&limit=1');
+      const settingsRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,team_advanced1_members,team_advanced1_sales,team_advanced1_commission,team_advanced2_members,team_advanced2_sales,team_advanced2_commission,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales&limit=1');
       const row = settingsRows?.[0];
       const settings = normalizeConfig(row ? {
         ticketThreshold: row.ticket_threshold,
@@ -775,6 +758,7 @@ module.exports = async function handler(req, res) {
     return json(res, 200, {
       affiliate,
       settings,
+      // Preços da loja de benefícios lidos diretamente de affiliate_settings (id=1).
       productPrices: {
         hydrant: Number(settingRows?.[0]?.affiliate_hydrant_price),
         stick: Number(settingRows?.[0]?.affiliate_stick_price),

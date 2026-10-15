@@ -116,8 +116,6 @@ export default function AffiliateDashboard() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [productShop, setProductShop] = useState({ purchases: [], prices: null })
-  const [productShopLoading, setProductShopLoading] = useState(false)
-  const [productShopError, setProductShopError] = useState('')
   const [purchaseProduct, setPurchaseProduct] = useState('')
   const [purchaseForm, setPurchaseForm] = useState({ name: '', cpf: '', cep: '', address: '', email: '', phone: '', notes: '' })
   const [purchaseBusy, setPurchaseBusy] = useState(false)
@@ -127,44 +125,19 @@ export default function AffiliateDashboard() {
 
   useEffect(() => {
     if (!dashboard?.affiliate?.id) return
-    let cancelled = false
-    setProductShopLoading(true)
-    setProductShopError('')
-
-    // Busca os preços diretamente das duas colunas do Supabase através da
-    // função de dashboard já existente; não cria uma Serverless Function nova.
-    api('/api/affiliate/dashboard?prices=1')
-      .then((data) => {
-        if (cancelled) return
-        const hydrant = Number(data?.prices?.hydrant)
-        const stick = Number(data?.prices?.stick)
-        if (!Number.isFinite(hydrant) || hydrant <= 0 || !Number.isFinite(stick) || stick <= 0) {
-          throw new Error('A consulta não retornou affiliate_hydrant_price e affiliate_stick_price válidos.')
-        }
-        setProductShop(prev => ({ ...prev, prices: { hydrant, stick } }))
-        setProductShopError('')
-      })
-      .catch((error) => {
-        if (cancelled) return
-        setProductShop(prev => ({ ...prev, prices: null }))
-        setProductShopError(error?.message || 'Não foi possível carregar os preços atuais do Supabase.')
-      })
-      .finally(() => {
-        if (!cancelled) setProductShopLoading(false)
-      })
-
-    // A rota de compras continua responsável apenas por listar solicitações existentes.
+    // Os preços vêm da mesma resposta do dashboard, que consulta diretamente o Supabase.
+    const hydrant = Number(dashboard?.productPrices?.hydrant)
+    const stick = Number(dashboard?.productPrices?.stick)
+    const validPrices = Number.isFinite(hydrant) && hydrant > 0 && Number.isFinite(stick) && stick > 0
+    setProductShop(current => ({
+      ...current,
+      prices: validPrices ? { hydrant, stick } : null,
+    }))
+    // Esta rota fica responsável pelas solicitações; não é a fonte dos preços exibidos.
     api('/api/affiliate/product-purchases')
-      .then((data) => {
-        if (cancelled) return
-        setProductShop(prev => ({
-          ...prev,
-          purchases: Array.isArray(data.purchases) ? data.purchases : [],
-        }))
-      })
+      .then(data => setProductShop(current => ({ ...current, purchases: Array.isArray(data?.purchases) ? data.purchases : [] })))
       .catch(() => {})
-    return () => { cancelled = true }
-  }, [dashboard?.affiliate?.id])
+  }, [dashboard?.affiliate?.id, dashboard?.productPrices?.hydrant, dashboard?.productPrices?.stick])
 
   const submitProductPurchase = async (event) => {
     event.preventDefault()
@@ -178,17 +151,12 @@ export default function AffiliateDashboard() {
       })
       setPurchaseMessage('Solicitação enviada! O valor está reservado no seu saldo até a aprovação administrativa.')
       setPurchaseProduct('')
-      const [freshDashboard, shop, priceData] = await Promise.all([
+      const [freshDashboard, shop] = await Promise.all([
         api(`/api/affiliate/dashboard?month=${encodeURIComponent(selectedMonth || 'all')}`),
         api('/api/affiliate/product-purchases'),
-        api('/api/affiliate/dashboard?prices=1'),
       ])
       setDashboard(freshDashboard)
-      const hydrant = Number(priceData?.prices?.hydrant)
-      const stick = Number(priceData?.prices?.stick)
-      if (!Number.isFinite(hydrant) || hydrant <= 0 || !Number.isFinite(stick) || stick <= 0) throw new Error('A consulta não retornou os preços atuais do Supabase.')
-      setProductShop({ purchases: Array.isArray(shop.purchases) ? shop.purchases : [], prices: { hydrant, stick } })
-      setProductShopError('')
+      setProductShop(shop)
       setPurchaseForm({ name: '', cpf: '', cep: '', address: '', email: '', phone: '', notes: '' })
     } catch (e) {
       setPurchaseMessage(e.message || 'Não foi possível solicitar a compra.')
@@ -1485,19 +1453,16 @@ export default function AffiliateDashboard() {
             <div><p className="text-[10px] font-black uppercase tracking-[.25em] text-pink-500">Benefícios She</p><h2 className="mt-1 text-2xl font-black text-zinc-950">Sua loja de benefícios</h2><p className="mt-1 max-w-xl text-sm text-zinc-600">Use suas comissões para adquirir os produtos She. Uma unidade de cada produto por mês.</p></div>
             <span className="rounded-full border border-pink-200 bg-white/80 px-3 py-1.5 text-xs font-bold text-pink-700">Pagamento com saldo</span>
           </div>
-          {productShopLoading && <p role="status" className="mt-4 rounded-xl border border-zinc-200 bg-white p-3 text-sm font-semibold text-zinc-600">Carregando preços atuais da loja…</p>}
-          {productShopError && <div role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">Não foi possível carregar os preços atuais. {productShopError} Os produtos ficarão indisponíveis até que os preços sejam carregados corretamente.</div>}
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             {[{key:'hydrant',name:'Hidratante Íntimo She',image:hidratanteProductImage,desc:'Cuidado íntimo premium',price:productShop.prices?.hydrant},{key:'stick',name:'Stick Clareador She',image:stickProductImage,desc:'Praticidade para sua rotina',price:productShop.prices?.stick}].map(product => {
               const now = new Date()
               const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
               const boughtThisMonth = (productShop.purchases || []).some(p => p.product === product.key && !['rejected','cancelled'].includes(p.status) && String(p.created_at || '').slice(0,7) === thisMonth)
               const available = Number(dashboard?.metrics?.availableCommission || 0)
-              const priceLoaded = Number.isFinite(Number(product.price)) && Number(product.price) > 0 && !productShopLoading && !productShopError
               return <div key={product.key} className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-white bg-white shadow-sm sm:flex-row">
                 <div className="flex min-h-[180px] items-center justify-center bg-white p-3 sm:w-[42%]"><img src={product.image} alt={product.name} className="max-h-48 w-full object-contain" /></div>
-                <div className="flex flex-1 flex-col p-4"><p className="text-[10px] font-black uppercase tracking-widest text-pink-500">Produto exclusivo</p><h3 className="mt-1 text-lg font-black text-zinc-950">{product.name}</h3><p className="mt-1 text-xs text-zinc-500">{product.desc}</p><p className="mt-4 text-2xl font-black text-zinc-950">{brl(product.price)}</p><p className="mt-1 text-[11px] text-zinc-500">Saldo disponível: {brl(available)}</p>
-                <button type="button" disabled={!priceLoaded || boughtThisMonth || available < product.price} onClick={() => {setPurchaseProduct(product.key); setPurchaseMessage('')}} className="mt-4 rounded-xl bg-gradient-to-r from-pink-600 to-rose-500 px-4 py-3 text-xs font-black text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400">{!priceLoaded ? 'Preço indisponível' : boughtThisMonth ? 'Já solicitado neste mês' : available < product.price ? 'Saldo insuficiente' : 'Adquirir com meu saldo'}</button>
+                <div className="flex flex-1 flex-col p-4"><p className="text-[10px] font-black uppercase tracking-widest text-pink-500">Produto exclusivo</p><h3 className="mt-1 text-lg font-black text-zinc-950">{product.name}</h3><p className="mt-1 text-xs text-zinc-500">{product.desc}</p><p className="mt-4 text-2xl font-black text-zinc-950">{Number.isFinite(Number(product.price)) && Number(product.price) > 0 ? brl(product.price) : 'Preço indisponível'}</p><p className="mt-1 text-[11px] text-zinc-500">Saldo disponível: {brl(available)}</p>
+                <button type="button" disabled={!Number.isFinite(Number(product.price)) || Number(product.price) <= 0 || boughtThisMonth || available < product.price} onClick={() => {setPurchaseProduct(product.key); setPurchaseMessage('')}} className="mt-4 rounded-xl bg-gradient-to-r from-pink-600 to-rose-500 px-4 py-3 text-xs font-black text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400">{!Number.isFinite(Number(product.price)) || Number(product.price) <= 0 ? 'Preço indisponível' : boughtThisMonth ? 'Já solicitado neste mês' : available < product.price ? 'Saldo insuficiente' : 'Adquirir com meu saldo'}</button>
                 {boughtThisMonth && <p className="mt-2 text-[11px] text-amber-700">Você já solicitou este produto neste mês.</p>}</div>
               </div>
             })}
@@ -1536,7 +1501,7 @@ export default function AffiliateDashboard() {
                 <div className="flex items-center gap-3">
                   <div className={`flex h-10 w-10 items-center justify-center rounded-full ${movement.kind === 'boost' ? 'bg-emerald-100 text-emerald-600' : 'bg-pink-100 text-pink-600'}`}>{movement.kind === 'boost' ? '↗' : '↗'}</div>
                   <div>
-                    <p className="font-black text-zinc-900">{movement.kind === 'boost' ? 'Impulso de Equipe' : `Solicitação de Saque ${movement.source === 'team' ? '· Equipe' : '· Pessoal'}`}</p>
+                    <p className="font-black text-zinc-900">{movement.kind === 'boost' ? 'Impulso de Equipe' : movement.kind === 'product_purchase' ? `Compra Loja de Benefícios · ${movement.productPurchase?.product === 'hydrant' ? 'Hidratante' : 'Stick'}` : `Solicitação de Saque ${movement.source === 'team' ? '· Equipe' : '· Pessoal'}`}</p>
                     <p className="mt-0.5 text-xs text-zinc-400">{new Date(movement.date).toLocaleDateString('pt-BR')}</p>
                     {movement.kind === 'withdrawal' && movement.status === 'rejected' && (
                        <p className="mt-1 max-w-xl text-xs font-semibold leading-5 text-red-600"><strong>Motivo da recusa:</strong> {movement.withdrawal?.note || 'Solicitação de saque recusada.'}</p>

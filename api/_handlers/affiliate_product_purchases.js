@@ -4,17 +4,6 @@ const { commissionForOrders, normalizeConfig, DEFAULT_COMMISSION_CONFIG } = requ
 
 const money = v => Math.round((Number(v) || 0) * 100) / 100;
 const validEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim());
-const pricesFromSettings = rows => {
-  const row = rows?.[0];
-  const hydrant = Number(row?.affiliate_hydrant_price);
-  const stick = Number(row?.affiliate_stick_price);
-  if (!row || !Number.isFinite(hydrant) || hydrant <= 0 || !Number.isFinite(stick) || stick <= 0) {
-    const error = new Error('Os preços atuais da loja de benefícios não foram encontrados no Supabase. Confira affiliate_settings (id = 1).');
-    error.statusCode = 503;
-    throw error;
-  }
-  return { hydrant, stick };
-};
 
 module.exports = async function handler(req, res) {
   try {
@@ -25,14 +14,14 @@ module.exports = async function handler(req, res) {
           supabaseFetch('/rest/v1/affiliate_product_purchases?select=*,affiliate:affiliates(id,name,email,whatsapp)&order=created_at.desc&limit=500'),
           supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=affiliate_hydrant_price,affiliate_stick_price&limit=1')
         ]);
-        return json(res, 200, { purchases: purchases || [], prices: pricesFromSettings(settings) });
+        return json(res, 200, { purchases: purchases || [], prices: { hydrant: Number(settings?.[0]?.affiliate_hydrant_price ?? 80), stick: Number(settings?.[0]?.affiliate_stick_price ?? 100) } });
       }
       const { affiliate } = await requireAffiliate(req);
       const [purchases, settings] = await Promise.all([
         supabaseFetch(`/rest/v1/affiliate_product_purchases?affiliate_id=eq.${affiliate.id}&select=*&order=created_at.desc&limit=100`),
         supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=affiliate_hydrant_price,affiliate_stick_price&limit=1')
       ]);
-      return json(res, 200, { purchases: purchases || [], prices: pricesFromSettings(settings) });
+      return json(res, 200, { purchases: purchases || [], prices: { hydrant: Number(settings?.[0]?.affiliate_hydrant_price ?? 80), stick: Number(settings?.[0]?.affiliate_stick_price ?? 100) } });
     }
 
     if (req.method !== 'POST' && req.method !== 'PATCH') return json(res, 405, { error: 'Método não permitido.' });
@@ -43,30 +32,8 @@ module.exports = async function handler(req, res) {
       if (action === 'set_prices') {
         const hydrant = Number(req.body?.hydrant), stick = Number(req.body?.stick);
         if (!Number.isFinite(hydrant) || hydrant <= 0 || !Number.isFinite(stick) || stick <= 0) return json(res, 400, { error: 'Informe preços válidos.' });
-        const payload = { affiliate_hydrant_price: money(hydrant), affiliate_stick_price: money(stick) };
-        let rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1', {
-          method: 'PATCH',
-          headers: { Prefer: 'return=representation' },
-          body: JSON.stringify(payload),
-        });
-        // A PATCH against a missing settings row returns HTTP 204/200 with an empty
-        // array, which previously looked like success in the admin UI but saved nothing.
-        if (!Array.isArray(rows) || rows.length === 0) {
-          rows = await supabaseFetch('/rest/v1/affiliate_settings?on_conflict=id', {
-            method: 'POST',
-            headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
-            body: JSON.stringify({ id: 1, ...payload }),
-          });
-        }
-        let saved = rows?.[0];
-        // Confirm the persisted values with a fresh read, even if PostgREST returns an empty PATCH body.
-        const confirmed = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=affiliate_hydrant_price,affiliate_stick_price&limit=1');
-        saved = confirmed?.[0] || saved;
-        if (!saved || Number(saved.affiliate_hydrant_price) !== payload.affiliate_hydrant_price ||
-            Number(saved.affiliate_stick_price) !== payload.affiliate_stick_price) {
-          throw new Error('O Supabase não confirmou a gravação dos preços. Confira se a migração migration_affiliate_product_purchases.sql foi executada.');
-        }
-        return json(res, 200, { prices: { hydrant: Number(saved.affiliate_hydrant_price), stick: Number(saved.affiliate_stick_price) } });
+        const rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1', { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ affiliate_hydrant_price: money(hydrant), affiliate_stick_price: money(stick) }) });
+        return json(res, 200, { prices: { hydrant: Number(rows?.[0]?.affiliate_hydrant_price ?? hydrant), stick: Number(rows?.[0]?.affiliate_stick_price ?? stick) } });
       }
       const id = Number(req.body?.id), actionStatus = String(req.body?.status || '');
       if (!id || !['approved','rejected','shipped'].includes(actionStatus)) return json(res, 400, { error: 'Ação de compra inválida.' });
