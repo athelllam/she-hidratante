@@ -103,6 +103,23 @@ function normalizeWhatsapp(value) {
 }
 
 module.exports = async function handler(req, res) {
+  // Consulta direta dos preços da loja de benefícios usando esta mesma função
+  // serverless já existente. Não depende do objeto de configurações normalizado.
+  if (req.method === 'GET' && String(req.query?.prices || '') === '1') {
+    try {
+      await resolveDashboardAffiliate(req);
+      const rows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=affiliate_hydrant_price,affiliate_stick_price&limit=1');
+      const row = rows?.[0];
+      const hydrant = Number(row?.affiliate_hydrant_price);
+      const stick = Number(row?.affiliate_stick_price);
+      if (!row || !Number.isFinite(hydrant) || hydrant <= 0 || !Number.isFinite(stick) || stick <= 0) {
+        return json(res, 503, { error: 'Não foi possível ler affiliate_hydrant_price e affiliate_stick_price em affiliate_settings (id = 1).' });
+      }
+      return json(res, 200, { prices: { hydrant, stick } });
+    } catch (error) {
+      return json(res, error.statusCode || 500, { error: error.message || 'Não foi possível carregar os preços da loja.' });
+    }
+  }
   if (req.method === 'POST' && getAdminPreviewId(req)) return json(res, 403, { error: 'Modo de visualização administrativa: ações que alteram a conta estão bloqueadas.' });
   if (req.method === 'POST' && String(req.body?.action || '') === 'update_profile') {
     try {

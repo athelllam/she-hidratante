@@ -128,18 +128,32 @@ export default function AffiliateDashboard() {
   useEffect(() => {
     if (!dashboard?.affiliate?.id) return
     let cancelled = false
-    const hydrant = Number(dashboard?.productPrices?.hydrant)
-    const stick = Number(dashboard?.productPrices?.stick)
-    if (Number.isFinite(hydrant) && hydrant > 0 && Number.isFinite(stick) && stick > 0) {
-      setProductShop(prev => ({ ...prev, prices: { hydrant, stick } }))
-      setProductShopError('')
-      setProductShopLoading(false)
-    } else {
-      setProductShopError('O painel não retornou os preços configurados em affiliate_settings.')
-      setProductShopLoading(false)
-    }
-    // A rota de compras é usada apenas para listar solicitações existentes.
-    // Os preços vêm do endpoint de dashboard já existente, sem criar Serverless Function.
+    setProductShopLoading(true)
+    setProductShopError('')
+
+    // Busca os preços diretamente das duas colunas do Supabase através da
+    // função de dashboard já existente; não cria uma Serverless Function nova.
+    api('/api/affiliate/dashboard?prices=1')
+      .then((data) => {
+        if (cancelled) return
+        const hydrant = Number(data?.prices?.hydrant)
+        const stick = Number(data?.prices?.stick)
+        if (!Number.isFinite(hydrant) || hydrant <= 0 || !Number.isFinite(stick) || stick <= 0) {
+          throw new Error('A consulta não retornou affiliate_hydrant_price e affiliate_stick_price válidos.')
+        }
+        setProductShop(prev => ({ ...prev, prices: { hydrant, stick } }))
+        setProductShopError('')
+      })
+      .catch((error) => {
+        if (cancelled) return
+        setProductShop(prev => ({ ...prev, prices: null }))
+        setProductShopError(error?.message || 'Não foi possível carregar os preços atuais do Supabase.')
+      })
+      .finally(() => {
+        if (!cancelled) setProductShopLoading(false)
+      })
+
+    // A rota de compras continua responsável apenas por listar solicitações existentes.
     api('/api/affiliate/product-purchases')
       .then((data) => {
         if (cancelled) return
@@ -148,11 +162,9 @@ export default function AffiliateDashboard() {
           purchases: Array.isArray(data.purchases) ? data.purchases : [],
         }))
       })
-      .catch(() => {
-        // Não sobrescreve nem bloqueia os preços já carregados pelo dashboard.
-      })
+      .catch(() => {})
     return () => { cancelled = true }
-  }, [dashboard?.affiliate?.id, dashboard?.productPrices?.hydrant, dashboard?.productPrices?.stick])
+  }, [dashboard?.affiliate?.id])
 
   const submitProductPurchase = async (event) => {
     event.preventDefault()
@@ -166,14 +178,15 @@ export default function AffiliateDashboard() {
       })
       setPurchaseMessage('Solicitação enviada! O valor está reservado no seu saldo até a aprovação administrativa.')
       setPurchaseProduct('')
-      const [freshDashboard, shop] = await Promise.all([
+      const [freshDashboard, shop, priceData] = await Promise.all([
         api(`/api/affiliate/dashboard?month=${encodeURIComponent(selectedMonth || 'all')}`),
         api('/api/affiliate/product-purchases'),
+        api('/api/affiliate/dashboard?prices=1'),
       ])
       setDashboard(freshDashboard)
-      const hydrant = Number(shop?.prices?.hydrant)
-      const stick = Number(shop?.prices?.stick)
-      if (!Number.isFinite(hydrant) || hydrant <= 0 || !Number.isFinite(stick) || stick <= 0) throw new Error('A API não retornou preços válidos para a loja de benefícios.')
+      const hydrant = Number(priceData?.prices?.hydrant)
+      const stick = Number(priceData?.prices?.stick)
+      if (!Number.isFinite(hydrant) || hydrant <= 0 || !Number.isFinite(stick) || stick <= 0) throw new Error('A consulta não retornou os preços atuais do Supabase.')
       setProductShop({ purchases: Array.isArray(shop.purchases) ? shop.purchases : [], prices: { hydrant, stick } })
       setProductShopError('')
       setPurchaseForm({ name: '', cpf: '', cep: '', address: '', email: '', phone: '', notes: '' })
