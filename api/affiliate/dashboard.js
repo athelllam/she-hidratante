@@ -224,18 +224,20 @@ module.exports = async function handler(req, res) {
       } : DEFAULT_COMMISSION_CONFIG);
       const orders = await supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${affiliate.id}&select=status,total,created_at&order=created_at.asc&limit=5000`);
       const earned = commissionForOrders(orders || [], settings, { teamJoinedAt: affiliate.team_joined_at }).total;
-      const [withdrawals, existingBoosts] = await Promise.all([
+      const [withdrawals, existingBoosts, productPurchases] = await Promise.all([
         supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${affiliate.id}&source=eq.personal&select=amount,status&limit=1000`),
         supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${affiliate.id}&select=price,status,admin_granted&limit=1000`).catch(() => []),
+        supabaseFetch(`/rest/v1/affiliate_product_purchases?affiliate_id=eq.${affiliate.id}&select=price,status&limit=5000`).catch(() => []),
       ]);
-      const reservedWithdrawals = (withdrawals || []).filter(w => !['rejected', 'failed', 'cancelled'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
-      const reservedBoosts = (existingBoosts || []).filter(row => !row.admin_granted && ['queued', 'active', 'completed'].includes(String(row.status || ''))).reduce((sum, row) => sum + Number(row.price || 0), 0);
-      const baseAvailable = Math.max(0, earned - reservedWithdrawals - reservedBoosts);
-      // A RPC she_team_boost_purchase já desconta saques e impulsos reservados.
-      // Enviar baseAvailable aqui faria os mesmos descontos duas vezes.
+      const reservedProductPurchases = (productPurchases || [])
+        .filter(row => !['rejected', 'cancelled'].includes(String(row.status || '').toLowerCase()))
+        .reduce((sum, row) => sum + Number(row.price || 0), 0);
+      // A RPC já desconta saques e impulsos. Passamos o saldo líquido das
+      // reservas de produtos para que uma compra pendente não possa ser gasta de novo.
+      const earnedAfterProductPurchases = Math.max(0, earned - reservedProductPurchases);
       const result = await supabaseFetch('/rest/v1/rpc/she_team_boost_purchase', {
         method: 'POST',
-        body: JSON.stringify({ p_affiliate_id: Number(affiliate.id), p_price: selected.price, p_connections: selected.connections, p_earned_balance: earned }),
+        body: JSON.stringify({ p_affiliate_id: Number(affiliate.id), p_price: selected.price, p_connections: selected.connections, p_earned_balance: earnedAfterProductPurchases }),
       });
       return json(res, 201, { boost: result });
     } catch (error) {
@@ -512,7 +514,13 @@ module.exports = async function handler(req, res) {
     const teamWithdrawals = (withdrawals || []).filter(w => String(w.source || 'personal') === 'team');
     const reserved = personalWithdrawals.filter(w => !['rejected', 'failed'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const boostSpent = (boostRows || []).filter(row => !row.admin_granted && ['queued', 'active', 'completed'].includes(String(row.status || ''))).reduce((sum, row) => sum + Number(row.price || 0), 0);
-    let availableCommission = Math.max(0, totalEarnedCommission - reserved - boostSpent);
+    const productPurchaseRows = await supabaseFetch(`/rest/v1/affiliate_product_purchases?affiliate_id=eq.${affiliate.id}&select=id,product,price,status,created_at,freight_paid&order=created_at.desc&limit=5000`).catch(() => []);
+    // Toda solicitação de produto reserva o valor imediatamente, inclusive antes
+    // de a afiliada pagar o frete. Só recusadas/canceladas liberam a reserva.
+    const reservedProductPurchases = (productPurchaseRows || [])
+      .filter(row => !['rejected', 'cancelled'].includes(String(row.status || '').toLowerCase()))
+      .reduce((sum, row) => sum + Number(row.price || 0), 0);
+    let availableCommission = Math.max(0, totalEarnedCommission - reserved - boostSpent - reservedProductPurchases);
     // O nível é mensal. Em "Todos os meses", usamos o mês atual,
     // porque o nível reinicia no primeiro dia de cada mês.
 
@@ -627,7 +635,7 @@ module.exports = async function handler(req, res) {
     salesByMonth = cardCommissionData.salesByMonth;
     monthlyStats = cardCommissionData.monthlyStats;
     selectedOrders = annotatedPaidOrders;
-    availableCommission = Math.max(0, totalEarnedCommission - reserved - boostSpent);
+    availableCommission = Math.max(0, totalEarnedCommission - reserved - boostSpent - reservedProductPurchases);
 
     const teamSalesByAffiliate = new Map();
     for (const order of teamOrders || []) {
@@ -837,6 +845,14 @@ module.exports = async function handler(req, res) {
           amount: boost.admin_granted ? 0 : Number(boost.price || 0),
           status: boost.status,
           boost,
+        })),
+        ...(productPurchaseRows || []).map(purchase => ({
+          id: `product-purchase-${purchase.id}`,
+          kind: 'product_purchase',
+          date: purchase.created_at,
+          amount: Number(purchase.price || 0),
+          status: purchase.status,
+          productPurchase: purchase,
         })),
       ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
       monthlyStats,
