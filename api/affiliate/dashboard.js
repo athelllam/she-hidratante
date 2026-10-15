@@ -101,10 +101,6 @@ function normalizeWhatsapp(value) {
 }
 
 module.exports = async function handler(req, res) {
-  // Reuse the existing dashboard function for the benefits store endpoint.
-  if (String(req.query?.__handler || '') === 'product-purchases') {
-    return require('../_handlers/affiliate_product_purchases')(req, res);
-  }
   if (req.method === 'POST' && getAdminPreviewId(req)) return json(res, 403, { error: 'Modo de visualização administrativa: ações que alteram a conta estão bloqueadas.' });
   if (req.method === 'POST' && String(req.body?.action || '') === 'update_profile') {
     try {
@@ -151,7 +147,7 @@ module.exports = async function handler(req, res) {
       const affiliate = await resolveDashboardAffiliate(req);
       const settingRows = await supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active&limit=1');
       const s = settingRows?.[0] || {};
-      const boosts = await supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${Number(affiliate.id)}&status=in.(queued,active)&select=id,price,admin_granted,connections_total,connections_remaining,status,queue_created_at,activated_at&order=id.desc&limit=1`).catch(() => []);
+      const boosts = await supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${Number(affiliate.id)}&status=in.(queued,active)&select=id,price,connections_total,connections_remaining,status,queue_created_at,activated_at&order=id.desc&limit=1`).catch(() => []);
       const queueCount = await supabaseFetch('/rest/v1/affiliate_team_boosts?status=eq.queued&select=id&limit=10000').catch(() => []);
       const activeCount = await supabaseFetch('/rest/v1/affiliate_team_boosts?status=eq.active&select=id&limit=10000').catch(() => []);
       return json(res, 200, {
@@ -226,10 +222,10 @@ module.exports = async function handler(req, res) {
       const earned = commissionForOrders(orders || [], settings, { teamJoinedAt: affiliate.team_joined_at }).total;
       const [withdrawals, existingBoosts] = await Promise.all([
         supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${affiliate.id}&source=eq.personal&select=amount,status&limit=1000`),
-        supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${affiliate.id}&select=price,status,admin_granted&limit=1000`).catch(() => []),
+        supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${affiliate.id}&select=price,status&limit=1000`).catch(() => []),
       ]);
       const reservedWithdrawals = (withdrawals || []).filter(w => !['rejected', 'failed', 'cancelled'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
-      const reservedBoosts = (existingBoosts || []).filter(row => !row.admin_granted && ['queued', 'active', 'completed'].includes(String(row.status || ''))).reduce((sum, row) => sum + Number(row.price || 0), 0);
+      const reservedBoosts = (existingBoosts || []).filter(row => ['queued', 'active', 'completed'].includes(String(row.status || ''))).reduce((sum, row) => sum + Number(row.price || 0), 0);
       const baseAvailable = Math.max(0, earned - reservedWithdrawals - reservedBoosts);
       const result = await supabaseFetch('/rest/v1/rpc/she_team_boost_purchase', {
         method: 'POST',
@@ -449,7 +445,7 @@ module.exports = async function handler(req, res) {
       supabaseFetch(`/rest/v1/affiliate_orders?affiliate_id=eq.${id}&select=yampi_order_id,status,total,commission,commission_level_snapshot,commission_base_snapshot,team_commission_snapshot,created_at,updated_at&order=created_at.desc&limit=5000`),
       supabaseFetch(`/rest/v1/affiliate_withdrawals?affiliate_id=eq.${id}&select=id,amount,status,pix_key,pix_key_type,source,requested_at,processed_at,note&order=requested_at.desc&limit=500`),
       supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,team_advanced1_members,team_advanced1_sales,team_advanced1_commission,team_advanced2_members,team_advanced2_sales,team_advanced2_commission,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales&limit=1'),
-      supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${id}&select=id,price,admin_granted,connections_total,connections_remaining,status,queue_created_at,activated_at,completed_at,created_at&order=created_at.desc&limit=500`).catch(() => []),
+      supabaseFetch(`/rest/v1/affiliate_team_boosts?affiliate_id=eq.${id}&select=id,price,connections_total,connections_remaining,status,queue_created_at,activated_at,completed_at,created_at&order=created_at.desc&limit=500`).catch(() => []),
     ]);
 
     const settings = normalizeConfig(settingRows?.[0] ? {
@@ -509,7 +505,7 @@ module.exports = async function handler(req, res) {
     const personalWithdrawals = (withdrawals || []).filter(w => String(w.source || 'personal') === 'personal');
     const teamWithdrawals = (withdrawals || []).filter(w => String(w.source || 'personal') === 'team');
     const reserved = personalWithdrawals.filter(w => !['rejected', 'failed'].includes(String(w.status || ''))).reduce((sum, w) => sum + Number(w.amount || 0), 0);
-    const boostSpent = (boostRows || []).filter(row => !row.admin_granted && ['queued', 'active', 'completed'].includes(String(row.status || ''))).reduce((sum, row) => sum + Number(row.price || 0), 0);
+    const boostSpent = (boostRows || []).filter(row => ['queued', 'active', 'completed'].includes(String(row.status || ''))).reduce((sum, row) => sum + Number(row.price || 0), 0);
     let availableCommission = Math.max(0, totalEarnedCommission - reserved - boostSpent);
     // O nível é mensal. Em "Todos os meses", usamos o mês atual,
     // porque o nível reinicia no primeiro dia de cada mês.
@@ -709,7 +705,7 @@ module.exports = async function handler(req, res) {
       (requestedMonth === 'all' || monthKeyInSaoPaulo(withdrawal.requested_at) === requestedMonth)
     ).reduce((sum, withdrawal) => sum + Number(withdrawal.amount || 0), 0);
     const displayBoostSpent = (boostRows || []).filter(row =>
-      !row.admin_granted && ['queued', 'active', 'completed'].includes(String(row.status || '')) &&
+      ['queued', 'active', 'completed'].includes(String(row.status || '')) &&
       (requestedMonth === 'all' || monthKeyInSaoPaulo(row.created_at || row.queue_created_at) === requestedMonth)
     ).reduce((sum, row) => sum + Number(row.price || 0), 0);
     // Saldo sacável é sempre acumulado de todo o histórico, independente do filtro mensal.
@@ -832,7 +828,7 @@ module.exports = async function handler(req, res) {
           id: `boost-${boost.id}`,
           kind: 'boost',
           date: boost.created_at || boost.queue_created_at,
-          amount: boost.admin_granted ? 0 : Number(boost.price || 0),
+          amount: Number(boost.price || 0),
           status: boost.status,
           boost,
         })),
