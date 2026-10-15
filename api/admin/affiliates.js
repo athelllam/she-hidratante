@@ -80,7 +80,7 @@ module.exports = async function handler(req, res) {
         supabaseFetch('/rest/v1/affiliate_admin_status_history?select=affiliate_id,admin_active,effective_at&order=effective_at.asc&limit=20000').catch(() => []),
         supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=ticket_threshold,ticket_bonus,team_commission_per_sale,team_advanced1_members,team_advanced1_sales,team_advanced1_commission,team_advanced2_members,team_advanced2_sales,team_advanced2_commission,commission_none,commission_bronze,commission_silver,commission_gold,monthly_bronze_sales,monthly_silver_sales,monthly_gold_sales,fixed_bronze_sales,fixed_silver_sales,fixed_gold_sales,team_boost_small_price,team_boost_small_connections,team_boost_large_price,team_boost_large_connections,team_boost_max_active,reseller_hydrant_price,reseller_hydrant_blister_price,reseller_stick_price,reseller_complete_price,average_sale_cost&limit=1'),
         supabaseFetch('/rest/v1/rpc/she_team_boost_admin_state', { method: 'POST', body: '{}' }).catch(() => ({ activeCount: 0, queueCount: 0, completedCount: 0, active: [] })),
-        supabaseFetch('/rest/v1/affiliate_team_boosts?status=neq.cancelled&select=affiliate_id,price,admin_granted&limit=20000').catch(() => []),
+        supabaseFetch('/rest/v1/affiliate_team_boosts?status=in.(queued,active,completed)&select=affiliate_id,price,admin_granted,status&limit=20000').catch(() => []),
       ]);
 
       const settings = normalizeConfig(settingRows?.[0] ? {
@@ -184,7 +184,7 @@ module.exports = async function handler(req, res) {
           const value = order.created_at ? new Date(order.created_at).getTime() : 0;
           return value > latest ? value : latest;
         }, 0);
-        const commissionData = commissionForOrders(affiliateOrders, settings);
+        const commissionData = commissionForOrders(affiliateOrders, settings, { teamJoinedAt: affiliate.team_joined_at });
         const revenue = paidOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
         stats.set(Number(affiliate.id), {
           sales: paidOrders.length,
@@ -207,8 +207,11 @@ module.exports = async function handler(req, res) {
       }
 
       const boostSpentByAffiliate = new Map();
+      // Manter exatamente a mesma regra do painel da afiliada:
+      // somente impulsos queued/active/completed reservam ou consomem saldo.
+      // Registros em outros estados (ex.: pending) não podem reduzir o saldo exibido.
       for (const boost of boostRows || []) {
-        if (boost.admin_granted) continue;
+        if (!['queued', 'active', 'completed'].includes(String(boost.status || '').toLowerCase())) continue;
         const aid = Number(boost.affiliate_id);
         boostSpentByAffiliate.set(aid, (boostSpentByAffiliate.get(aid) || 0) + Number(boost.price || 0));
       }
