@@ -24,7 +24,7 @@ export default function TrabalheConosco() {
             <p className="text-xs font-black uppercase tracking-[.2em] text-zinc-400">Representantes</p>
             <h2 className="mt-2 text-2xl font-black">Construa oportunidades comerciais.</h2>
             <p className="mt-4 text-sm leading-6 text-zinc-500">O modelo de representantes será voltado para parceiros comerciais que desejam desenvolver relacionamento com lojas, profissionais e outros pontos de venda.</p>
-            <Link to="/representantes" className="mt-6 inline-flex rounded-xl bg-zinc-950 px-5 py-3 text-sm font-black text-white transition hover:bg-pink-500">Conhecer representantes</Link>
+            <Link to="/revendedora" className="mt-6 inline-flex rounded-xl bg-zinc-950 px-5 py-3 text-sm font-black text-white transition hover:bg-pink-500">Conhecer representantes</Link>
           </article>
         </div>
 
