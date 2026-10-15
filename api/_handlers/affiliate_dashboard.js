@@ -698,7 +698,7 @@ module.exports = async function handler(req, res) {
       (requestedMonth === 'all' || monthKeyInSaoPaulo(withdrawal.requested_at) === requestedMonth)
     ).reduce((sum, withdrawal) => sum + Number(withdrawal.amount || 0), 0);
     const displayBoostSpent = (boostRows || []).filter(row =>
-      !row.admin_granted && ['queued', 'active', 'completed'].includes(String(row.status || '')) &&
+      ['queued', 'active', 'completed'].includes(String(row.status || '')) &&
       (requestedMonth === 'all' || monthKeyInSaoPaulo(row.created_at || row.queue_created_at) === requestedMonth)
     ).reduce((sum, row) => sum + Number(row.price || 0), 0);
     // Saldo sacável é sempre acumulado de todo o histórico, independente do filtro mensal.

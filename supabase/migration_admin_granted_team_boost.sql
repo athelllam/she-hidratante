@@ -104,7 +104,7 @@ begin
   insert into affiliate_team_boosts
     (affiliate_id, price, connections_total, connections_remaining, status, admin_granted)
   values
-    (p_affiliate_id, 0, p_connections, p_connections, 'queued', true)
+    (p_affiliate_id, plan_price, p_connections, p_connections, 'queued', true)
   returning * into new_boost;
 
   perform she_team_boost_activate_waiting();
@@ -114,7 +114,7 @@ begin
     'boostId', new_boost.id,
     'status', new_boost.status,
     'price', 0,
-    'planPrice', plan_price,
+    'planPrice', new_boost.price,
     'connections', new_boost.connections_total,
     'adminGranted', true
   );

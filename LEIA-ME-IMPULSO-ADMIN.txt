@@ -22,9 +22,3 @@ Depois:
 3. Abra o painel admin e teste a concessão com uma afiliada que não tenha impulso ativo ou na fila.
 
 O arquivo `supabase/boost_schema_append.sql` também inclui a migração para instalações novas.
-
-
-CORREÇÃO IMPORTANTE — IMPULSO ADMINISTRATIVO GRATUITO
-A função she_team_boost_admin_grant agora grava price = 0 no registro do impulso administrativo. Assim, a concessão não pode ser contabilizada como gasto de saldo, mesmo por cálculos que não considerem admin_granted. O preço equivalente do plano é mantido apenas como referência no retorno da função.
-
-ATENÇÃO: execute novamente o arquivo supabase/migration_admin_granted_team_boost.sql no SQL Editor do Supabase para atualizar a função no banco; depois publique este ZIP na Vercel.
