@@ -91,6 +91,7 @@ function levelAccent(key) {
 export default function AffiliateDashboard() {
   const adminPreviewId = new URLSearchParams(window.location.search).get('adminPreviewId')
   const isAdminPreview = Boolean(adminPreviewId)
+  const [affiliateNavOpen, setAffiliateNavOpen] = useState(false)
   const scrollToAffiliateSection = (sectionId) => {
     setAffiliateNavOpen(false)
     window.requestAnimationFrame(() => {
@@ -100,7 +101,6 @@ export default function AffiliateDashboard() {
   }
   const [affiliate, setAffiliate] = useState(null)
   const [installHelpOpen, setInstallHelpOpen] = useState(false)
-  const [affiliateNavOpen, setAffiliateNavOpen] = useState(false)
   const [installPrompt, setInstallPrompt] = useState(null)
   const [isIosDevice, setIsIosDevice] = useState(false)
   const [isSafariBrowser, setIsSafariBrowser] = useState(false)
@@ -967,7 +967,7 @@ export default function AffiliateDashboard() {
   )
 
   return (
-    <main className="min-h-screen bg-[#fffafc] px-5 py-8 md:px-10">
+    <main className="min-h-screen bg-[#fffafc] px-5 pb-8 pt-24 md:px-10 md:pt-28">
       {isAdminPreview && <div className="sticky top-0 z-[120] -mx-5 -mt-8 mb-6 flex flex-wrap items-center justify-between gap-3 border-b-2 border-amber-500 bg-amber-100 px-5 py-3 text-sm font-black text-amber-950 shadow-md md:-mx-10 md:px-10"><button type="button" onClick={() => { window.close(); if (window.history.length > 1) window.history.back(); else window.location.assign('/admin') }} className="inline-flex items-center gap-2 rounded-lg border border-amber-700/30 bg-white/70 px-3 py-2 font-black transition hover:bg-white"><span aria-hidden="true">←</span> Voltar ao painel admin</button><span className="text-center">⚠️ Modo de Administrador - Cuidado · Visualização de {affiliate?.name || 'afiliada'} · Ações que alteram dados estão bloqueadas</span><span className="hidden w-[150px] md:block" aria-hidden="true" /></div>}
       {pushPromptOpen && <div className="fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto bg-zinc-950/60 p-4" role="dialog" aria-modal="true" aria-labelledby="push-prompt-title">
         <div className="my-auto w-full max-w-md overflow-hidden rounded-[2rem] border border-pink-100 bg-white shadow-2xl">
@@ -1004,28 +1004,17 @@ export default function AffiliateDashboard() {
           <button type="button" onClick={() => setInstallHelpOpen(false)} className="mt-5 w-full rounded-xl bg-zinc-950 px-4 py-3 text-sm font-black text-white transition hover:bg-zinc-800">Entendi</button>
         </div>
       </div>}
-      <div className="mx-auto max-w-7xl">
-        <header className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[.28em] text-pink-500">She Afiliadas</p>
-            <h1 className="mt-1 text-3xl md:text-4xl font-black text-zinc-950">Olá, {affiliate.name}.</h1>
-            <p className="mt-2 text-sm text-zinc-500">{selectedMonth === 'all' ? 'Indicadores acumulados de todo o período' : `Indicadores de ${monthLabel(selectedMonth)}`}</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {syncMessage && <span className="text-xs font-semibold text-zinc-400">{syncMessage}</span>}
+      <header className="fixed inset-x-0 top-0 z-[80] border-b border-white/80 bg-white/90 shadow-[0_4px_24px_rgba(30,10,20,.06)] backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2 md:px-8">
+          <Link to="/" className="shrink-0 text-sm font-black tracking-tight text-zinc-950 md:text-base">SHE<span className="text-pink-500">.</span><span className="ml-1.5 text-[10px] font-bold text-zinc-400 md:text-xs">AFILIADAS</span></Link>
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5 md:gap-2">
             <div className="relative">
-              <button
-                type="button"
-                aria-haspopup="menu"
-                aria-expanded={affiliateNavOpen}
-                onClick={() => setAffiliateNavOpen(open => !open)}
-                className="inline-flex items-center gap-2 rounded-xl border border-pink-200 bg-white px-3.5 py-2.5 text-xs font-black text-pink-700 shadow-sm transition hover:border-pink-300 hover:bg-pink-50"
-              >
-                <span>Menu</span><span aria-hidden="true" className={`transition-transform ${affiliateNavOpen ? 'rotate-180' : ''}`}>⌄</span>
+              <button type="button" aria-haspopup="menu" aria-expanded={affiliateNavOpen} onClick={() => setAffiliateNavOpen(open => !open)} className="inline-flex items-center gap-1.5 rounded-lg border border-pink-200 bg-white px-3 py-2 text-[11px] font-black text-pink-700 shadow-sm transition hover:bg-pink-50 md:text-xs">
+                Menu <span aria-hidden="true" className={`transition-transform ${affiliateNavOpen ? 'rotate-180' : ''}`}>⌄</span>
               </button>
               {affiliateNavOpen && <>
                 <button type="button" aria-label="Fechar menu" className="fixed inset-0 z-40 cursor-default" onClick={() => setAffiliateNavOpen(false)} />
-                <div role="menu" className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-pink-100 bg-white p-2 shadow-[0_16px_45px_rgba(30,10,20,.18)]">
+                <div role="menu" className="absolute right-0 top-full z-50 mt-2 w-52 overflow-hidden rounded-2xl border border-pink-100 bg-white p-2 shadow-[0_16px_45px_rgba(30,10,20,.18)]">
                   {[
                     ['Qualificação', 'qualificacao'],
                     ['Desempenho', 'desempenho'],
@@ -1034,21 +1023,24 @@ export default function AffiliateDashboard() {
                     ['Equipe', 'equipe'],
                     ['Divulgar Vídeo', 'divulgar-video'],
                     ['Loja de Afiliadas', 'loja-afiliadas'],
-                  ].map(([label, sectionId]) => <button key={sectionId} type="button" role="menuitem" onClick={() => scrollToAffiliateSection(sectionId)} className="block w-full rounded-xl px-3.5 py-3 text-left text-sm font-bold text-zinc-700 transition hover:bg-pink-50 hover:text-pink-700 focus:bg-pink-50 focus:outline-none">{label}</button>)}
+                  ].map(([label, sectionId]) => <button key={sectionId} type="button" role="menuitem" onClick={() => scrollToAffiliateSection(sectionId)} className="block w-full rounded-xl px-3 py-2.5 text-left text-xs font-bold text-zinc-700 transition hover:bg-pink-50 hover:text-pink-700 focus:bg-pink-50 focus:outline-none">{label}</button>)}
                 </div>
               </>}
             </div>
-            {!isStandaloneApp && <button type="button" onClick={handleInstallApp} className="inline-flex items-center gap-1.5 rounded-xl border border-pink-200 bg-pink-50 px-3 py-2.5 text-xs font-black text-pink-700 shadow-sm transition hover:border-pink-300 hover:bg-pink-100"><span aria-hidden="true">↓</span> Baixar App</button>}
-            <button type="button" onClick={openProfile} className="rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-xs font-black text-zinc-700 shadow-sm transition hover:border-pink-300 hover:text-pink-600">
-              Meus Dados
-            </button>
-            <button onClick={() => load({ sync: true })} disabled={syncing} className="rounded-xl bg-pink-500 px-4 py-2.5 text-sm font-bold text-white shadow-sm disabled:opacity-60">
-              {syncing ? 'Atualizando…' : 'Atualizar vendas'}
-            </button>
-            {hasAffiliateLink && <Link to={`/${affiliate.slug}`} className="rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-zinc-800 shadow-sm border border-zinc-200">Ver página</Link>}
-            <button onClick={logout} className="rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-bold text-white">Sair</button>
+            <button type="button" onClick={openProfile} className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-[11px] font-black text-zinc-700 transition hover:border-pink-300 hover:text-pink-600 md:text-xs">Meus Dados</button>
+            <button type="button" onClick={() => load({ sync: true })} disabled={syncing} className="rounded-lg bg-pink-500 px-3 py-2 text-[11px] font-black text-white shadow-sm transition hover:bg-pink-600 disabled:opacity-60 md:text-xs">{syncing ? 'Atualizando…' : 'Atualizar vendas'}</button>
+            {hasAffiliateLink && <Link to={`/${affiliate.slug}`} className="hidden rounded-lg border border-zinc-200 bg-white px-3 py-2 text-[11px] font-black text-zinc-700 sm:inline-flex">Ver página</Link>}
+            <button onClick={logout} className="rounded-lg bg-zinc-950 px-3 py-2 text-[11px] font-black text-white">Sair</button>
           </div>
-        </header>
+        </div>
+      </header>
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-2 border-b border-pink-100/80 pb-4">
+          <p className="text-[10px] font-bold uppercase tracking-[.28em] text-pink-500">She Afiliadas</p>
+          <h1 className="mt-1 text-2xl font-black text-zinc-950 md:text-3xl">Olá, {affiliate.name}.</h1>
+          <p className="mt-1 text-xs text-zinc-500">{selectedMonth === 'all' ? 'Indicadores acumulados de todo o período' : `Indicadores de ${monthLabel(selectedMonth)}`}</p>
+          {syncMessage && <p className="mt-1 text-[11px] font-semibold text-zinc-400">{syncMessage}</p>}
+        </div>
 
         {!hasAffiliateLink && (
           <section className="relative mt-7 overflow-hidden rounded-[2rem] border-2 border-pink-200 bg-white p-6 shadow-[0_0_35px_rgba(236,72,153,.28)] md:p-8">
@@ -1107,7 +1099,7 @@ export default function AffiliateDashboard() {
           </section>
         )}
 
-        <section id="qualificacao" style={{ scrollMarginTop: 24 }} className={`relative mt-7 overflow-hidden rounded-[2rem] border border-white bg-gradient-to-r ${levelTone(level.key)} p-5 shadow-sm md:p-7`}>
+        <section id="qualificacao" style={{ scrollMarginTop: 82 }} className={`relative mt-7 overflow-hidden rounded-[2rem] border border-white bg-gradient-to-r ${levelTone(level.key)} p-5 shadow-sm md:p-7`}>
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[.2em] text-zinc-400">Qualificação Mensal</p>
@@ -1225,7 +1217,7 @@ export default function AffiliateDashboard() {
           })}
         </section>
 
-        <section id="desempenho" style={{ scrollMarginTop: 24 }} className="mt-6 grid min-w-0 grid-cols-1 items-start gap-6 lg:grid-cols-2">
+        <section id="desempenho" style={{ scrollMarginTop: 82 }} className="mt-6 grid min-w-0 grid-cols-1 items-start gap-6 lg:grid-cols-2">
           <div className="order-1 self-start w-full min-w-0 rounded-[1.5rem] bg-white p-5 border border-pink-100 shadow-sm lg:col-start-1 lg:row-start-1">
             <div className="flex items-end justify-between gap-4">
               <div>
@@ -1257,7 +1249,7 @@ export default function AffiliateDashboard() {
             <p className="mt-1 text-center text-[10px] text-zinc-400 sm:hidden">Deslize para ver os meses anteriores</p>
           </div>
 
-          <div id="saque" style={{ scrollMarginTop: 24 }} className="order-2 rounded-[1.5rem] bg-white p-6 border border-pink-100 shadow-sm lg:col-start-2 lg:row-start-1">
+          <div id="saque" style={{ scrollMarginTop: 82 }} className="order-2 rounded-[1.5rem] bg-white p-6 border border-pink-100 shadow-sm lg:col-start-2 lg:row-start-1">
               <h2 className="font-black text-xl">Saldo e saque pessoal</h2>
               <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
@@ -1339,7 +1331,7 @@ export default function AffiliateDashboard() {
               {pixMessage && <p className="mt-3 rounded-xl bg-zinc-50 px-3 py-2 text-xs font-semibold leading-5 text-zinc-600">{pixMessage}</p>}
           </div>
 
-          <div id="meu-link" style={{ scrollMarginTop: 24 }} className="order-4 rounded-[1.5rem] bg-white p-6 border border-pink-100 shadow-sm lg:col-start-2 lg:row-start-2">
+          <div id="meu-link" style={{ scrollMarginTop: 82 }} className="order-4 rounded-[1.5rem] bg-white p-6 border border-pink-100 shadow-sm lg:col-start-2 lg:row-start-2">
               <h2 className="font-black text-xl">Seu link</h2>
               <p className="mt-2 text-sm text-zinc-500">Compartilhe sua página exclusiva.</p>
               <div className="mt-5 rounded-xl bg-zinc-50 p-4 text-sm font-semibold break-all">{publicUrl}</div>
@@ -1348,7 +1340,7 @@ export default function AffiliateDashboard() {
           </div>
         </section>
 
-        <section id="equipe" style={{ scrollMarginTop: 24 }} className="mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
+        <section id="equipe" style={{ scrollMarginTop: 82 }} className="mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
           {team.joined && team.parent && (
             <div className="mb-5 rounded-2xl border border-pink-100 bg-pink-50/60 p-4">
               <p className="text-[10px] font-black uppercase tracking-[.18em] text-pink-500">Sua afiliada mãe</p>
@@ -1479,7 +1471,7 @@ export default function AffiliateDashboard() {
         </section>
 
 
-        <section id="divulgar-video" style={{ scrollMarginTop: 24 }} className="relative mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
+        <section id="divulgar-video" style={{ scrollMarginTop: 82 }} className="relative mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Conteúdo</p>
@@ -1534,7 +1526,7 @@ export default function AffiliateDashboard() {
           {!dashboard?.orders?.length && <div className="py-10 text-center text-sm text-zinc-400">Nenhuma venda aprovada ainda.</div>}
         </section>
 
-        <section id="loja-afiliadas" style={{ scrollMarginTop: 24 }} className="mt-6 overflow-hidden rounded-[1.8rem] border border-pink-100 bg-gradient-to-br from-white via-pink-50 to-rose-100 p-5 shadow-sm md:p-7">
+        <section id="loja-afiliadas" style={{ scrollMarginTop: 82 }} className="mt-6 overflow-hidden rounded-[1.8rem] border border-pink-100 bg-gradient-to-br from-white via-pink-50 to-rose-100 p-5 shadow-sm md:p-7">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div><p className="text-[10px] font-black uppercase tracking-[.25em] text-pink-500">Benefícios She</p><h2 className="mt-1 text-2xl font-black text-zinc-950">Sua loja de benefícios</h2><p className="mt-1 max-w-xl text-sm text-zinc-600">Use suas comissões para adquirir os produtos She. Uma unidade de cada produto por mês.</p></div>
             <span className="rounded-full border border-pink-200 bg-white/80 px-3 py-1.5 text-xs font-bold text-pink-700">Pagamento com saldo</span>
@@ -1555,7 +1547,7 @@ export default function AffiliateDashboard() {
           </div>
           {(productShop.purchases || []).some(p => p.freight_paid !== true && !['rejected','cancelled'].includes(p.status)) && <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4"><h3 className="font-black text-amber-950">Pagamento do frete · R$ 16,00</h3><p className="mt-1 text-sm text-amber-900">O pagamento é feito pela Woovi, separado do saldo usado no produto. A confirmação é automática e libera a preparação do envio.</p><div className="mt-3 space-y-3">{productShop.purchases.filter(p => p.freight_paid !== true && !['rejected','cancelled'].includes(p.status)).map(p => <div key={`freight-${p.id}`} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white p-3"><div><p className="text-sm font-black text-zinc-900">Solicitação #{p.id} · {p.product === 'hydrant' ? 'Hidratante' : 'Stick'}</p><p className="mt-1 text-xs text-zinc-500">{p.freight_payment_url ? 'Aguardando confirmação do pagamento' : 'Link de pagamento ainda não disponível'}</p></div><div className="flex flex-wrap gap-2">{p.freight_payment_url && <a href={p.freight_payment_url} target="_blank" rel="noreferrer" className="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-black text-white">Pagar frete · R$ 16</a>}{!p.freight_payment_url && <button type="button" disabled={purchaseBusy} onClick={() => createFreightPaymentLink(p.id)} className="rounded-xl bg-pink-600 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50">{purchaseBusy ? 'Gerando…' : 'Gerar link de pagamento'}</button>}</div></div>)}</div></div>}
           {purchaseMessage && <p className="mt-4 rounded-xl bg-white p-3 text-sm font-semibold text-pink-700">{purchaseMessage}</p>}
-          {(productShop.purchases || []).length > 0 && <div className="mt-5 rounded-2xl border border-pink-100 bg-white/80 p-4"><h3 className="text-sm font-black text-zinc-900">Minhas solicitações</h3><div className="mt-3 space-y-2">{productShop.purchases.map(p => <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-zinc-50 p-3 text-xs"><span className="font-bold">{p.product === 'hydrant' ? 'Hidratante' : 'Stick'} · {brl(p.price)}</span><span className="rounded-full bg-pink-100 px-2 py-1 font-black text-pink-700">{({pending: p.freight_paid === true ? 'Frete pago · Aguardando envio' : 'Aguardando pagamento do frete',shipped:'Enviado — aguardando aprovação',approved:'Aprovado',rejected:'Recusado',cancelled:'Cancelado'})[p.status] || p.status}</span>{p.tracking_url && ['shipped','approved'].includes(p.status) && <a href={p.tracking_url} target="_blank" rel="noreferrer" className="font-black text-sky-700 underline">Acompanhar entrega ↗</a>}{['pending','shipped'].includes(p.status) && <a href={`https://wa.me/553132784332?text=${encodeURIComponent(`Olá, suporte She. Gostaria de cancelar a solicitação ${p.id} do produto ${p.product === 'hydrant' ? 'Hidratante' : 'Stick'}.`)}`} target="_blank" rel="noreferrer" className="font-bold text-emerald-700 underline">Solicitar cancelamento pelo WhatsApp</a>}</div>)}</div></div>}
+          {(productShop.purchases || []).length > 0 && <div className="mt-5 rounded-2xl border border-pink-100 bg-white/80 p-4"><h3 className="text-sm font-black text-zinc-900">Minhas solicitações</h3><div className="mt-3 max-h-[390px] space-y-2 overflow-y-auto overscroll-contain pr-1">{productShop.purchases.map(p => <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-zinc-50 p-3 text-xs"><span className="font-bold">{p.product === 'hydrant' ? 'Hidratante' : 'Stick'} · {brl(p.price)}</span><span className={`rounded-full px-2 py-1 font-black ${p.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : p.status === 'rejected' || p.status === 'cancelled' ? 'bg-pink-100 text-pink-700' : 'bg-amber-100 text-amber-800'}`}>{({pending: p.freight_paid === true ? 'Frete pago · Aguardando envio' : 'Aguardando pagamento do frete',shipped:'Enviado — aguardando aprovação',approved:'Aprovado',rejected:'Recusado',cancelled:'Cancelado'})[p.status] || p.status}</span>{p.tracking_url && ['shipped','approved'].includes(p.status) && <a href={p.tracking_url} target="_blank" rel="noreferrer" className="font-black text-sky-700 underline">Acompanhar entrega ↗</a>}{['pending','shipped'].includes(p.status) && <a href={`https://wa.me/553132784332?text=${encodeURIComponent(`Olá, suporte She. Gostaria de cancelar a solicitação ${p.id} do produto ${p.product === 'hydrant' ? 'Hidratante' : 'Stick'}.`)}`} target="_blank" rel="noreferrer" className="font-bold text-emerald-700 underline">Solicitar cancelamento pelo WhatsApp</a>}</div>)}</div></div>}
         </section>
 
         {purchaseProduct && <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-zinc-950/60 p-4"><form onSubmit={submitProductPurchase} className="my-auto w-full max-w-xl rounded-3xl bg-white p-5 shadow-2xl md:p-7"><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-widest text-pink-500">Finalizar solicitação</p><h2 className="mt-1 text-xl font-black text-zinc-950">Dados para entrega</h2><p className="mt-1 text-xs text-zinc-500">O valor será reservado. O abatimento definitivo acontece após a aprovação da She.</p></div><button type="button" onClick={() => setPurchaseProduct('')} className="rounded-full bg-zinc-100 px-3 py-1 text-sm font-black">✕</button></div><div className="mt-5 grid gap-3 sm:grid-cols-2">
