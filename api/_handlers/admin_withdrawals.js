@@ -1,6 +1,6 @@
 const { requireAdmin, supabaseFetch } = require('../_lib/admin');
 const { createPixPayment, normalizeWooviPixType } = require('../_lib/woovi');
-const { sendEmail, affiliateWithdrawalApprovedEmail } = require('../_lib/email');
+const { sendEmail, sendBulkEmails, affiliateBroadcastEmail, affiliateWithdrawalApprovedEmail } = require('../_lib/email');
 const { sendToAll } = require('../_lib/push');
 
 function json(res, status, body) { res.status(status).json(body); }
@@ -38,12 +38,43 @@ module.exports = async function handler(req, res) {
 
     if (req.method === 'POST') {
       const action = String(req.body?.action || '');
-      if (action !== 'push-broadcast') return json(res, 400, { error: 'Ação inválida.' });
-      const title = String(req.body?.title || 'Aviso da She Afiliadas').trim().slice(0, 80);
-      const body = String(req.body?.body || '').trim().slice(0, 500);
-      if (!body) return json(res, 400, { error: 'Escreva a mensagem do aviso.' });
-      const result = await sendToAll({ title, body, url: '/afiliado', tag: `admin-broadcast-${Date.now()}` });
-      return json(res, 200, { ok: true, ...result, message: `Aviso enviado para ${result.sent} dispositivo(s).` });
+      if (action === 'push-broadcast') {
+        const title = String(req.body?.title || 'Aviso da She Afiliadas').trim().slice(0, 80);
+        const body = String(req.body?.body || '').trim().slice(0, 500);
+        if (!body) return json(res, 400, { error: 'Escreva a mensagem do aviso.' });
+        const result = await sendToAll({ title, body, url: '/afiliado', tag: `admin-broadcast-${Date.now()}` });
+        return json(res, 200, { ok: true, ...result, message: `Aviso enviado para ${result.sent} dispositivo(s).` });
+      }
+      if (action === 'email-broadcast') {
+        const subject = String(req.body?.subject || '').trim().slice(0, 120);
+        const body = String(req.body?.body || '').trim().slice(0, 10000);
+        if (!subject || !body) return json(res, 400, { error: 'Preencha o assunto e a mensagem do e-mail.' });
+        const affiliates = [];
+        const seen = new Set();
+        for (let offset = 0; ; offset += 1000) {
+          const rows = await supabaseFetch(`/rest/v1/affiliates?select=id,name,email&email=not.is.null&order=id.asc&limit=1000&offset=${offset}`);
+          for (const affiliate of rows || []) {
+            const email = String(affiliate.email || '').trim().toLowerCase();
+            if (email && email.includes('@') && !seen.has(email)) { seen.add(email); affiliates.push({ ...affiliate, email }); }
+          }
+          if (!rows || rows.length < 1000) break;
+        }
+        if (!affiliates.length) return json(res, 200, { ok: true, sent: 0, failed: 0, message: 'Nenhuma afiliada com e-mail cadastrado foi encontrada.' });
+        const emails = affiliates.map(affiliate => ({
+          to: [affiliate.email],
+          subject,
+          html: affiliateBroadcastEmail({ name: affiliate.name, message: body }),
+          tags: [{ name: 'category', value: 'affiliate-broadcast' }],
+        }));
+        try {
+          const result = await sendBulkEmails({ emails });
+          return json(res, 200, { ok: true, sent: result.length, failed: 0, total: affiliates.length, message: `E-mail enviado para ${result.length} de ${affiliates.length} afiliada(s).` });
+        } catch (error) {
+          console.error('[Affiliate email broadcast] envio interrompido', error.message);
+          return json(res, error.statusCode || 502, { error: `O envio foi interrompido pelo provedor de e-mail. ${error.message} Verifique os registros antes de tentar novamente para evitar duplicidade.` });
+        }
+      }
+      return json(res, 400, { error: 'Ação inválida.' });
     }
     if (req.method !== 'PATCH') return json(res, 405, { error: 'Método não permitido.' });
     const { id } = req.body || {};

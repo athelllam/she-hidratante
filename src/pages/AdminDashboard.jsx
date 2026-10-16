@@ -133,6 +133,7 @@ export default function AdminDashboard() {
   const [error, setError] = useState('')
   const [affiliates, setAffiliates] = useState([])
   const [pushEnabledAffiliates, setPushEnabledAffiliates] = useState(0)
+  const [pushEnabledIosAffiliates, setPushEnabledIosAffiliates] = useState(0)
   const [wooviBalance, setWooviBalance] = useState(null)
   const [wooviBalanceError, setWooviBalanceError] = useState('')
   const [wooviBalanceLoading, setWooviBalanceLoading] = useState(false)
@@ -210,6 +211,9 @@ export default function AdminDashboard() {
   const [pushBroadcastTitle, setPushBroadcastTitle] = useState('Aviso da She Afiliadas')
   const [pushBroadcastBody, setPushBroadcastBody] = useState('')
   const [pushBroadcastBusy, setPushBroadcastBusy] = useState(false)
+  const [emailBroadcastSubject, setEmailBroadcastSubject] = useState('Aviso da She Afiliadas')
+  const [emailBroadcastBody, setEmailBroadcastBody] = useState('')
+  const [emailBroadcastBusy, setEmailBroadcastBusy] = useState(false)
 
   const sendPushBroadcast = async (event) => {
     event.preventDefault()
@@ -225,6 +229,21 @@ export default function AdminDashboard() {
     finally { setPushBroadcastBusy(false) }
   }
 
+  const sendEmailBroadcast = async (event) => {
+    event.preventDefault()
+    if (!emailBroadcastSubject.trim() || !emailBroadcastBody.trim()) { setMessage('Preencha o assunto e a mensagem do e-mail.'); return }
+    const confirmed = window.confirm(`Enviar este e-mail para todas as afiliadas cadastradas que possuem endereço de e-mail?\n\nAssunto: ${emailBroadcastSubject.trim()}\n\nEsta ação não pode ser desfeita.`)
+    if (!confirmed) return
+    setEmailBroadcastBusy(true)
+    setMessage('')
+    try {
+      const result = await api('/api/admin/withdrawals', { method: 'POST', body: JSON.stringify({ action: 'email-broadcast', subject: emailBroadcastSubject, body: emailBroadcastBody }) })
+      setMessage(result.message || `E-mail enviado para ${result.sent || 0} afiliada(s).`)
+      setEmailBroadcastBody('')
+    } catch (e) { setMessage(e.message || 'Não foi possível enviar os avisos por e-mail.') }
+    finally { setEmailBroadcastBusy(false) }
+  }
+
   const loadPanel = async () => {
     setWooviBalanceLoading(true)
     const balanceRequest = api('/api/admin/affiliates?wooviBalance=1')
@@ -238,6 +257,7 @@ export default function AdminDashboard() {
     ])
     setAffiliates(affiliateData.affiliates || [])
     setPushEnabledAffiliates(Number(affiliateData.pushEnabledAffiliates || 0))
+    setPushEnabledIosAffiliates(Number(affiliateData.pushEnabledIosAffiliates || 0))
     setWithdrawals(withdrawalData.withdrawals || [])
     setSelectedWithdrawalIds(new Set())
     setVideoSubmissions(videoData.videos || [])
@@ -1129,6 +1149,7 @@ export default function AdminDashboard() {
                     ['wallet', 'Saldo', 'admin-saque'],
                     ['users', 'Afiliadas Cadastradas', 'admin-afiliadas'],
                     ['bell', 'Avisos por Push', 'admin-push'],
+                    ['mail', 'Avisos por Email', 'admin-email'],
                     ['settings', 'Configurações', 'admin-configuracoes'],
                     ['shop', 'Revenda', 'admin-revenda'],
                     ['zap', 'Impulso', 'admin-impulso'],
@@ -1140,6 +1161,7 @@ export default function AdminDashboard() {
                       {icon === 'grid' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
                       : icon === 'users' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 5v1"/></svg>
                       : icon === 'bell' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
+                      : icon === 'mail' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg>
                       : icon === 'settings' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.2.9-1.2 2.1-1.4-.5a8 8 0 0 1-1.7 1l-.2 1.5h-2.4l-.3-1.5a8 8 0 0 1-1.7-1l-1.4.5-1.2-2.1 1.2-.9a7 7 0 0 1 0-2l-1.2-.9 1.2-2.1 1.4.5a8 8 0 0 1 1.7-1l.3-1.5h2.4l.2 1.5a8 8 0 0 1 1.7 1l1.4-.5 1.2 2.1-1.2.9a7 7 0 0 1 0 2Z" transform="translate(-1 -1)"/></svg>
                       : icon === 'shop' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 9h18l-2-5H5L3 9Z"/><path d="M5 9v11h14V9M9 20v-7h6v7"/></svg>
                       : icon === 'zap' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M13 2 4 14h7l-1 8 10-13h-7l0-7Z"/></svg>
@@ -1539,10 +1561,26 @@ export default function AdminDashboard() {
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-pink-100 text-pink-700">🔔</div>
             <div><h2 className="text-xl font-black text-zinc-950">Avisos administrativos por push</h2><p className="mt-1 text-sm text-zinc-500">Escreva um aviso e envie para todos os dispositivos com notificações ativas no app She Afiliadas.</p></div>
           </div>
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-pink-100 bg-gradient-to-r from-pink-50 to-white p-4">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">📱</div>
+            <div className="min-w-0 flex-1"><p className="text-xs font-bold uppercase tracking-wide text-pink-700">Push ativo no iOS</p><p className="mt-0.5 text-2xl font-black text-zinc-950">{pushEnabledIosAffiliates} <span className="text-sm font-semibold text-zinc-500">afiliada(s)</span></p><p className="mt-1 text-xs text-zinc-500">Contagem de afiliadas únicas com inscrição ativa registrada em iPhone ou iPad.</p></div>
+          </div>
           <form onSubmit={sendPushBroadcast} className="mt-4 grid gap-3">
             <label className="grid gap-1 text-xs font-bold text-zinc-600">Título da notificação<input maxLength={80} value={pushBroadcastTitle} onChange={e => setPushBroadcastTitle(e.target.value)} className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-semibold text-zinc-900 outline-none focus:border-pink-400" /></label>
             <label className="grid gap-1 text-xs font-bold text-zinc-600">Mensagem<textarea required maxLength={500} rows={3} value={pushBroadcastBody} onChange={e => setPushBroadcastBody(e.target.value)} placeholder="Escreva o aviso que todas as afiliadas receberão..." className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-medium text-zinc-900 outline-none focus:border-pink-400" /></label>
             <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-zinc-400">Envia apenas para inscrições ativas. Use com moderação.</p><button type="submit" disabled={pushBroadcastBusy || !pushBroadcastBody.trim()} className="rounded-xl bg-pink-600 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{pushBroadcastBusy ? 'Enviando…' : 'Enviar para todos os apps'}</button></div>
+          </form>
+        </section>
+
+        <section id="admin-email" className="mt-6 scroll-mt-28 rounded-[1.5rem] border border-pink-200 bg-white p-6 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-pink-100 text-pink-700">✉️</div>
+            <div><h2 className="text-xl font-black text-zinc-950">Avisos administrativos por e-mail</h2><p className="mt-1 text-sm text-zinc-500">Escreva um recado e envie para todas as afiliadas cadastradas que possuem e-mail. A mensagem será enviada em um template She com identidade visual rosa.</p></div>
+          </div>
+          <form onSubmit={sendEmailBroadcast} className="mt-4 grid gap-3">
+            <label className="grid gap-1 text-xs font-bold text-zinc-600">Assunto do e-mail<input required maxLength={120} value={emailBroadcastSubject} onChange={e => setEmailBroadcastSubject(e.target.value)} className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-semibold text-zinc-900 outline-none focus:border-pink-400" placeholder="Assunto do aviso" /></label>
+            <label className="grid gap-1 text-xs font-bold text-zinc-600">Mensagem<textarea required maxLength={10000} rows={6} value={emailBroadcastBody} onChange={e => setEmailBroadcastBody(e.target.value)} placeholder="Escreva o recado que todas as afiliadas receberão por e-mail..." className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-medium text-zinc-900 outline-none focus:border-pink-400" /></label>
+            <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-zinc-400">O sistema envia uma cópia individual para cada afiliada com e-mail cadastrado. Será solicitada confirmação antes do envio.</p><button type="submit" disabled={emailBroadcastBusy || !emailBroadcastSubject.trim() || !emailBroadcastBody.trim()} className="rounded-xl bg-pink-600 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{emailBroadcastBusy ? 'Enviando…' : 'Enviar e-mail para todas'}</button></div>
           </form>
         </section>
 

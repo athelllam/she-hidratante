@@ -70,6 +70,50 @@ async function sendEmail({ to, subject, html, tags = [] }) {
   return data || { ok: true };
 }
 
+
+function affiliateBroadcastEmail({ name, message }) {
+  const safeName = escapeHtml(String(name || '').trim().split(/\s+/)[0] || 'afiliada');
+  const paragraphs = String(message || '').trim().split(/\n{2,}/).map(part => `<p style="font-size:15px;line-height:1.8;color:#52525b;margin:0 0 16px">${escapeHtml(part).replace(/\n/g, '<br>')}</p>`).join('');
+  return shell('Um recado especial para você 💗', `
+    <div style="margin:0 0 24px;padding:26px 22px;border-radius:20px;background:linear-gradient(135deg,#fdf2f8 0%,#fce7f3 55%,#fff7ed 100%);text-align:center;border:1px solid #fbcfe8">
+      <div style="display:inline-block;padding:7px 12px;border-radius:999px;background:#fff;color:#be185d;font-size:10px;font-weight:900;letter-spacing:.15em;text-transform:uppercase">SHE AFILIADAS</div>
+      <div style="font-size:34px;line-height:1;margin:17px 0 12px;color:#db2777">✦ ♡ ✦</div>
+      <h2 style="margin:0;color:#831843;font-size:25px;line-height:1.25">Olá, ${safeName}!</h2>
+      <p style="margin:10px auto 0;max-width:430px;color:#9d174d;font-size:14px;line-height:1.7">Temos um recado importante para compartilhar com você.</p>
+    </div>
+    <div style="padding:4px 0">${paragraphs}</div>
+    <p style="font-size:14px;line-height:1.7;color:#52525b;margin-top:24px">Com carinho,<br><strong style="color:#831843">Equipe She Coisa de Mulher</strong> 💗</p>
+  `);
+}
+
+async function sendBulkEmails({ emails }) {
+  if (!RESEND_API_KEY || !EMAIL_FROM) {
+    const error = new Error('O envio de e-mails não está configurado. Verifique RESEND_API_KEY e EMAIL_FROM na Vercel.');
+    error.statusCode = 500;
+    throw error;
+  }
+  const results = [];
+  for (let index = 0; index < emails.length; index += 100) {
+    const batch = emails.slice(index, index + 100).map(email => ({ from: EMAIL_FROM, ...email }));
+    const response = await fetch('https://api.resend.com/emails/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_API_KEY}` },
+      body: JSON.stringify(batch),
+    });
+    const responseText = await response.text();
+    let data = null;
+    try { data = responseText ? JSON.parse(responseText) : null; } catch { data = null; }
+    if (!response.ok) {
+      const error = new Error(data?.message || data?.name || `Resend HTTP ${response.status}`);
+      error.statusCode = response.status >= 500 ? 502 : response.status;
+      error.data = data;
+      throw error;
+    }
+    results.push(...(Array.isArray(data?.data) ? data.data : batch.map(() => ({ id: null }))));
+  }
+  return results;
+}
+
 function resetPasswordEmail({ name, actionLink }) {
   return shell('Redefinição de senha', `
     <p style="font-size:15px;line-height:1.7;color:#52525b">Olá, ${escapeHtml(name || 'afiliada')}! Recebemos uma solicitação para criar uma nova senha para sua conta de afiliada.</p>
@@ -228,6 +272,8 @@ function affiliateTeamAdvancedEmail({ name, level, commissionPerSale, month, das
 
 module.exports = {
   sendEmail,
+  sendBulkEmails,
+  affiliateBroadcastEmail,
   adminRecipients,
   resetPasswordEmail,
   affiliateWelcomeEmail,
