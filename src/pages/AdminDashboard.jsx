@@ -1063,15 +1063,33 @@ export default function AdminDashboard() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {message && <span className="text-xs font-semibold text-zinc-500">{message}</span>}
-            <button onClick={openAdminData} className="rounded-xl border border-pink-200 bg-white px-4 py-2.5 text-sm font-black text-pink-600 transition hover:bg-pink-50">Dados</button>
             <button onClick={refresh} disabled={refreshing} className="rounded-xl bg-pink-500 px-4 py-2.5 text-sm font-black text-white disabled:opacity-60">
               {refreshing ? 'Atualizando…' : 'Atualizar'}
             </button>
-            <button onClick={logout} className="rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-black text-white">Sair</button>
           </div>
         </header>
 
-        <section className="mt-7">
+        <nav aria-label="Navegação do painel administrativo" className="sticky top-0 z-30 mt-5 rounded-2xl border border-pink-100 bg-white/95 p-2 shadow-sm backdrop-blur-md">
+          <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap">
+            {[
+              ['Indicadores', 'admin-indicadores'],
+              ['Afiliadas Cadastradas', 'admin-afiliadas'],
+              ['Avisos por Push', 'admin-push'],
+              ['Configurações', 'admin-configuracoes'],
+              ['Revenda e Impulso', 'admin-revenda'],
+              ['Solicitação de Vídeo', 'admin-videos'],
+              ['Solicitação de Saque', 'admin-saques'],
+              ['Solicitação de Compra', 'admin-compras'],
+            ].map(([label, target]) => (
+              <a key={target} href={`#${target}`} className="shrink-0 rounded-xl px-3 py-2.5 text-xs font-black text-zinc-600 transition hover:bg-pink-50 hover:text-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-300 sm:text-sm">{label}</a>
+            ))}
+            <div className="ml-auto shrink-0 pl-2">
+              <button onClick={refresh} disabled={refreshing} className="rounded-xl bg-pink-500 px-4 py-2.5 text-sm font-black text-white disabled:opacity-60">{refreshing ? 'Atualizando…' : 'Atualizar'}</button>
+            </div>
+          </div>
+        </nav>
+
+        <section id="admin-indicadores" className="mt-7 scroll-mt-28">
           <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">Período dos indicadores globais</p>
@@ -1242,7 +1260,7 @@ export default function AdminDashboard() {
           </div>
         </section>
 
-        <section className="mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
+        <section id="admin-afiliadas" className="mt-6 scroll-mt-28 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-xl font-black text-zinc-950">Afiliadas cadastradas</h2>
@@ -1420,7 +1438,7 @@ export default function AdminDashboard() {
         </section>
 
 
-        <section className="mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
+        <section id="admin-videos" className="mt-6 scroll-mt-28 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Conteúdo das afiliadas</p>
@@ -1461,7 +1479,7 @@ export default function AdminDashboard() {
 
 
 
-        <section className="mt-6 rounded-[1.5rem] border border-pink-200 bg-white p-6 shadow-sm">
+        <section id="admin-push" className="mt-6 scroll-mt-28 rounded-[1.5rem] border border-pink-200 bg-white p-6 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-pink-100 text-pink-700">🔔</div>
             <div><h2 className="text-xl font-black text-zinc-950">Avisos administrativos por push</h2><p className="mt-1 text-sm text-zinc-500">Escreva um aviso e envie para todos os dispositivos com notificações ativas no app She Afiliadas.</p></div>
@@ -1473,7 +1491,7 @@ export default function AdminDashboard() {
           </form>
         </section>
 
-        <section className="mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
+        <section id="admin-configuracoes" className="mt-6 scroll-mt-28 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
           <div>
             <h2 className="text-xl font-black text-zinc-950">Configurações de bônus</h2>
             <p className="mt-1 text-sm text-zinc-400">Configure os valores pagos por pedido e as metas de vendas dos Bônus Mensal e Fixo. A mudança vale para todas as afiliadas.</p>
@@ -1548,7 +1566,7 @@ export default function AdminDashboard() {
 
           <div className="mt-5 border-t border-zinc-100 pt-5">
             <div className="flex flex-col gap-1">
-              <p className="text-[10px] font-black uppercase tracking-[.18em] text-pink-500">Revendedora</p>
+              <p id="admin-revenda" className="scroll-mt-28 text-[10px] font-black uppercase tracking-[.18em] text-pink-500">Revendedora</p>
               <h3 className="text-xl font-black text-zinc-950">Preços especiais de revenda</h3>
               <p className="text-sm text-zinc-400">Esses valores alimentam exclusivamente a página /revendedora e não alteram os preços da loja.</p>
             </div>
@@ -1587,7 +1605,7 @@ export default function AdminDashboard() {
           </div>
         </section>
 
-        <section className="mt-6 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
+        <section id="admin-saques" className="mt-6 scroll-mt-28 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-xl font-black text-zinc-950">Solicitações de saque</h2>
@@ -2015,7 +2033,7 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
-        <section className="mt-6 rounded-[1.5rem] border border-pink-200 bg-white p-6 shadow-sm">
+        <section id="admin-compras" className="mt-6 scroll-mt-28 rounded-[1.5rem] border border-pink-200 bg-white p-6 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Operação</p><h2 className="mt-1 text-xl font-black text-zinc-950">Compras Afiliadas</h2><p className="mt-1 text-sm text-zinc-500">Gerencie solicitações, dados de entrega, envio e aprovação financeira.</p></div><div className="flex flex-wrap items-center gap-2"><button type="button" onClick={exportPendingProductPurchasesCsv} title="Baixar CSV das compras aguardando envio" className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs font-black text-emerald-800 hover:bg-emerald-100"><svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor"><path d="M4 3h10l6 6v12H4V3zm9 1.5V10h5.5L13 4.5zM7 13h10v1.5H7V13zm0 3h10v1.5H7V16zm0 3h7v1.5H7V19z"/></svg>CSV</button><span className="rounded-full bg-pink-50 px-3 py-1.5 text-xs font-black text-pink-700">{productPurchases.filter(p=>p.status==='pending').length} pendente(s)</span></div></div>
           <div className="mt-5">
             <label htmlFor="product-purchase-affiliate-search" className="mb-1.5 block text-xs font-bold text-zinc-600">Buscar solicitações por nome ou ID da afiliada</label>
@@ -2028,7 +2046,7 @@ export default function AdminDashboard() {
             <button disabled={productPriceBusy} className="rounded-xl bg-pink-600 px-4 py-3 text-xs font-black text-white disabled:opacity-50">{productPriceBusy?'Salvando…':'Salvar preços'}</button>
           </form>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-pink-100 bg-pink-50 p-3"><label className="flex items-center gap-2 text-xs font-bold text-zinc-700"><input type="checkbox" checked={eligibleMelhorEnvioPurchases.length > 0 && eligibleMelhorEnvioPurchases.every(p => selectedProductPurchaseIds.has(p.id))} onChange={toggleAllProductPurchases} className="h-4 w-4 accent-pink-600" />Selecionar todos os pedidos elegíveis ({eligibleMelhorEnvioPurchases.length})</label><div className="flex flex-wrap items-center gap-2"><span className="text-xs font-bold text-zinc-600">{selectedProductPurchaseIds.size} selecionado(s)</span><button type="button" onClick={quoteSelectedWithMelhorEnvio} disabled={melhorEnvioBusy || selectedProductPurchaseIds.size === 0} className="rounded-xl bg-pink-600 px-4 py-2.5 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{melhorEnvioBusy ? 'Cotando…' : 'Cotar selecionados no Melhor Envio'}</button></div><p className="w-full text-[11px] leading-5 text-zinc-500">Elegíveis: solicitações pendentes com frete aprovado, sem etiqueta e sem rastreio. Após cotar, escolha a transportadora e adicione a etiqueta ao carrinho; o pagamento é finalizado no site do Melhor Envio. Amostra: R$ 30,00 · Peso 150 g · 19 × 25 × 5 cm · Origem 30190-000.</p></div>
-          <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-3"><div className="h-[570px] space-y-3 overflow-y-auto pr-2">{productPurchases.filter(p => { const query = productPurchaseSearch.trim().toLocaleLowerCase('pt-BR'); return !query || String(p.affiliate?.name || '').toLocaleLowerCase('pt-BR').includes(query) || String(p.affiliate_id ?? '').includes(query) }).map(p=> <article key={p.id} className="min-h-[180px] rounded-2xl border border-zinc-200 bg-white p-4">
+          <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-3"><div className="max-h-[570px] min-h-[180px] space-y-3 overflow-y-auto pr-2">{productPurchases.filter(p => { const query = productPurchaseSearch.trim().toLocaleLowerCase('pt-BR'); return !query || String(p.affiliate?.name || '').toLocaleLowerCase('pt-BR').includes(query) || String(p.affiliate_id ?? '').includes(query) }).map(p=> <article key={p.id} className="min-h-[180px] rounded-2xl border border-zinc-200 bg-white p-4">
             <div className="flex flex-wrap items-start justify-between gap-3"><div className="flex items-start gap-2">{p.status==='pending' && p.freight_paid===true && !p.tracking_url && <input aria-label={`Selecionar solicitação ${p.id} para Melhor Envio`} type="checkbox" checked={selectedProductPurchaseIds.has(p.id)} onChange={()=>toggleProductPurchaseSelection(p.id)} className="mt-1 h-4 w-4 shrink-0 accent-pink-600" />}<div><h3 className="font-black text-zinc-950">#{p.id} · {p.product==='hydrant'?'Hidratante She':'Stick Clareador She'} · {brl(p.price)}</h3><p className="mt-1 text-xs text-zinc-500">{p.affiliate?.name || `Afiliada #${p.affiliate_id}`} · ID {p.affiliate_id} · {dateTime(p.created_at)} · {({pending: p.freight_paid === true ? 'Frete pago · Pendente de envio' : 'Aguardando pagamento do frete',shipped:'Enviado',approved:'Aprovado / saldo abatido',rejected:'Recusado',cancelled:'Cancelado'})[p.status] || p.status}</p>{(() => { const quoteResult = melhorEnvioResults[p.id]; const quotes = quoteResult?.quotes || p.melhor_envio_quote?.quotes || []; if (quoteResult && !quoteResult.ok) return <div className="mt-2 rounded-lg bg-rose-50 p-2 text-xs text-rose-900">Não cotado: {quoteResult.error}</div>; if (p.melhor_envio_shipment_id) return <div className="mt-2 rounded-lg bg-emerald-50 p-2 text-xs font-bold text-emerald-800">{p.tracking_url ? `Rastreio identificado no Melhor Envio${p.melhor_envio_tracking_code ? ` · Código ${p.melhor_envio_tracking_code}` : ''}. Confira o link e clique em “Marcar como enviado” quando o pacote estiver despachado.` : `Etiqueta adicionada ao carrinho do Melhor Envio · ID ${p.melhor_envio_shipment_id}. Finalize a compra no site deles.`}</div>; if (!quotes.length) return null; return <div className="mt-2 space-y-2 rounded-lg bg-sky-50 p-2 text-xs text-sky-900"><strong>Cotações Melhor Envio:</strong>{quotes.map((q, qi) => <div key={`${p.id}-${q.id || q.service_id || qi}`} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-white/80 p-2"><span>{q.company?.name || q.company || q.name || 'Transportadora'} — R$ {Number(q.price || q.custom_price || 0).toFixed(2).replace('.', ',')} ({q.delivery_time || q.delivery_range?.min || '?'} dias)</span><button type="button" onClick={() => addMelhorEnvioQuoteToCart(p, q)} disabled={melhorEnvioCartBusy === p.id} className="rounded-lg bg-emerald-600 px-3 py-2 font-black text-white disabled:opacity-50">{melhorEnvioCartBusy === p.id ? 'Adicionando…' : 'Adicionar ao carrinho'}</button></div>)}</div> })()}</div></div>
             {p.status==='pending' && <div className="flex w-full flex-col items-stretch gap-2 sm:w-[360px]"><label className="grid gap-1 text-[10px] font-bold text-zinc-500">Link de rastreio<input type="url" value={productTrackingLinks[p.id] ?? p.tracking_url ?? ''} onChange={e=>setProductTrackingLinks(current=>({...current,[p.id]:e.target.value}))} placeholder="https://..." className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-900 outline-none focus:border-sky-400" /></label><div className="flex flex-wrap items-start gap-2">{p.melhor_envio_shipment_id && !p.tracking_url && <button type="button" disabled={productPurchaseBusy===p.id} onClick={()=>syncProductPurchaseTracking(p)} className="rounded-lg bg-amber-100 px-3 py-2 text-xs font-black text-amber-900 disabled:opacity-50">{productPurchaseBusy===p.id ? 'Buscando rastreio…' : 'Buscar rastreio'}</button>}<div className="flex flex-col items-start gap-1"><button disabled={productPurchaseBusy===p.id || p.freight_paid !== true || !/^https?:\/\//i.test(String(productTrackingLinks[p.id] ?? p.tracking_url ?? '').trim())} title={p.freight_paid !== true ? 'Aguardando confirmação do frete pela Woovi' : 'Marcar como enviado'} onClick={()=>updateProductPurchase(p,'shipped')} className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-black text-white disabled:opacity-40">Marcar como enviado</button><span className={`text-[10px] font-semibold ${p.freight_paid === true ? 'text-emerald-700' : 'text-amber-700'}`}>{p.freight_paid === true ? 'Pagamento do frete aprovado' : 'Aguardando pagamento do frete'}</span></div><button disabled={productPurchaseBusy===p.id} onClick={()=>updateProductPurchase(p,'rejected')} className="rounded-lg bg-red-50 px-3 py-2 text-xs font-black text-red-700">Recusar</button></div></div>}
             {p.status==='shipped' && <button disabled={productPurchaseBusy===p.id} onClick={()=>updateProductPurchase(p,'approved')} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white">Aprovar e abater saldo</button>}
@@ -2036,6 +2054,14 @@ export default function AdminDashboard() {
             {p.tracking_url && ['shipped','approved'].includes(p.status) && <p className="mt-3 text-xs font-semibold text-sky-800">Rastreio salvo: <a href={p.tracking_url} target="_blank" rel="noreferrer" className="break-all underline">{p.tracking_url}</a></p>}<div className="mt-3 grid gap-2 text-xs text-zinc-700 sm:grid-cols-2"><p><strong>Nome:</strong> {p.full_name}</p><p><strong>CPF:</strong> {p.cpf}</p><p><strong>CEP:</strong> {p.cep}</p><p><strong>E-mail:</strong> {p.email}</p><p><strong>Telefone:</strong> {p.phone}</p><p className="sm:col-span-2"><strong>Endereço:</strong> {p.address}</p>{p.notes && <p className="sm:col-span-2"><strong>Observações:</strong> {p.notes}</p>}</div>
           </article>)}{!productPurchases.length && <div className="rounded-xl border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-400">Nenhuma compra solicitada ainda.</div>}{productPurchases.length > 0 && !productPurchases.some(p => { const query = productPurchaseSearch.trim().toLocaleLowerCase('pt-BR'); return !query || String(p.affiliate?.name || '').toLocaleLowerCase('pt-BR').includes(query) || String(p.affiliate_id ?? '').includes(query) }) && <div className="rounded-xl border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-400">Nenhuma solicitação encontrada para essa afiliada.</div>}</div></div>
         </section>
+
+        <footer className="mt-8 flex flex-col gap-3 rounded-2xl border border-pink-100 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs font-semibold text-zinc-400">She Afiliadas · Administração</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={openAdminData} className="rounded-xl border border-pink-200 bg-white px-4 py-2.5 text-sm font-black text-pink-600 transition hover:bg-pink-50">Dados</button>
+            <button onClick={logout} className="rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-black text-white">Sair</button>
+          </div>
+        </footer>
 
     </main>
   )
