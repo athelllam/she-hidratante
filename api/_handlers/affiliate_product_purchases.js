@@ -179,7 +179,7 @@ module.exports = async function handler(req, res) {
               body: JSON.stringify({
                 from: { postal_code: '30190000' },
                 to: { postal_code: cep },
-                products: [{ id: `she-${purchase.id}`, width: 25, height: 5, length: 19, weight: 0.15, insurance_value: Number(purchase.price || 0), quantity: 1 }],
+                products: [{ id: `she-${purchase.id}`, width: 25, height: 5, length: 19, weight: 0.15, insurance_value: 30, quantity: 1 }],
               }),
             });
             const raw = await response.text();
