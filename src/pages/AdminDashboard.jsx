@@ -1126,12 +1126,12 @@ export default function AdminDashboard() {
                 <div role="menu" className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-pink-100/90 bg-white/95 p-2 shadow-[0_16px_45px_rgba(30,10,20,.18)] backdrop-blur-xl">
                   {[
                     ['grid', 'Indicadores', 'admin-indicadores'],
+                    ['wallet', 'Saldo', 'admin-saque'],
                     ['users', 'Afiliadas Cadastradas', 'admin-afiliadas'],
                     ['bell', 'Avisos por Push', 'admin-push'],
                     ['settings', 'Configurações', 'admin-configuracoes'],
                     ['shop', 'Revenda', 'admin-revenda'],
                     ['zap', 'Impulso', 'admin-impulso'],
-                    ['wallet', 'Saldo', 'admin-saque'],
                     ['video', 'Solicitação de Vídeo', 'admin-videos'],
                     ['wallet', 'Solicitação de Saque', 'admin-saques'],
                     ['package', 'Solicitação de Compra', 'admin-compras'],
