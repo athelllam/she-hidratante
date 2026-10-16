@@ -13,6 +13,7 @@ const affiliatePublicSlug = require('./_handlers/affiliate_public_slug');
 const resellerSettings = require('./_handlers/reseller_settings');
 const webhookWoovi = require('./_handlers/webhook_woovi');
 const webhookYampi = require('./_handlers/webhook_yampi');
+const melhorEnvioOAuth = require('./_handlers/melhor_envio_oauth');
 
 function pathname(req) {
   let current = '/';
@@ -70,6 +71,7 @@ module.exports = async function router(req, res) {
   else if (path === '/api/reseller/settings') handler = resellerSettings;
   else if (path === '/api/webhooks/woovi') handler = webhookWoovi;
   else if (path === '/api/webhooks/yampi') handler = webhookYampi;
+  else if (path === '/api/melhor-envio/authorize' || path === '/api/melhor-envio/callback' || path === '/api/melhor-envio/status') handler = melhorEnvioOAuth;
 
   if (!handler) return res.status(404).json({ error: 'Rota da API não encontrada.' });
   return handler(req, res);

@@ -104,6 +104,9 @@ export default function AdminDashboard() {
   const [productPrices, setProductPrices] = useState({ hydrant: '80', stick: '100' })
   const [productTrackingLinks, setProductTrackingLinks] = useState({})
   const [productPurchaseBusy, setProductPurchaseBusy] = useState(null)
+  const [selectedProductPurchaseIds, setSelectedProductPurchaseIds] = useState(new Set())
+  const [melhorEnvioBusy, setMelhorEnvioBusy] = useState(false)
+  const [melhorEnvioResults, setMelhorEnvioResults] = useState({})
   const [productPriceBusy, setProductPriceBusy] = useState(false)
 
   const [videoFilter, setVideoFilter] = useState('pending')
@@ -772,6 +775,36 @@ export default function AdminDashboard() {
     finally { setProductPurchaseBusy(null) }
   }
 
+  const eligibleMelhorEnvioPurchases = productPurchases.filter(p => p.status === 'pending' && p.freight_paid === true && !p.tracking_url)
+  const toggleProductPurchaseSelection = (id) => setSelectedProductPurchaseIds(current => {
+    const next = new Set(current)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
+  const toggleAllProductPurchases = () => setSelectedProductPurchaseIds(current => {
+    const eligibleIds = eligibleMelhorEnvioPurchases.map(p => p.id)
+    return eligibleIds.length && eligibleIds.every(id => current.has(id))
+      ? new Set([...current].filter(id => !eligibleIds.includes(id)))
+      : new Set([...current, ...eligibleIds])
+  })
+  const quoteSelectedWithMelhorEnvio = async () => {
+    const ids = [...selectedProductPurchaseIds].filter(id => eligibleMelhorEnvioPurchases.some(p => p.id === id))
+    if (!ids.length) { setMessage('Selecione solicitações pendentes com frete aprovado para cotar no Melhor Envio.'); return }
+    setMelhorEnvioBusy(true)
+    setMessage('Cotando pedidos selecionados no Melhor Envio…')
+    try {
+      const data = await api('/api/admin/product-purchases?admin=1', { method: 'POST', body: JSON.stringify({ action: 'melhor_envio_quote_batch', ids }) })
+      const results = Object.fromEntries((data.results || []).map(result => [result.id, result]))
+      setMelhorEnvioResults(current => ({ ...current, ...results }))
+      setSelectedProductPurchaseIds(new Set())
+      await loadProductPurchases()
+      const ok = (data.results || []).filter(result => result.ok).length
+      const failed = (data.results || []).length - ok
+      setMessage(`Melhor Envio: ${ok} pedido(s) cotado(s), ${failed} com pendência. Confira as opções em cada solicitação.`)
+    } catch (e) { setMessage(e.message || 'Não foi possível cotar os pedidos no Melhor Envio.') }
+    finally { setMelhorEnvioBusy(false) }
+  }
+
   const exportPendingProductPurchasesCsv = () => {
     const pending = productPurchases.filter(p => p.status === 'pending' && p.freight_paid === true)
     if (!pending.length) {
@@ -1431,8 +1464,9 @@ export default function AdminDashboard() {
             <label className="grid gap-1 text-xs font-bold text-zinc-600">Preço do Stick (R$)<input type="number" min="0.01" step="0.01" required value={productPrices.stick} onChange={e=>setProductPrices(v=>({...v,stick:e.target.value}))} className="rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900" /></label>
             <button disabled={productPriceBusy} className="rounded-xl bg-pink-600 px-4 py-3 text-xs font-black text-white disabled:opacity-50">{productPriceBusy?'Salvando…':'Salvar preços'}</button>
           </form>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-pink-100 bg-pink-50 p-3"><label className="flex items-center gap-2 text-xs font-bold text-zinc-700"><input type="checkbox" checked={eligibleMelhorEnvioPurchases.length > 0 && eligibleMelhorEnvioPurchases.every(p => selectedProductPurchaseIds.has(p.id))} onChange={toggleAllProductPurchases} className="h-4 w-4 accent-pink-600" />Selecionar todos os pedidos elegíveis ({eligibleMelhorEnvioPurchases.length})</label><div className="flex flex-wrap items-center gap-2"><span className="text-xs font-bold text-zinc-600">{selectedProductPurchaseIds.size} selecionado(s)</span><button type="button" onClick={quoteSelectedWithMelhorEnvio} disabled={melhorEnvioBusy || selectedProductPurchaseIds.size === 0} className="rounded-xl bg-pink-600 px-4 py-2.5 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{melhorEnvioBusy ? 'Cotando…' : 'Cotar selecionados no Melhor Envio'}</button></div><p className="w-full text-[11px] leading-5 text-zinc-500">Elegíveis: solicitações pendentes com frete aprovado, sem rastreio e ainda não enviadas. Peso 150 g · 19 × 25 × 5 cm · Origem 30190-000.</p></div>
           <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-3"><div className="h-[570px] space-y-3 overflow-y-auto pr-2">{productPurchases.map(p=> <article key={p.id} className="min-h-[180px] rounded-2xl border border-zinc-200 bg-white p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-black text-zinc-950">#{p.id} · {p.product==='hydrant'?'Hidratante She':'Stick Clareador She'} · {brl(p.price)}</h3><p className="mt-1 text-xs text-zinc-500">{p.affiliate?.name || `Afiliada #${p.affiliate_id}`} · {dateTime(p.created_at)} · {({pending: p.freight_paid === true ? 'Frete pago · Pendente de envio' : 'Aguardando pagamento do frete',shipped:'Enviado',approved:'Aprovado / saldo abatido',rejected:'Recusado',cancelled:'Cancelado'})[p.status] || p.status}</p></div>
+            <div className="flex flex-wrap items-start justify-between gap-3"><div className="flex items-start gap-2">{p.status==='pending' && p.freight_paid===true && !p.tracking_url && <input aria-label={`Selecionar solicitação ${p.id} para Melhor Envio`} type="checkbox" checked={selectedProductPurchaseIds.has(p.id)} onChange={()=>toggleProductPurchaseSelection(p.id)} className="mt-1 h-4 w-4 shrink-0 accent-pink-600" />}<div><h3 className="font-black text-zinc-950">#{p.id} · {p.product==='hydrant'?'Hidratante She':'Stick Clareador She'} · {brl(p.price)}</h3><p className="mt-1 text-xs text-zinc-500">{p.affiliate?.name || `Afiliada #${p.affiliate_id}`} · {dateTime(p.created_at)} · {({pending: p.freight_paid === true ? 'Frete pago · Pendente de envio' : 'Aguardando pagamento do frete',shipped:'Enviado',approved:'Aprovado / saldo abatido',rejected:'Recusado',cancelled:'Cancelado'})[p.status] || p.status}</p>{melhorEnvioResults[p.id] && <div className="mt-2 rounded-lg bg-sky-50 p-2 text-xs text-sky-900">{melhorEnvioResults[p.id].ok ? (melhorEnvioResults[p.id].quotes?.length ? <><strong>Cotações Melhor Envio:</strong> {melhorEnvioResults[p.id].quotes.map(q => `${q.company?.name || q.company || q.name || 'Transportadora'} — R$ ${Number(q.price || q.custom_price || 0).toFixed(2).replace('.', ',')} (${q.delivery_time || q.delivery_range?.min || '?'} dias)`).join(' · ')}</> : 'Cotação concluída, mas nenhuma transportadora retornou preço.') : `Não cotado: ${melhorEnvioResults[p.id].error}`}</div>}</div></div>
             {p.status==='pending' && <div className="flex w-full flex-col items-stretch gap-2 sm:w-[360px]"><label className="grid gap-1 text-[10px] font-bold text-zinc-500">Link de rastreio<input type="url" value={productTrackingLinks[p.id] ?? p.tracking_url ?? ''} onChange={e=>setProductTrackingLinks(current=>({...current,[p.id]:e.target.value}))} placeholder="https://..." className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-900 outline-none focus:border-sky-400" /></label><div className="flex flex-wrap items-start gap-2"><div className="flex flex-col items-start gap-1"><button disabled={productPurchaseBusy===p.id || p.freight_paid !== true || !/^https?:\/\//i.test(String(productTrackingLinks[p.id] ?? p.tracking_url ?? '').trim())} title={p.freight_paid !== true ? 'Aguardando confirmação do frete pela Woovi' : 'Marcar como enviado'} onClick={()=>updateProductPurchase(p,'shipped')} className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-black text-white disabled:opacity-40">Marcar como enviado</button><span className={`text-[10px] font-semibold ${p.freight_paid === true ? 'text-emerald-700' : 'text-amber-700'}`}>{p.freight_paid === true ? 'Pagamento do frete aprovado' : 'Aguardando pagamento do frete'}</span></div><button disabled={productPurchaseBusy===p.id} onClick={()=>updateProductPurchase(p,'rejected')} className="rounded-lg bg-red-50 px-3 py-2 text-xs font-black text-red-700">Recusar</button></div></div>}
             {p.status==='shipped' && <button disabled={productPurchaseBusy===p.id} onClick={()=>updateProductPurchase(p,'approved')} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white">Aprovar e abater saldo</button>}
             </div>

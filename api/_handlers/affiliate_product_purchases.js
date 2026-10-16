@@ -33,6 +33,33 @@ async function createFreightCharge(purchase, affiliate) {
 const money = v => Math.round((Number(v) || 0) * 100) / 100;
 const validEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim());
 
+async function getMelhorEnvioAccessToken() {
+  const rows = await supabaseFetch('/rest/v1/melhor_envio_credentials?id=eq.1&select=environment,access_token,refresh_token,expires_at&limit=1');
+  const current = rows?.[0];
+  const env = String(process.env.MELHOR_ENVIO_ENV || 'sandbox').toLowerCase() === 'production' ? 'production' : 'sandbox';
+  if (!current || current.environment !== env) {
+    const error = new Error(`Melhor Envio ainda não autorizado no ambiente ${env}. Acesse /api/melhor-envio/authorize no painel administrativo.`);
+    error.statusCode = 503; throw error;
+  }
+  if (Date.parse(current.expires_at) > Date.now() + 5 * 60 * 1000) return current.access_token;
+  const clientId = String(process.env.MELHOR_ENVIO_CLIENT_ID || '').trim();
+  const clientSecret = String(process.env.MELHOR_ENVIO_CLIENT_SECRET || '').trim();
+  if (!clientId || !clientSecret || !current.refresh_token) {
+    const error = new Error('Token do Melhor Envio expirado. Configure as credenciais e refaça a autorização.'); error.statusCode = 503; throw error;
+  }
+  const host = env === 'sandbox' ? 'https://sandbox.melhorenvio.com.br' : 'https://melhorenvio.com.br';
+  const response = await fetch(`${host}/oauth/token`, {
+    method:'POST', headers:{ Accept:'application/json', 'Content-Type':'application/x-www-form-urlencoded', 'User-Agent':'She Afiliadas (suporte@shecoisademulher.com.br)' },
+    body:new URLSearchParams({ grant_type:'refresh_token', refresh_token:current.refresh_token, client_id:clientId, client_secret:clientSecret })
+  });
+  const raw = await response.text(); let data; try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message:raw.slice(0,500) }; }
+  if (!response.ok || !data.access_token) { const error = new Error(data.message || data.error_description || 'Não foi possível renovar o token do Melhor Envio. Refaça a autorização.'); error.statusCode = 502; throw error; }
+  const expiresIn = Number(data.expires_in || 2592000);
+  const updated = { environment:env, token_type:String(data.token_type || 'Bearer'), access_token:String(data.access_token), refresh_token:String(data.refresh_token || current.refresh_token), expires_at:new Date(Date.now()+expiresIn*1000).toISOString(), updated_at:new Date().toISOString() };
+  await supabaseFetch('/rest/v1/melhor_envio_credentials?id=eq.1', { method:'PATCH', headers:{ Prefer:'return=minimal' }, body:JSON.stringify(updated) });
+  return updated.access_token;
+}
+
 module.exports = async function handler(req, res) {
   if (req.method === 'GET') { res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); res.setHeader('Pragma', 'no-cache'); res.setHeader('Expires', '0'); }
   try {
@@ -70,6 +97,45 @@ module.exports = async function handler(req, res) {
     if (req.query?.admin === '1') {
       await requireAdmin(req);
       const action = String(req.body?.action || '');
+      if (action === 'melhor_envio_quote_batch') {
+        let token;
+        try { token = await getMelhorEnvioAccessToken(); }
+        catch (tokenError) { return json(res, Number(tokenError.statusCode) || 503, { error: tokenError.message || 'Autorize o Melhor Envio antes de cotar.' }); }
+        const ids = [...new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map(Number).filter(id => Number.isSafeInteger(id) && id > 0))];
+        if (!ids.length) return json(res, 400, { error: 'Selecione pelo menos uma solicitação.' });
+        if (ids.length > 30) return json(res, 400, { error: 'Selecione no máximo 30 pedidos por lote.' });
+        const baseUrl = String(process.env.MELHOR_ENVIO_ENV || 'production').toLowerCase() === 'sandbox' ? 'https://sandbox.melhorenvio.com.br/api/v2' : 'https://www.melhorenvio.com.br/api/v2';
+        const purchases = await supabaseFetch(`/rest/v1/affiliate_product_purchases?id=in.(${ids.join(',')})&select=id,status,freight_paid,cep,price,product,tracking_url,street,house_number,complement,neighborhood,city,state,full_name,email,phone,cpf`);
+        if ((purchases || []).length !== ids.length) return json(res, 400, { error: 'Uma ou mais solicitações não foram encontradas.' });
+        const results = [];
+        for (const purchase of purchases) {
+          if (purchase.status !== 'pending' || purchase.freight_paid !== true || purchase.tracking_url) {
+            results.push({ id: purchase.id, ok: false, error: 'Somente solicitações pendentes, com frete aprovado e sem rastreio podem ser cotadas.' });
+            continue;
+          }
+          const cep = String(purchase.cep || '').replace(/\D/g, '');
+          if (cep.length !== 8) { results.push({ id: purchase.id, ok: false, error: 'CEP de destino inválido.' }); continue; }
+          try {
+            const response = await fetch(`${baseUrl}/me/shipment/calculate`, {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'She Afiliadas (suporte@shecoisademulher.com.br)' },
+              body: JSON.stringify({
+                from: { postal_code: '30190000' },
+                to: { postal_code: cep },
+                products: [{ id: `she-${purchase.id}`, width: 25, height: 5, length: 19, weight: 0.15, insurance_value: Number(purchase.price || 0), quantity: 1 }],
+              }),
+            });
+            const raw = await response.text();
+            let data; try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw.slice(0, 500) }; }
+            if (!response.ok) throw new Error(data?.message || data?.error || `Melhor Envio respondeu HTTP ${response.status}`);
+            const quotes = (Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : []).filter(q => !q.error && (q.id || q.service_id || q.price));
+            const patch = { melhor_envio_quote: { requested_at: new Date().toISOString(), quotes, raw: data }, updated_at: new Date().toISOString() };
+            await supabaseFetch(`/rest/v1/affiliate_product_purchases?id=eq.${Number(purchase.id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(patch) });
+            results.push({ id: purchase.id, ok: true, quotes, message: quotes.length ? null : 'Nenhuma transportadora retornou cotação.' });
+          } catch (error) { results.push({ id: purchase.id, ok: false, error: error.message || 'Falha ao cotar.' }); }
+        }
+        return json(res, 200, { results, originPostalCode: '30190000', package: { weightKg: 0.15, widthCm: 25, heightCm: 5, lengthCm: 19 } });
+      }
       if (action === 'set_prices') {
         const hydrant = Number(req.body?.hydrant), stick = Number(req.body?.stick);
         if (!Number.isFinite(hydrant) || hydrant <= 0 || !Number.isFinite(stick) || stick <= 0) return json(res, 400, { error: 'Informe preços válidos.' });
