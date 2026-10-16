@@ -1108,6 +1108,12 @@ export default function AffiliateDashboard() {
         )}
 
         <div className={!hasAffiliateLink ? 'pointer-events-none select-none grayscale opacity-40' : ''}>
+        {!isStandaloneApp && !isAdminPreview && <div className="mb-3 mt-4 flex justify-start">
+          <button type="button" onClick={handleInstallApp} className="rounded-lg border border-pink-200 bg-white/80 px-4 py-2 text-xs font-black text-pink-700 shadow-sm transition hover:bg-pink-50" aria-label="Baixar App">
+            Baixar App
+          </button>
+        </div>}
+
         {!team.joined && Number(dashboard?.lifetimeSales || 0) === 0 && (
           <section className="mt-7 rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm md:p-6">
             {team.joined ? (
@@ -1146,11 +1152,6 @@ export default function AffiliateDashboard() {
           </section>
         )}
 
-        {!isStandaloneApp && !isAdminPreview && <div className="mb-3 mt-4 flex justify-start">
-          <button type="button" onClick={handleInstallApp} className="rounded-lg border border-pink-200 bg-white/80 px-4 py-2 text-xs font-black text-pink-700 shadow-sm transition hover:bg-pink-50" aria-label="Baixar App">
-            Baixar App
-          </button>
-        </div>}
         <section id="qualificacao" style={{ scrollMarginTop: 82 }} className={`relative mt-7 overflow-hidden rounded-[2rem] border border-white bg-gradient-to-r ${levelTone(level.key)} p-5 shadow-sm md:p-7`}>
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div>
