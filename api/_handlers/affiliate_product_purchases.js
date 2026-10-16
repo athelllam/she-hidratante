@@ -169,6 +169,20 @@ async function syncMelhorEnvioTracking(purchases) {
         attempts.push({ endpoint: 'orders/search', ok: false, status: e.upstreamStatus || e.statusCode || null });
         console.error('[She Melhor Envio] Pesquisa da etiqueta falhou.', { purchaseId: Number(purchase.id), status: e.upstreamStatus || e.statusCode || null, message: String(e.message || '').slice(0, 180) });
       }
+      // The ID returned by /me/cart can identify the cart shipment rather than
+      // the final order. The official search endpoint also accepts the recipient
+      // document, so use it as a fallback after checkout has released the label.
+      const recipientDocument = String(purchase.cpf || '').replace(/\D/g, '');
+      if (recipientDocument.length >= 11) {
+        try {
+          const data = await melhorEnvioRequest(`/me/orders/search?q=${encodeURIComponent(recipientDocument)}`, token);
+          responses.push(data);
+          attempts.push({ endpoint: 'orders/search-by-recipient-document', ok: true, keys: data && typeof data === 'object' ? Object.keys(data).slice(0, 20) : [] });
+        } catch (e) {
+          attempts.push({ endpoint: 'orders/search-by-recipient-document', ok: false, status: e.upstreamStatus || e.statusCode || null });
+          console.error('[She Melhor Envio] Pesquisa por documento do destinatário falhou.', { purchaseId: Number(purchase.id), status: e.upstreamStatus || e.statusCode || null, message: String(e.message || '').slice(0, 180) });
+        }
+      }
 
       const trackingCodeKeys = ['tracking', 'tracking_code', 'trackingcode', 'tracking_number', 'trackingnumber', 'tracking_code_number', 'codigo_rastreio', 'codigo_rastreamento'];
       const trackingUrlKeys = ['tracking_url', 'tracking_link', 'trackingurl', 'trackinglink', 'tracking_page'];
