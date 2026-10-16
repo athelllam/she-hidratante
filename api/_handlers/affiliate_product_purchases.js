@@ -92,24 +92,80 @@ function pickServiceId(quote) {
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
+function findNestedStringByKeys(value, keys, depth = 0) {
+  if (!value || typeof value !== 'object' || depth > 6) return '';
+  for (const [key, item] of Object.entries(value)) {
+    if (keys.includes(key.toLowerCase()) && typeof item === 'string' && item.trim()) return item.trim();
+  }
+  for (const item of Object.values(value)) {
+    if (item && typeof item === 'object') {
+      const found = findNestedStringByKeys(item, keys, depth + 1);
+      if (found) return found;
+    }
+  }
+  return '';
+}
+
 async function syncMelhorEnvioTracking(purchases) {
   const candidates = (purchases || []).filter(p => p.melhor_envio_shipment_id && !p.tracking_url);
   if (!candidates.length) return;
   let token;
-  try { token = await getMelhorEnvioAccessToken(); } catch { return; }
+  try { token = await getMelhorEnvioAccessToken(); }
+  catch (e) {
+    console.error('[She Melhor Envio] Não foi possível consultar rastreios: token indisponível.', { message: String(e?.message || '').slice(0, 180) });
+    return;
+  }
   for (const purchase of candidates.slice(0, 20)) {
+    const shipmentId = String(purchase.melhor_envio_shipment_id).trim();
     try {
-      const data = await melhorEnvioRequest('/me/shipment/tracking', token, { method: 'POST', body: JSON.stringify({ orders: [String(purchase.melhor_envio_shipment_id)] }) });
-      const item = Array.isArray(data) ? data[0] : (data?.data?.[0] || data?.[String(purchase.melhor_envio_shipment_id)] || data?.order || data);
-      const trackingCode = String(item?.tracking || item?.tracking_code || item?.trackingCode || item?.code || '').trim();
-      const trackingUrl = String(item?.tracking_url || item?.tracking_link || item?.trackingUrl || (trackingCode ? `https://www.melhorenvio.com.br/rastreio/${encodeURIComponent(trackingCode)}` : '')).trim();
-      const status = String(item?.status || item?.shipment_status || '').toLowerCase();
+      let responses = [];
+      try {
+        responses.push(await melhorEnvioRequest('/me/shipment/tracking', token, {
+          method: 'POST', body: JSON.stringify({ orders: [shipmentId] })
+        }));
+      } catch (e) {
+        console.error('[She Melhor Envio] Endpoint de rastreio falhou.', { shipmentId, status: e.upstreamStatus || e.statusCode || null, message: String(e.message || '').slice(0, 180) });
+      }
+      // Fallback: the order details endpoint can expose tracking even when the
+      // dedicated tracking endpoint returns a different response shape.
+      try {
+        responses.push(await melhorEnvioRequest(`/me/orders/${encodeURIComponent(shipmentId)}`, token));
+      } catch (e) {
+        console.error('[She Melhor Envio] Consulta dos detalhes da etiqueta falhou.', { shipmentId, status: e.upstreamStatus || e.statusCode || null, message: String(e.message || '').slice(0, 180) });
+      }
+      const trackingCodeKeys = ['tracking', 'tracking_code', 'trackingcode', 'tracking_number', 'trackingnumber', 'tracking_code_number'];
+      const trackingUrlKeys = ['tracking_url', 'tracking_link', 'trackingurl', 'trackinglink', 'tracking_page'];
+      let trackingCode = '';
+      let trackingUrl = '';
+      for (const response of responses) {
+        if (!trackingCode) trackingCode = findNestedStringByKeys(response, trackingCodeKeys);
+        if (!trackingUrl) trackingUrl = findNestedStringByKeys(response, trackingUrlKeys);
+      }
+      // This workflow currently quotes Correios. Prefer the carrier's tracking
+      // page for Correios codes, rather than constructing an unverified ME URL.
+      if (!trackingUrl && /^[A-Z]{2}\d{9}[A-Z]{2}$/i.test(trackingCode)) {
+        trackingUrl = `https://rastreamento.correios.com.br/app/index.php?objetos=${encodeURIComponent(trackingCode)}`;
+      }
       const patch = { updated_at: new Date().toISOString() };
       if (trackingCode) patch.melhor_envio_tracking_code = trackingCode;
       if (trackingUrl && /^https?:\/\//i.test(trackingUrl)) patch.tracking_url = trackingUrl;
-      if ((trackingCode || trackingUrl) && purchase.status === 'pending') { patch.status = 'shipped'; patch.shipped_at = new Date().toISOString(); }
-      if (Object.keys(patch).length > 1) await supabaseFetch(`/rest/v1/affiliate_product_purchases?id=eq.${Number(purchase.id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(patch) });
-    } catch { /* Sync is best-effort; normal panel loading must remain available. */ }
+      // Do not mark the purchase as shipped automatically: a tracking code can
+      // exist before the parcel is actually handed to the carrier. The admin
+      // confirms dispatch with the existing “Marcar como enviado” action.
+      if (trackingCode || trackingUrl) {
+        await supabaseFetch(`/rest/v1/affiliate_product_purchases?id=eq.${Number(purchase.id)}`, {
+          method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(patch)
+        });
+        console.info('[She Melhor Envio] Rastreio sincronizado.', { purchaseId: Number(purchase.id), hasCode: Boolean(trackingCode), hasUrl: Boolean(trackingUrl) });
+      } else {
+        console.info('[She Melhor Envio] Ainda sem código de rastreio na resposta da API.', {
+          purchaseId: Number(purchase.id), shipmentId,
+          responseKeys: responses.map(r => r && typeof r === 'object' ? Object.keys(r).slice(0, 20) : typeof r)
+        });
+      }
+    } catch (e) {
+      console.error('[She Melhor Envio] Falha ao sincronizar rastreio.', { purchaseId: Number(purchase.id), message: String(e?.message || '').slice(0, 220) });
+    }
   }
 }
 
