@@ -5,6 +5,10 @@
   ],
   "rewrites": [
     {
+      "source": "/api/webhooks/melhor-envio",
+      "destination": "/api/webhooks/yampi?provider=melhor-envio"
+    },
+    {
       "source": "/api/melhor-envio/status",
       "destination": "/api/melhor-envio/authorize?__handler=status"
     },

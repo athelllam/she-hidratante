@@ -3,6 +3,7 @@
 // request bytes so the Woovi handler can validate x-webhook-signature.
 const webhookWoovi = require('../_handlers/webhook_woovi');
 const webhookYampi = require('../_handlers/webhook_yampi');
+const webhookMelhorEnvio = require('../_handlers/webhook_melhor_envio');
 const MAX_BODY_BYTES = 4 * 1024 * 1024;
 
 function getPublicPath(req) {
@@ -71,6 +72,10 @@ module.exports = async function webhookDispatcher(req, res) {
 
   if (path === '/api/webhooks/woovi' || provider === 'woovi') {
     return webhookWoovi(req, res);
+  }
+
+  if (path === '/api/webhooks/melhor-envio' || provider === 'melhor-envio') {
+    return webhookMelhorEnvio(req, res);
   }
 
   return webhookYampi(req, res);
