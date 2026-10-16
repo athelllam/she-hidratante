@@ -116,6 +116,7 @@ export default function AffiliateDashboard() {
   const [welcomeMotherOpen, setWelcomeMotherOpen] = useState(false)
   const [welcomeMotherPending, setWelcomeMotherPending] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', password: '', whatsapp: '', cpf: '' })
+  const [registerSurname, setRegisterSurname] = useState('')
   const [login, setLogin] = useState({ email: '', password: '' })
   const [forgotOpen, setForgotOpen] = useState(false)
   const [forgotEmail, setForgotEmail] = useState('')
@@ -888,7 +889,8 @@ export default function AffiliateDashboard() {
             </form>
           ) : (
             <form onSubmit={submitRegister} className="mt-7 space-y-3">
-              <input value={form.name} onChange={e => setForm({...form,name:e.target.value})} required placeholder="Seu nome" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
+              <input value={form.name} onChange={e => setForm({...form,name:e.target.value.slice(0, 20)})} required maxLength={20} autoComplete="given-name" placeholder="Primeiro Nome" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
+              <input value={registerSurname} onChange={e => setRegisterSurname(e.target.value.slice(0, 80))} maxLength={80} autoComplete="family-name" placeholder="Sobrenome" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
               <input value={form.whatsapp} onChange={e => setForm({...form,whatsapp:e.target.value})} type="tel" required placeholder="WhatsApp (31) 99999-9999" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
               <input value={form.cpf} onChange={e => setForm({...form,cpf:e.target.value})} inputMode="numeric" maxLength={14} required placeholder="CPF" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
               <input value={form.email} onChange={e => setForm({...form,email:e.target.value})} type="email" required placeholder="E-mail" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />

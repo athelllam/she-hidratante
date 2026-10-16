@@ -383,23 +383,6 @@ export default function AdminDashboard() {
     }
   }
 
-  const toggleAdminStatus = async (affiliate) => {
-    const next = !Boolean(affiliate.adminActive)
-    setTogglingId(affiliate.id)
-    setMessage('')
-    try {
-      await api('/api/admin/affiliates', {
-        method: 'PATCH',
-        body: JSON.stringify({ id: affiliate.id, adminActive: next }),
-      })
-      setAffiliates(current => current.map(item => item.id === affiliate.id ? { ...item, adminActive: next, adminActiveSource: 'manual' } : item))
-      setMessage(`${affiliate.name}: status administrativo ${next ? 'ATIVA' : 'INATIVA'}.`)
-    } catch (e) {
-      setMessage(e.message || 'Não foi possível alterar o status.')
-    } finally {
-      setTogglingId(null)
-    }
-  }
 
   const grantTeamBoost = async (connections) => {
     if (!boostGrantAffiliate || ![5, 10].includes(Number(connections))) return
@@ -984,6 +967,7 @@ export default function AdminDashboard() {
 
     return [...filtered].sort((a, b) => {
       const nameCompare = String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR', { sensitivity: 'base' })
+      if (affiliateSort === 'active_desc') return Number(Boolean(b.adminActive)) - Number(Boolean(a.adminActive)) || nameCompare
       if (affiliateSort === 'days_desc') return Number(b.daysWithoutSales || 0) - Number(a.daysWithoutSales || 0) || nameCompare
       if (affiliateSort === 'revenue_desc') return Number(b.revenue || 0) - Number(a.revenue || 0) || nameCompare
       if (affiliateSort === 'accesses_desc') return Number(b.accesses || 0) - Number(a.accesses || 0) || nameCompare
@@ -1298,6 +1282,7 @@ export default function AdminDashboard() {
               <label className="flex items-center gap-2 text-xs font-semibold text-zinc-400">
                 <span>Ordenar por</span>
                 <select value={affiliateSort} onChange={event => setAffiliateSort(event.target.value)} className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-black text-zinc-700 outline-none focus:border-pink-400">
+                  <option value="active_desc">Ativas primeiro</option>
                   <option value="days_desc">Mais dias sem vendas</option>
                   <option value="sales_desc">Mais vendas</option>
                   <option value="revenue_desc">Maior faturamento</option>
@@ -1333,7 +1318,6 @@ export default function AdminDashboard() {
                   <th className="pb-3 pr-4">Data de entrada</th>
                   <th className="pb-3 pr-4">Ativa/Inativa</th>
                   <th className="pb-3 pr-4">Sem vendas</th>
-                  <th className="pb-3 pr-4">Desempenho</th>
                   <th className="pb-3 pr-4">Dados de acesso</th>
                   <th className="pb-3">Selecionar</th>
                 </tr>
@@ -1368,36 +1352,21 @@ export default function AdminDashboard() {
                         >
                           Impulso
                         </button>
-                      <button
-                        type="button"
-                        onClick={() => toggleAdminStatus(affiliate)}
-                        disabled={togglingId === affiliate.id}
-                        aria-label={`Alternar status administrativo de ${affiliate.name}`}
-                        className={`relative h-8 w-[58px] rounded-full p-1 transition disabled:opacity-60 ${affiliate.adminActive ? 'bg-emerald-500' : 'bg-zinc-300'}`}
+                      <span
+                        role="status"
+                        aria-label={`Status de ${affiliate.name}: ${affiliate.adminActive ? 'ativa' : 'inativa'}`}
+                        className={`inline-flex min-w-[76px] items-center justify-center rounded-xl border px-3 py-1.5 text-[10px] font-black tracking-[.08em] shadow-sm backdrop-blur-md ${affiliate.adminActive
+                          ? 'border-emerald-300/70 bg-emerald-400/20 text-emerald-800 shadow-emerald-200/40'
+                          : 'border-rose-300/70 bg-rose-400/20 text-rose-800 shadow-rose-200/40'}`}
                       >
-                        <span className={`block h-6 w-6 rounded-full bg-white shadow transition-transform ${affiliate.adminActive ? 'translate-x-[26px]' : 'translate-x-0'}`} />
-                      </button>
-                      <div className="mt-1 flex items-center gap-1.5">
-                        <span className={`text-[11px] font-black ${affiliate.adminActive ? 'text-emerald-700' : 'text-zinc-500'}`}>
-                          {affiliate.adminActive ? 'ATIVA' : 'INATIVA'}
-                        </span>
-                        {affiliate.autoInactive && <span className="text-[9px] font-bold text-amber-600">{affiliate.lastSaleAt ? '7 dias sem venda pessoal' : 'Sem venda pessoal'}</span>}
-                      </div>
+                        {affiliate.adminActive ? 'ATIVA' : 'INATIVA'}
+                      </span>
                       </div>
                     </td>
                     <td className="py-4 pr-4">
-                      <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black ${Number(affiliate.daysWithoutSales || 0) >= 7 ? 'bg-amber-100 text-amber-800' : 'bg-zinc-100 text-zinc-600'}`}>
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black ${Number(affiliate.daysWithoutSales || 0) >= 60 ? 'bg-red-100 text-red-800 ring-1 ring-red-300' : Number(affiliate.daysWithoutSales || 0) >= 7 ? 'bg-amber-100 text-amber-800' : 'bg-zinc-100 text-zinc-600'}`}>
                         {Number(affiliate.daysWithoutSales || 0)} {Number(affiliate.daysWithoutSales || 0) === 1 ? 'dia' : 'dias'} sem vendas
                       </span>
-                    </td>
-                    <td className="py-4 pr-4">
-                      <button
-                        type="button"
-                        onClick={() => { setDetailAffiliate(affiliate); setDetailMonth('all'); setDetailData(null) }}
-                        className="rounded-xl bg-zinc-950 px-3 py-2 text-xs font-black text-white transition hover:bg-pink-500"
-                      >
-                        Ver desempenho
-                      </button>
                     </td>
                     <td className="py-4 pr-4">
                       <div className="flex items-center gap-2">

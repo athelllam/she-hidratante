@@ -665,7 +665,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'PATCH') {
-      const { id, active, adminActive, commissionRate, password, settings: requestedSettings } = req.body || {};
+      const { id, active, commissionRate, password, settings: requestedSettings } = req.body || {};
 
       if (String(req.body?.action || '') === 'grant_team_boost') {
         const affiliateId = Number(req.body?.id);
@@ -822,7 +822,6 @@ module.exports = async function handler(req, res) {
       if (!id) return json(res, 400, { error: 'ID obrigatório.' });
       const patch = {};
       if (typeof active === 'boolean') patch.active = active;
-      if (typeof adminActive === 'boolean') patch.admin_active = adminActive;
       if (commissionRate != null) patch.commission_rate = Number(commissionRate);
       const wantsPasswordChange = typeof password === 'string' && password.length > 0;
       if (wantsPasswordChange && password.length < 8) return json(res, 400, { error: 'A nova senha precisa ter pelo menos 8 caracteres.' });
@@ -838,13 +837,6 @@ module.exports = async function handler(req, res) {
         headers: { Prefer: 'return=representation' },
           body: JSON.stringify(patch),
         });
-        if (typeof adminActive === 'boolean') {
-          await supabaseFetch('/rest/v1/affiliate_admin_status_history', {
-            method: 'POST',
-            headers: { Prefer: 'return=minimal' },
-            body: JSON.stringify({ affiliate_id: Number(id), admin_active: adminActive }),
-          });
-        }
       }
 
       if (wantsPasswordChange) {

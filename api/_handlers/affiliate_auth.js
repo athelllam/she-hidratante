@@ -183,7 +183,7 @@ async function resetPassword(req, res) {
 
 async function register(req, res) {
   const { name, slug, email, password, whatsapp, cpf, referralSlug } = req.body || {};
-  const cleanName = String(name || '').trim();
+  const cleanName = String(name || '').trim().slice(0, 20);
   const cleanEmail = String(email || '').trim().toLowerCase();
   const cleanSlug = slugify(slug || name).slice(0, 44);
   const cleanWhatsapp = normalizeWhatsapp(whatsapp);
