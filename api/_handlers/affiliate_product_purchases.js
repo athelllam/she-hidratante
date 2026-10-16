@@ -33,7 +33,7 @@ async function createFreightCharge(purchase, affiliate) {
 const money = v => Math.round((Number(v) || 0) * 100) / 100;
 const validEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim());
 
-async function getMelhorEnvioAccessToken(forceRefresh = false) {
+async function getMelhorEnvioAccessToken() {
   const rows = await supabaseFetch('/rest/v1/melhor_envio_credentials?id=eq.1&select=environment,access_token,refresh_token,expires_at&limit=1');
   const current = rows?.[0];
   const env = String(process.env.MELHOR_ENVIO_ENV || 'sandbox').toLowerCase() === 'production' ? 'production' : 'sandbox';
@@ -41,7 +41,7 @@ async function getMelhorEnvioAccessToken(forceRefresh = false) {
     const error = new Error(`Melhor Envio ainda não autorizado no ambiente ${env}. Acesse /api/melhor-envio/authorize no painel administrativo.`);
     error.statusCode = 503; throw error;
   }
-  if (!forceRefresh && Date.parse(current.expires_at) > Date.now() + 5 * 60 * 1000) return current.access_token;
+  if (Date.parse(current.expires_at) > Date.now() + 5 * 60 * 1000) return current.access_token;
   const clientId = String(process.env.MELHOR_ENVIO_CLIENT_ID || '').trim();
   const clientSecret = String(process.env.MELHOR_ENVIO_CLIENT_SECRET || '').trim();
   if (!clientId || !clientSecret || !current.refresh_token) {
@@ -116,7 +116,7 @@ module.exports = async function handler(req, res) {
           const cep = String(purchase.cep || '').replace(/\D/g, '');
           if (cep.length !== 8) { results.push({ id: purchase.id, ok: false, error: 'CEP de destino inválido.' }); continue; }
           try {
-            const quoteRequest = () => fetch(`${baseUrl}/me/shipment/calculate`, {
+            const response = await fetch(`${baseUrl}/me/shipment/calculate`, {
               method: 'POST',
               headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'She Afiliadas (suporte@shecoisademulher.com.br)' },
               body: JSON.stringify({
@@ -125,12 +125,6 @@ module.exports = async function handler(req, res) {
                 products: [{ id: `she-${purchase.id}`, width: 25, height: 5, length: 19, weight: 0.15, insurance_value: Number(purchase.price || 0), quantity: 1 }],
               }),
             });
-            let response = await quoteRequest();
-            // Se a API rejeitar a autenticação, renova os tokens e tenta a cotação uma única vez.
-            if (response.status === 401) {
-              token = await getMelhorEnvioAccessToken(true);
-              response = await quoteRequest();
-            }
             const raw = await response.text();
             let data; try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw.slice(0, 500) }; }
             if (!response.ok) throw new Error(data?.message || data?.error || `Melhor Envio respondeu HTTP ${response.status}`);
