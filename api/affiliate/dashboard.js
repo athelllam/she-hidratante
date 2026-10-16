@@ -105,9 +105,6 @@ module.exports = async function handler(req, res) {
   if (String(req.query?.__handler || '') === 'product-purchases') {
     return require('../_handlers/affiliate_product_purchases')(req, res);
   }
-  if (String(req.query?.__handler || '') === 'track') {
-    return require('../_handlers/affiliate_track')(req, res);
-  }
   if (req.method === 'POST' && getAdminPreviewId(req)) return json(res, 403, { error: 'Modo de visualização administrativa: ações que alteram a conta estão bloqueadas.' });
   if (req.method === 'POST' && String(req.body?.action || '') === 'update_profile') {
     try {
