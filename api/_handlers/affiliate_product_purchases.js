@@ -73,8 +73,15 @@ async function melhorEnvioRequest(path, token, options = {}) {
   const raw = await response.text();
   let data; try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw.slice(0, 500) }; }
   if (!response.ok) {
-    const e = new Error(data?.message || data?.error || `Melhor Envio respondeu HTTP ${response.status}`);
-    e.statusCode = response.status; throw e;
+    // Preserve the upstream status/body so the admin UI can show the real cause.
+    // Never log request payloads, access tokens, CPF, addresses, or phone numbers.
+    const upstreamMessage = String(data?.message || data?.error || data?.errors?.[0]?.message || `Melhor Envio respondeu HTTP ${response.status}`).slice(0, 700);
+    const e = new Error(`Melhor Envio HTTP ${response.status}: ${upstreamMessage}`);
+    e.statusCode = response.status >= 400 && response.status < 600 ? response.status : 502;
+    e.upstreamStatus = response.status;
+    e.upstreamBody = data && typeof data === 'object' ? JSON.stringify(data).slice(0, 1200) : String(raw || '').slice(0, 1200);
+    console.error('[She Melhor Envio] Falha na chamada externa', { path, status: response.status, response: e.upstreamBody });
+    throw e;
   }
   return data;
 }
@@ -225,7 +232,14 @@ module.exports = async function handler(req, res) {
           const patch = { melhor_envio_shipment_id: shipmentId, updated_at: new Date().toISOString() };
           await supabaseFetch(`/rest/v1/affiliate_product_purchases?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(patch) });
           return json(res, 200, { ok: true, id, shipment_id: shipmentId, message: 'Etiqueta adicionada ao carrinho do Melhor Envio. Finalize a compra no site do Melhor Envio.' });
-        } catch (e) { return json(res, Number(e.statusCode) || 502, { error: e.message || 'Não foi possível adicionar a etiqueta ao carrinho.' }); }
+        } catch (e) {
+          const status = Number(e.statusCode) || 502;
+          return json(res, status, {
+            error: e.message || 'Não foi possível adicionar a etiqueta ao carrinho.',
+            ...(e.upstreamStatus ? { melhor_envio_status: e.upstreamStatus } : {}),
+            ...(e.upstreamBody ? { melhor_envio_resposta: e.upstreamBody } : {}),
+          });
+        }
       }
       if (action === 'set_prices') {
         const hydrant = Number(req.body?.hydrant), stick = Number(req.body?.stick);
