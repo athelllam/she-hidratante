@@ -1130,13 +1130,12 @@ export default function AdminDashboard() {
               )}
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
               [selectedMonths.length ? 'Acessos no período' : 'Acessos acumulados', stats.totalAccesses],
               [selectedMonths.length ? 'Vendas no período' : 'Vendas acumuladas', stats.totalSales],
               ['Conversão', `${stats.totalAccesses > 0 ? ((stats.totalSales / stats.totalAccesses) * 100).toLocaleString('pt-BR', { maximumFractionDigits: 2, minimumFractionDigits: 2 }) : '0,00'}%`],
               [selectedMonths.length ? 'Faturamento no período' : 'Faturamento acumulado', brl(stats.totalRevenue)],
-              ['Ticket médio', brl(stats.averageTicket)],
             ].map(([label, value]) => (
               <div key={label} className="rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
                 <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">{label}</p>
@@ -1149,6 +1148,10 @@ export default function AdminDashboard() {
           </div>
 
           <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">Ticket médio</p>
+              <p className="mt-2 text-2xl font-black text-zinc-950">{brl(stats.averageTicket)}</p>
+            </div>
             <div className="rounded-[1.5rem] border border-pink-100 bg-white p-5 shadow-sm">
               <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">Comissão média por venda</p>
               <p className="mt-2 text-2xl font-black text-zinc-950">{brl(stats.averageCommissionPerSale)}</p>
