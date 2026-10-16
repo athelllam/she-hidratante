@@ -117,7 +117,10 @@ export default function AffiliateDashboard() {
   const [welcomeMotherPending, setWelcomeMotherPending] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', password: '', whatsapp: '', cpf: '' })
   const [registerSurname, setRegisterSurname] = useState('')
-  const [login, setLogin] = useState({ email: '', password: '' })
+  const [login, setLogin] = useState({ email: typeof window !== 'undefined' ? (localStorage.getItem('she_affiliate_saved_email') || '') : '', password: '' })
+  const [rememberLogin, setRememberLogin] = useState(typeof window !== 'undefined' && localStorage.getItem('she_affiliate_remember_login') === 'true')
+  const [showLoginPassword, setShowLoginPassword] = useState(false)
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false)
   const [forgotOpen, setForgotOpen] = useState(false)
   const [forgotEmail, setForgotEmail] = useState('')
   const [forgotBusy, setForgotBusy] = useState(false)
@@ -509,6 +512,8 @@ export default function AffiliateDashboard() {
 
   const submitLogin = async (event) => {
     event.preventDefault()
+    if (rememberLogin) { localStorage.setItem('she_affiliate_saved_email', login.email); localStorage.setItem('she_affiliate_remember_login', 'true') }
+    else { localStorage.removeItem('she_affiliate_saved_email'); localStorage.removeItem('she_affiliate_remember_login') }
     setBusy(true); setError('')
     try {
       await api('/api/affiliate/login', { method: 'POST', body: JSON.stringify(login) })
@@ -547,6 +552,7 @@ export default function AffiliateDashboard() {
     setBusy(true); setError('')
     try {
       await api('/api/affiliate/register', { method: 'POST', body: JSON.stringify({ ...form, referralSlug: getRememberedAffiliate() }) })
+      if (rememberLogin) { localStorage.setItem('she_affiliate_saved_email', form.email); localStorage.setItem('she_affiliate_remember_login', 'true') }
       clearRememberedAffiliate()
       setRegisterTermsCardOpen(false)
       setRegisterTermsOpen(false)
@@ -867,8 +873,14 @@ export default function AffiliateDashboard() {
 
           {!registerMode ? (
             <form onSubmit={submitLogin} className="mt-7 space-y-3">
-              <input value={login.email} onChange={e => setLogin({...login,email:e.target.value})} type="email" required placeholder="E-mail" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
-              <input value={login.password} onChange={e => setLogin({...login,password:e.target.value})} type="password" required placeholder="Senha" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
+              <input value={login.email} onChange={e => setLogin({...login,email:e.target.value})} type="email" autoComplete="username" required placeholder="E-mail" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
+              <div className="relative">
+                <input value={login.password} onChange={e => setLogin({...login,password:e.target.value})} type={showLoginPassword ? 'text' : 'password'} autoComplete="current-password" required placeholder="Senha" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 pr-12 outline-none focus:border-pink-400" />
+                <button type="button" onClick={() => setShowLoginPassword(value => !value)} aria-label={showLoginPassword ? 'Ocultar senha' : 'Mostrar senha'} className="absolute inset-y-0 right-3 flex items-center text-zinc-400 hover:text-pink-500">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>{showLoginPassword && <path d="M3 3l18 18"/>}</svg>
+                </button>
+              </div>
+              <label className="flex cursor-pointer items-center gap-2 px-1 text-sm text-zinc-600"><input type="checkbox" checked={rememberLogin} onChange={e => { const checked = e.target.checked; setRememberLogin(checked); if (!checked) { localStorage.removeItem('she_affiliate_saved_email'); localStorage.removeItem('she_affiliate_remember_login') } else { localStorage.setItem('she_affiliate_remember_login', 'true'); if (login.email) localStorage.setItem('she_affiliate_saved_email', login.email) } }} className="h-4 w-4 accent-pink-500" /><span>Salvar dados de login</span></label>
               {error && <p className="text-xs text-red-500">{error}</p>}
               <button disabled={busy} className="w-full rounded-2xl bg-pink-500 py-3.5 font-bold text-white disabled:opacity-60">{busy ? 'Entrando…' : 'Entrar'}</button>
               <button type="button" onClick={() => { setForgotOpen(v => !v); setForgotEmail(''); setForgotMessage('') }} className="mx-auto flex items-center justify-center pt-1 text-xs font-semibold text-zinc-400 transition-colors hover:text-zinc-600">
@@ -894,17 +906,26 @@ export default function AffiliateDashboard() {
               <input value={form.whatsapp} onChange={e => setForm({...form,whatsapp:e.target.value})} type="tel" required placeholder="WhatsApp (31) 99999-9999" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
               <input value={form.cpf} onChange={e => setForm({...form,cpf:e.target.value})} inputMode="numeric" maxLength={14} required placeholder="CPF" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
               <input value={form.email} onChange={e => setForm({...form,email:e.target.value})} type="email" required placeholder="E-mail" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
-              <input value={form.password} onChange={e => setForm({...form,password:e.target.value})} type="password" minLength={8} required placeholder="Senha (mín. 8 caracteres)" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none focus:border-pink-400" />
+              <div className="relative">
+                <input value={form.password} onChange={e => setForm({...form,password:e.target.value})} type={showRegisterPassword ? 'text' : 'password'} autoComplete="new-password" minLength={8} required placeholder="Senha (mín. 8 caracteres)" className="w-full rounded-2xl border border-zinc-200 px-4 py-3 pr-12 outline-none focus:border-pink-400" />
+                <button type="button" onClick={() => setShowRegisterPassword(value => !value)} aria-label={showRegisterPassword ? 'Ocultar senha' : 'Mostrar senha'} className="absolute inset-y-0 right-3 flex items-center text-zinc-400 hover:text-pink-500">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>{showRegisterPassword && <path d="M3 3l18 18"/>}</svg>
+                </button>
+              </div>
+              <label className="flex cursor-pointer items-center gap-2 px-1 text-sm text-zinc-600"><input type="checkbox" checked={rememberLogin} onChange={e => { const checked = e.target.checked; setRememberLogin(checked); if (!checked) { localStorage.removeItem('she_affiliate_saved_email'); localStorage.removeItem('she_affiliate_remember_login') } else { localStorage.setItem('she_affiliate_remember_login', 'true'); if (form.email) localStorage.setItem('she_affiliate_saved_email', form.email) } }} className="h-4 w-4 accent-pink-500" /><span>Salvar dados de login</span></label>
               {error && <p className="text-xs text-red-500">{error}</p>}
               <button type="submit" disabled={busy} className="w-full rounded-2xl bg-pink-500 py-3.5 font-bold text-white disabled:opacity-60">Criar conta</button>
 
               {registerTermsCardOpen && (
-                <div className="mt-4 rounded-2xl border border-pink-100 bg-pink-50/70 p-4">
-                  <p className="text-sm font-black text-zinc-900">Termos e Condições</p>
-                  <p className="mt-1 text-xs leading-5 text-zinc-500">Antes de criar sua conta, leia e aceite os Termos e Condições do programa de afiliadas.</p>
-                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                    <button type="button" onClick={() => setRegisterTermsOpen(true)} className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-xs font-black text-zinc-700">Ler Termos e Condições</button>
-                    <button type="button" disabled={busy} onClick={acceptRegisterTermsAndCreate} className="rounded-xl bg-zinc-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50">{busy ? 'Criando…' : 'Aceitar e cadastrar'}</button>
+                <div className="fixed inset-0 z-[75] flex items-center justify-center bg-zinc-950/55 px-4 py-6 backdrop-blur-sm">
+                  <div role="dialog" aria-modal="true" aria-labelledby="register-terms-title" className="w-full max-w-lg rounded-[2rem] border border-pink-100 bg-white p-6 shadow-[0_30px_100px_rgba(0,0,0,.28)] sm:p-8">
+                  <div className="mb-4 text-center"><span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-pink-100 text-pink-500"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-6 w-6"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h7"/></svg></span><p id="register-terms-title" className="mt-3 text-lg font-black text-zinc-900">Termos e Condições</p></div>
+                  <p className="text-sm leading-6 text-zinc-600">Antes de criar sua conta, leia e aceite os Termos e Condições do programa de afiliadas.</p>
+                  <div className="mt-4 flex flex-col gap-3">
+                    <button type="button" onClick={() => setRegisterTermsOpen(true)} className="w-full rounded-xl border border-pink-200 bg-white px-4 py-3 text-sm font-black text-pink-600">Ler Termos e Condições</button>
+                    <button type="button" disabled={busy} onClick={acceptRegisterTermsAndCreate} className="w-full rounded-xl bg-pink-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-pink-100 disabled:opacity-50">{busy ? 'Criando…' : '✓ Aceitar e cadastrar'}</button>
+                    <button type="button" disabled={busy} onClick={() => setRegisterTermsCardOpen(false)} className="w-full py-1 text-sm font-semibold text-zinc-400">Voltar ao cadastro</button>
+                  </div>
                   </div>
                 </div>
               )}
@@ -1025,7 +1046,7 @@ export default function AffiliateDashboard() {
       </div>}
       <header className="fixed inset-x-0 top-2 z-[80] px-3 sm:top-3 sm:px-4">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 rounded-2xl border border-white/50 bg-white/45 px-4 py-2 shadow-[0_8px_30px_rgba(30,10,20,.10)] ring-1 ring-pink-100/30 backdrop-blur-2xl md:px-6">
-          <Link to="/" className="shrink-0 text-sm font-black tracking-tight text-zinc-950 md:text-base">SHE<span className="text-pink-500">.</span><span className="ml-1.5 text-[10px] font-bold text-zinc-400 md:text-xs">AFILIADAS</span></Link>
+          <div aria-label="She Afiliadas" className="shrink-0 select-none text-sm font-black tracking-tight text-zinc-950 md:text-base">SHE<span className="text-pink-500">.</span><span className="ml-1.5 text-[10px] font-bold text-zinc-400 md:text-xs">AFILIADAS</span></div>
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5 md:gap-2">
             <div className="relative">
               <button type="button" aria-haspopup="menu" aria-expanded={affiliateNavOpen} onClick={() => setAffiliateNavOpen(open => !open)} className="inline-flex items-center gap-1.5 rounded-lg border border-pink-200 bg-white px-3 py-2 text-[11px] font-black text-pink-700 shadow-sm transition hover:bg-pink-50 md:text-xs">
