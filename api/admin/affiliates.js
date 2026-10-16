@@ -136,8 +136,11 @@ module.exports = async function handler(req, res) {
         ordersByAffiliate.get(id).push(order);
       }
 
+      // Status automático baseado exclusivamente em vendas pessoais aprovadas:
+      // sem nenhuma venda => INATIVA; venda nos últimos 7 dias => ATIVA;
+      // ao completar 7 dias sem nova venda (início do 8º dia), => INATIVA.
       const cutoff = Date.now() - (7 * 24 * 60 * 60 * 1000);
-      const staleAffiliateIds = [];
+      const statusUpdates = [];
 
       for (const affiliate of affiliates || []) {
         const affiliateOrders = ordersByAffiliate.get(Number(affiliate.id)) || [];
@@ -146,26 +149,28 @@ module.exports = async function handler(req, res) {
           const value = order.created_at ? new Date(order.created_at).getTime() : 0;
           return value > latest ? value : latest;
         }, 0);
-        if (Boolean(affiliate.admin_active) && lastSaleAt > 0 && lastSaleAt < cutoff) {
-          staleAffiliateIds.push(Number(affiliate.id));
+        const shouldBeActive = lastSaleAt > 0 && lastSaleAt >= cutoff;
+        if (Boolean(affiliate.admin_active) !== shouldBeActive) {
+          statusUpdates.push({ id: Number(affiliate.id), active: shouldBeActive });
         }
       }
 
-      if (staleAffiliateIds.length) {
-        await Promise.all(staleAffiliateIds.map(id =>
+      if (statusUpdates.length) {
+        await Promise.all(statusUpdates.map(({ id, active }) =>
           supabaseFetch(`/rest/v1/affiliates?id=eq.${id}`, {
             method: 'PATCH',
-            body: JSON.stringify({ admin_active: false }),
+            body: JSON.stringify({ admin_active: active }),
           }).catch(() => null)
         ));
         for (const affiliate of affiliates || []) {
-          if (staleAffiliateIds.includes(Number(affiliate.id))) affiliate.admin_active = false;
+          const update = statusUpdates.find(item => item.id === Number(affiliate.id));
+          if (update) affiliate.admin_active = update.active;
         }
-        await Promise.all(staleAffiliateIds.map(id =>
+        await Promise.all(statusUpdates.map(({ id, active }) =>
           supabaseFetch('/rest/v1/affiliate_admin_status_history', {
             method: 'POST',
             headers: { Prefer: 'return=minimal' },
-            body: JSON.stringify({ affiliate_id: id, admin_active: false }),
+            body: JSON.stringify({ affiliate_id: id, admin_active: active }),
           }).catch(() => null)
         ));
       }
@@ -194,7 +199,7 @@ module.exports = async function handler(req, res) {
           withdrawals: 0,
           accesses: accessesByAffiliate.get(Number(affiliate.id)) || 0,
           lastSaleAt: lastSaleAt ? new Date(lastSaleAt).toISOString() : null,
-          autoInactive: lastSaleAt > 0 && lastSaleAt < cutoff,
+          autoInactive: lastSaleAt <= 0 || lastSaleAt < cutoff,
         });
       }
 
@@ -353,8 +358,8 @@ module.exports = async function handler(req, res) {
         }
         if (latestHistory) return Boolean(latestHistory.admin_active);
 
-        // Compatibilidade para meses anteriores à criação do histórico: usa a regra
-        // automática vigente (nova afiliada sem venda continua ativa).
+        // Compatibilidade para meses anteriores à criação do histórico: sem venda pessoal,
+        // a afiliada permanece inativa até registrar sua primeira venda aprovada.
         const created = new Date(affiliate.created_at).getTime();
         if (Number.isNaN(created) || created >= endExclusive.getTime()) return null;
         const cutoff = endExclusive.getTime() - (7 * 24 * 60 * 60 * 1000);
@@ -364,7 +369,7 @@ module.exports = async function handler(req, res) {
           const t = new Date(order.created_at).getTime();
           if (t < endExclusive.getTime() && t > lastSale) lastSale = t;
         }
-        if (!lastSale) return true;
+        if (!lastSale) return false;
         return lastSale >= cutoff;
       }
 

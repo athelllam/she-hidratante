@@ -235,7 +235,7 @@ async function register(req, res) {
         whatsapp: cleanWhatsapp,
         pix_key: null,
         active: true,
-        admin_active: true,
+        admin_active: false,
         commission_rate: 0.10,
         ...(referralParent ? {
           team_parent_id: Number(referralParent.id),
@@ -249,7 +249,7 @@ async function register(req, res) {
       await supabaseFetch('/rest/v1/affiliate_admin_status_history', {
         method: 'POST',
         headers: { Prefer: 'return=minimal' },
-        body: JSON.stringify({ affiliate_id: rows[0].id, admin_active: true }),
+        body: JSON.stringify({ affiliate_id: rows[0].id, admin_active: false }),
       }).catch(() => null);
     }
 
