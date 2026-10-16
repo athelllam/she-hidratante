@@ -1129,7 +1129,9 @@ export default function AdminDashboard() {
                     ['users', 'Afiliadas Cadastradas', 'admin-afiliadas'],
                     ['bell', 'Avisos por Push', 'admin-push'],
                     ['settings', 'Configurações', 'admin-configuracoes'],
-                    ['shop', 'Revenda e Impulso', 'admin-revenda'],
+                    ['shop', 'Revenda', 'admin-revenda'],
+                    ['zap', 'Impulso', 'admin-impulso'],
+                    ['wallet', 'Saldo', 'admin-saque'],
                     ['video', 'Solicitação de Vídeo', 'admin-videos'],
                     ['wallet', 'Solicitação de Saque', 'admin-saques'],
                     ['package', 'Solicitação de Compra', 'admin-compras'],
@@ -1140,6 +1142,7 @@ export default function AdminDashboard() {
                       : icon === 'bell' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
                       : icon === 'settings' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.2.9-1.2 2.1-1.4-.5a8 8 0 0 1-1.7 1l-.2 1.5h-2.4l-.3-1.5a8 8 0 0 1-1.7-1l-1.4.5-1.2-2.1 1.2-.9a7 7 0 0 1 0-2l-1.2-.9 1.2-2.1 1.4.5a8 8 0 0 1 1.7-1l.3-1.5h2.4l.2 1.5a8 8 0 0 1 1.7 1l1.4-.5 1.2 2.1-1.2.9a7 7 0 0 1 0 2Z" transform="translate(-1 -1)"/></svg>
                       : icon === 'shop' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 9h18l-2-5H5L3 9Z"/><path d="M5 9v11h14V9M9 20v-7h6v7"/></svg>
+                      : icon === 'zap' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M13 2 4 14h7l-1 8 10-13h-7l0-7Z"/></svg>
                       : icon === 'video' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="5" width="13" height="14" rx="3"/><path d="m16 10 5-3v10l-5-3z"/></svg>
                       : icon === 'wallet' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="6" width="18" height="14" rx="3"/><path d="M3 9V6a3 3 0 0 1 3-3h12M15 13h6"/></svg>
                       : <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 7h18l-2 13H5L3 7Z"/><path d="M8 7a4 4 0 0 1 8 0"/></svg>}
@@ -1292,7 +1295,8 @@ export default function AdminDashboard() {
             ].map(([label, value]) => (
               <div
                 key={label}
-                className={`rounded-[1.5rem] border p-5 shadow-sm ${label === 'Saldo das afiliadas' ? 'border-pink-200 bg-pink-50/80' : 'border-pink-100 bg-white'}`}
+                id={label === 'Afiliadas' ? 'admin-saque' : undefined}
+                className={`scroll-mt-28 rounded-[1.5rem] border p-5 shadow-sm ${label === 'Saldo das afiliadas' ? 'border-pink-200 bg-pink-50/80' : 'border-pink-100 bg-white'}`}
               >
                 <p className="text-[10px] font-black uppercase tracking-[.18em] text-zinc-400">{label}</p>
                 <p className="mt-2 text-2xl font-black text-zinc-950">{value}</p>
@@ -1631,7 +1635,7 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <div className="mt-5 border-t border-zinc-100 pt-5">
+          <div id="admin-impulso" className="mt-5 scroll-mt-28 border-t border-zinc-100 pt-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[.18em] text-pink-500">Impulsionar Equipe</p>
