@@ -552,7 +552,6 @@ export default function AffiliateDashboard() {
     setBusy(true); setError('')
     try {
       await api('/api/affiliate/register', { method: 'POST', body: JSON.stringify({ ...form, referralSlug: getRememberedAffiliate() }) })
-      if (rememberLogin) { localStorage.setItem('she_affiliate_saved_email', form.email); localStorage.setItem('she_affiliate_remember_login', 'true') }
       clearRememberedAffiliate()
       setRegisterTermsCardOpen(false)
       setRegisterTermsOpen(false)
@@ -912,7 +911,6 @@ export default function AffiliateDashboard() {
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>{showRegisterPassword && <path d="M3 3l18 18"/>}</svg>
                 </button>
               </div>
-              <label className="flex cursor-pointer items-center gap-2 px-1 text-sm text-zinc-600"><input type="checkbox" checked={rememberLogin} onChange={e => { const checked = e.target.checked; setRememberLogin(checked); if (!checked) { localStorage.removeItem('she_affiliate_saved_email'); localStorage.removeItem('she_affiliate_remember_login') } else { localStorage.setItem('she_affiliate_remember_login', 'true'); if (form.email) localStorage.setItem('she_affiliate_saved_email', form.email) } }} className="h-4 w-4 accent-pink-500" /><span>Salvar dados de login</span></label>
               {error && <p className="text-xs text-red-500">{error}</p>}
               <button type="submit" disabled={busy} className="w-full rounded-2xl bg-pink-500 py-3.5 font-bold text-white disabled:opacity-60">Criar conta</button>
 
