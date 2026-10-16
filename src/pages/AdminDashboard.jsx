@@ -15,6 +15,45 @@ function dateTime(value) {
   })
 }
 
+
+function AdminLineChart({ title, rows, series, formatValue }) {
+  const width = 1080
+  const height = 300
+  const left = 58
+  const right = 24
+  const top = 36
+  const bottom = 48
+  const plotWidth = width - left - right
+  const plotHeight = height - top - bottom
+  const x = index => rows.length <= 1 ? left + plotWidth / 2 : left + (index / (rows.length - 1)) * plotWidth
+  return (
+    <div className="min-w-0 rounded-2xl border border-pink-100 bg-white p-4 shadow-sm">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-black text-zinc-900">{title}</h3>
+        <div className="flex flex-wrap gap-3">{series.map(item => <span key={item.key} className="inline-flex items-center gap-1.5 text-[11px] font-bold text-zinc-600"><i className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />{item.label}</span>)}</div>
+      </div>
+      <div className="w-full overflow-x-auto">
+        <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title} className="block h-auto min-w-[720px] w-full overflow-visible">
+          {[0, .25, .5, .75, 1].map(ratio => <line key={ratio} x1={left} x2={width-right} y1={top+plotHeight*(1-ratio)} y2={top+plotHeight*(1-ratio)} stroke="#f1e4eb" strokeDasharray="4 5" />)}
+          {series.map(item => {
+            const values = rows.map(row => Number(row[item.key] || 0))
+            const minSeries = Math.min(0, ...values)
+            const maxSeries = Math.max(1, ...values)
+            const range = Math.max(1, maxSeries - minSeries)
+            const sy = value => top + plotHeight - ((Number(value || 0) - minSeries) / range) * plotHeight
+            const points = rows.map((row, index) => `${x(index)},${sy(row[item.key])}`).join(' ')
+            return <g key={item.key}>
+              <polyline points={points} fill="none" stroke={item.color} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+              {rows.map((row, index) => { const px=x(index); const py=sy(row[item.key]); return <g key={row.month}><circle cx={px} cy={py} r="4" fill={item.color} stroke="white" strokeWidth="1.5"/><text x={px} y={Math.max(16,py-10)} textAnchor="middle" fontSize="10" fontWeight="700" fill={item.color}>{formatValue(row[item.key], item.key)}</text></g> })}
+            </g>
+          })}
+          {rows.map((row,index) => <text key={row.month} x={x(index)} y={height-16} textAnchor="middle" fontSize="11" fontWeight="700" fill="#71717a">{row.label}</text>)}
+        </svg>
+      </div>
+    </div>
+  )
+}
+
 function withdrawalLabel(status) {
   if (status === 'paid') return 'Pago'
   if (status === 'processing') return 'Processando Pix'
@@ -117,6 +156,8 @@ export default function AdminDashboard() {
   const [videoBusyId, setVideoBusyId] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
   const [adminMenuOpen, setAdminMenuOpen] = useState(false)
+  const [adminGraphsOpen, setAdminGraphsOpen] = useState(false)
+  const [graphYear, setGraphYear] = useState(String(new Date().getFullYear()))
   const [payingId, setPayingId] = useState(null)
   const [bulkPayingWithdrawals, setBulkPayingWithdrawals] = useState(false)
   const [bulkProgress, setBulkProgress] = useState(null)
@@ -941,6 +982,17 @@ export default function AdminDashboard() {
   }, [affiliates, withdrawals, globalStatsData, selectedMonths])
 
   const parsedAverageSaleCost = Math.max(0, Number(String(averageSaleCost).replace(',', '.')) || 0)
+  const graphYears = [...new Set(Object.keys(globalStatsData.byMonth || {}).map(month => month.slice(0, 4)).filter(year => /^\d{4}$/.test(year)))].sort((a, b) => b.localeCompare(a))
+  const graphMonths = Array.from({ length: 12 }, (_, index) => {
+    const month = `${graphYear}-${String(index + 1).padStart(2, '0')}`
+    const value = globalStatsData.byMonth?.[month] || {}
+    const sales = Number(value.sales || 0)
+    const revenue = Number(value.revenue || 0)
+    const averageTicket = sales ? revenue / sales : 0
+    const averageCommission = sales ? (Number(value.personalCommission || 0) + Number(value.teamCommission || 0)) / sales : 0
+    const totalCommission = Number(value.personalCommission || 0) + Number(value.teamCommission || 0)
+    return { month, label: new Date(`${month}-01T00:00:00Z`).toLocaleDateString('pt-BR', { month: 'short', timeZone: 'UTC' }).replace('.', ''), sales, revenue, margin: revenue - (sales * parsedAverageSaleCost) - totalCommission, averageTicket, averageCommission }
+  })
   const contributionMargin = stats.averageTicket - parsedAverageSaleCost - stats.averageCommissionPerSale
   const contributionMarginPercent = stats.averageTicket > 0 ? (contributionMargin / stats.averageTicket) * 100 : 0
 
@@ -1093,6 +1145,10 @@ export default function AdminDashboard() {
                       : <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 7h18l-2 13H5L3 7Z"/><path d="M8 7a4 4 0 0 1 8 0"/></svg>}
                     </span><span>{label}</span>
                   </a>)}
+                  <div className="my-1 h-px bg-pink-100" />
+                  <button type="button" role="menuitem" onClick={() => { setAdminMenuOpen(false); setAdminGraphsOpen(true) }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-zinc-700 transition hover:bg-pink-50 hover:text-pink-700 focus:bg-pink-50 focus:outline-none">
+                    <span aria-hidden="true" className="flex h-5 w-5 shrink-0 items-center justify-center text-pink-500"><svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 6-7"/><circle cx="7" cy="14" r="1"/><circle cx="11" cy="10" r="1"/><circle cx="14" cy="13" r="1"/><circle cx="20" cy="6" r="1"/></svg></span>Gráficos
+                  </button>
                 </div>
               </>}
             </div>
@@ -1100,6 +1156,22 @@ export default function AdminDashboard() {
             </div>
           </div>
         </nav>
+
+        {adminGraphsOpen && <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-zinc-950/45 p-3 backdrop-blur-sm sm:p-6" onMouseDown={event => { if (event.target === event.currentTarget) setAdminGraphsOpen(false) }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="admin-graphs-title" className="my-4 w-full max-w-7xl rounded-3xl border border-pink-100 bg-[#fffafd] p-4 shadow-2xl sm:my-8 sm:p-6">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <div><p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Análise do programa</p><h2 id="admin-graphs-title" className="mt-1 text-2xl font-black text-zinc-950">Gráficos</h2><p className="mt-1 text-sm text-zinc-500">Evolução mensal de vendas, faturamento e indicadores financeiros.</p></div>
+              <div className="flex items-center gap-2"><label htmlFor="admin-graphs-year" className="text-xs font-bold text-zinc-600">Ano</label><select id="admin-graphs-year" value={graphYear} onChange={event => setGraphYear(event.target.value)} className="rounded-xl border border-pink-200 bg-white px-3 py-2 text-sm font-bold text-zinc-800">{[...new Set([String(new Date().getFullYear()), ...graphYears])].sort((a,b)=>b.localeCompare(a)).map(year => <option key={year} value={year}>{year}</option>)}</select><button type="button" onClick={() => setAdminGraphsOpen(false)} aria-label="Fechar gráficos" className="ml-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-black text-zinc-600 hover:bg-zinc-100">✕</button></div>
+            </div>
+            <div className="grid gap-4">
+              <AdminLineChart title="Vendas totais e faturamento por mês" rows={graphMonths} series={[{key:'sales',label:'Vendas',color:'#ec4899'},{key:'revenue',label:'Faturamento',color:'#27272a'}]} formatValue={(value,key) => key === 'revenue' ? brl(value) : String(Math.round(Number(value || 0)))} />
+              <AdminLineChart title="Margem de contribuição por mês" rows={graphMonths} series={[{key:'margin',label:'Margem total estimada',color:'#db2777'}]} formatValue={value => brl(value)} />
+              <AdminLineChart title="Ticket médio por mês" rows={graphMonths} series={[{key:'averageTicket',label:'Ticket médio',color:'#7c3aed'}]} formatValue={value => brl(value)} />
+              <AdminLineChart title="Comissão média por mês" rows={graphMonths} series={[{key:'averageCommission',label:'Comissão média',color:'#0891b2'}]} formatValue={value => brl(value)} />
+            </div>
+            <p className="mt-4 text-xs text-zinc-500">A margem total é estimada por mês: faturamento − (vendas × custo médio por venda configurado) − comissões totais. Os rótulos mostram o valor de cada mês.</p>
+          </section>
+        </div>}
 
         <section id="admin-indicadores" className="mt-7 scroll-mt-28">
           <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
