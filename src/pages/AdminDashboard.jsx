@@ -1364,8 +1364,8 @@ export default function AdminDashboard() {
                       </div>
                     </td>
                     <td className="py-4 pr-4">
-                      <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black ${Number(affiliate.daysWithoutSales || 0) >= 60 ? 'bg-red-100 text-red-800 ring-1 ring-red-300' : Number(affiliate.daysWithoutSales || 0) >= 7 ? 'bg-amber-100 text-amber-800' : 'bg-zinc-100 text-zinc-600'}`}>
-                        {Number(affiliate.daysWithoutSales || 0)} {Number(affiliate.daysWithoutSales || 0) === 1 ? 'dia' : 'dias'} sem vendas
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black ${!affiliate.lastSaleAt ? 'bg-zinc-100 text-zinc-600' : Number(affiliate.daysWithoutSales || 0) >= 60 ? 'bg-red-100 text-red-800 ring-1 ring-red-300' : Number(affiliate.daysWithoutSales || 0) >= 7 ? 'bg-amber-100 text-amber-800' : 'bg-zinc-100 text-zinc-600'}`}>
+                        {!affiliate.lastSaleAt ? 'Não possui venda' : `${Number(affiliate.daysWithoutSales || 0)} ${Number(affiliate.daysWithoutSales || 0) === 1 ? 'dia' : 'dias'} sem vendas`}
                       </span>
                     </td>
                     <td className="py-4 pr-4">
