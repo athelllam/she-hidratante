@@ -133,7 +133,6 @@ export default function AdminDashboard() {
   const [error, setError] = useState('')
   const [affiliates, setAffiliates] = useState([])
   const [pushEnabledAffiliates, setPushEnabledAffiliates] = useState(0)
-  const [pushEnabledIosAffiliates, setPushEnabledIosAffiliates] = useState(0)
   const [wooviBalance, setWooviBalance] = useState(null)
   const [wooviBalanceError, setWooviBalanceError] = useState('')
   const [wooviBalanceLoading, setWooviBalanceLoading] = useState(false)
@@ -214,6 +213,22 @@ export default function AdminDashboard() {
   const [emailBroadcastSubject, setEmailBroadcastSubject] = useState('Aviso da She Afiliadas')
   const [emailBroadcastBody, setEmailBroadcastBody] = useState('')
   const [emailBroadcastBusy, setEmailBroadcastBusy] = useState(false)
+  const [broadcastLogsChannel, setBroadcastLogsChannel] = useState('')
+  const [broadcastLogs, setBroadcastLogs] = useState([])
+  const [broadcastLogsLoading, setBroadcastLogsLoading] = useState(false)
+  const [broadcastLogsError, setBroadcastLogsError] = useState('')
+
+  const openBroadcastLogs = async (channel) => {
+    setBroadcastLogsChannel(channel)
+    setBroadcastLogs([])
+    setBroadcastLogsError('')
+    setBroadcastLogsLoading(true)
+    try {
+      const result = await api(`/api/admin/withdrawals?action=broadcast-logs&channel=${channel}`)
+      setBroadcastLogs(result.logs || [])
+    } catch (e) { setBroadcastLogsError(e.message || 'Não foi possível carregar os registros.') }
+    finally { setBroadcastLogsLoading(false) }
+  }
 
   const sendPushBroadcast = async (event) => {
     event.preventDefault()
@@ -257,7 +272,6 @@ export default function AdminDashboard() {
     ])
     setAffiliates(affiliateData.affiliates || [])
     setPushEnabledAffiliates(Number(affiliateData.pushEnabledAffiliates || 0))
-    setPushEnabledIosAffiliates(Number(affiliateData.pushEnabledIosAffiliates || 0))
     setWithdrawals(withdrawalData.withdrawals || [])
     setSelectedWithdrawalIds(new Set())
     setVideoSubmissions(videoData.videos || [])
@@ -1556,19 +1570,29 @@ export default function AdminDashboard() {
 
 
 
+        {broadcastLogsChannel && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-zinc-950/55 p-3 backdrop-blur-sm sm:p-6" onMouseDown={event => { if (event.target === event.currentTarget) setBroadcastLogsChannel('') }}>
+            <div className="max-h-[85vh] w-full max-w-3xl overflow-hidden rounded-[1.5rem] border border-pink-100 bg-white shadow-2xl">
+              <div className="flex items-start justify-between gap-3 border-b border-pink-100 bg-gradient-to-r from-pink-50 to-white p-5 sm:p-6">
+                <div><p className="text-xs font-black uppercase tracking-[.16em] text-pink-600">She Afiliadas · Histórico</p><h2 className="mt-1 text-xl font-black text-zinc-950">Registros de avisos por {broadcastLogsChannel === 'push' ? 'push' : 'e-mail'}</h2><p className="mt-1 text-sm text-zinc-500">Lista dos avisos enviados e a data e hora de cada envio.</p></div>
+                <button type="button" aria-label="Fechar registros" onClick={() => setBroadcastLogsChannel('')} className="rounded-full bg-white px-3 py-1 text-2xl font-bold text-zinc-500 shadow-sm">×</button>
+              </div>
+              <div className="max-h-[65vh] overflow-y-auto p-4 sm:p-6">
+                {broadcastLogsLoading ? <div className="py-12 text-center text-sm font-semibold text-zinc-500">Carregando registros…</div> : broadcastLogsError ? <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{broadcastLogsError}</div> : !broadcastLogs.length ? <div className="rounded-2xl border border-dashed border-pink-200 bg-pink-50/40 p-8 text-center"><p className="font-black text-zinc-800">Nenhum aviso registrado ainda</p><p className="mt-1 text-sm text-zinc-500">Os próximos envios aparecerão aqui.</p></div> : <div className="grid gap-3">{broadcastLogs.map(log => <article key={log.id} className="rounded-2xl border border-pink-100 bg-white p-4 shadow-sm"><div className="flex flex-wrap items-start justify-between gap-2"><div className="font-black text-zinc-900">{log.title || log.subject || (broadcastLogsChannel === 'push' ? 'Aviso por push' : 'Aviso por e-mail')}</div><time className="text-xs font-semibold text-zinc-500">{log.sent_at ? new Date(log.sent_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Data não informada'}</time></div><p className="mt-2 whitespace-pre-wrap break-words text-sm text-zinc-600">{log.message || ''}</p><p className="mt-3 text-xs font-bold text-pink-700">{broadcastLogsChannel === 'push' ? `${log.sent_count || 0} dispositivo(s) enviado(s)` : `${log.sent_count || 0} e-mail(s) enviado(s)`}{Number(log.failed_count) > 0 ? ` · ${log.failed_count} falha(s)` : ''}</p></article>)}</div>}
+              </div>
+            </div>
+          </div>
+        )}
+
         <section id="admin-push" className="mt-6 scroll-mt-28 rounded-[1.5rem] border border-pink-200 bg-white p-6 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-pink-100 text-pink-700">🔔</div>
             <div><h2 className="text-xl font-black text-zinc-950">Avisos administrativos por push</h2><p className="mt-1 text-sm text-zinc-500">Escreva um aviso e envie para todas as afiliadas com notificações push ativas no site She Afiliadas.</p></div>
           </div>
-          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-pink-100 bg-gradient-to-r from-pink-50 to-white p-4">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">📱</div>
-            <div className="min-w-0 flex-1"><p className="text-xs font-bold uppercase tracking-wide text-pink-700">Push ativo no iOS</p><p className="mt-0.5 text-2xl font-black text-zinc-950">{pushEnabledIosAffiliates} <span className="text-sm font-semibold text-zinc-500">afiliada(s)</span></p><p className="mt-1 text-xs text-zinc-500">Contagem de afiliadas únicas com inscrição ativa no iOS, incluindo a PWA salva na tela inicial do iPhone ou iPad.</p></div>
-          </div>
           <form onSubmit={sendPushBroadcast} className="mt-4 grid gap-3">
             <label className="grid gap-1 text-xs font-bold text-zinc-600">Título da notificação<input maxLength={80} value={pushBroadcastTitle} onChange={e => setPushBroadcastTitle(e.target.value)} className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-semibold text-zinc-900 outline-none focus:border-pink-400" /></label>
             <label className="grid gap-1 text-xs font-bold text-zinc-600">Mensagem<textarea required maxLength={500} rows={3} value={pushBroadcastBody} onChange={e => setPushBroadcastBody(e.target.value)} placeholder="Escreva o aviso que todas as afiliadas receberão..." className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-medium text-zinc-900 outline-none focus:border-pink-400" /></label>
-            <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-zinc-400">Envia apenas para inscrições ativas. Use com moderação.</p><button type="submit" disabled={pushBroadcastBusy || !pushBroadcastBody.trim()} className="rounded-xl bg-pink-600 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{pushBroadcastBusy ? 'Enviando…' : 'Enviar para todos os apps'}</button></div>
+            <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-zinc-400">Envia apenas para inscrições ativas. Use com moderação.</p><div className="flex flex-wrap gap-2"><button type="button" onClick={() => openBroadcastLogs('push')} className="rounded-xl border border-pink-200 bg-white px-5 py-3 text-sm font-black text-pink-700 hover:bg-pink-50">Registros</button><button type="submit" disabled={pushBroadcastBusy || !pushBroadcastBody.trim()} className="rounded-xl bg-pink-600 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{pushBroadcastBusy ? 'Enviando…' : 'Enviar para todos os apps'}</button></div></div>
           </form>
         </section>
 
@@ -1580,7 +1604,7 @@ export default function AdminDashboard() {
           <form onSubmit={sendEmailBroadcast} className="mt-4 grid gap-3">
             <label className="grid gap-1 text-xs font-bold text-zinc-600">Assunto do e-mail<input required maxLength={120} value={emailBroadcastSubject} onChange={e => setEmailBroadcastSubject(e.target.value)} className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-semibold text-zinc-900 outline-none focus:border-pink-400" placeholder="Assunto do aviso" /></label>
             <label className="grid gap-1 text-xs font-bold text-zinc-600">Mensagem<textarea required maxLength={10000} rows={6} value={emailBroadcastBody} onChange={e => setEmailBroadcastBody(e.target.value)} placeholder="Escreva o recado que todas as afiliadas receberão por e-mail..." className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-medium text-zinc-900 outline-none focus:border-pink-400" /></label>
-            <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-zinc-400">O sistema envia uma cópia individual para cada afiliada com e-mail cadastrado. Será solicitada confirmação antes do envio.</p><button type="submit" disabled={emailBroadcastBusy || !emailBroadcastSubject.trim() || !emailBroadcastBody.trim()} className="rounded-xl bg-pink-600 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{emailBroadcastBusy ? 'Enviando…' : 'Enviar e-mail para todas'}</button></div>
+            <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-zinc-400">O sistema envia uma cópia individual para cada afiliada com e-mail cadastrado. Será solicitada confirmação antes do envio.</p><div className="flex flex-wrap gap-2"><button type="button" onClick={() => openBroadcastLogs('email')} className="rounded-xl border border-pink-200 bg-white px-5 py-3 text-sm font-black text-pink-700 hover:bg-pink-50">Registros</button><button type="submit" disabled={emailBroadcastBusy || !emailBroadcastSubject.trim() || !emailBroadcastBody.trim()} className="rounded-xl bg-pink-600 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{emailBroadcastBusy ? 'Enviando…' : 'Enviar e-mail para todas'}</button></div></div>
           </form>
         </section>
 

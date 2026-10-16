@@ -32,6 +32,12 @@ module.exports = async function handler(req, res) {
     await requireAdmin(req);
 
     if (req.method === 'GET') {
+      if (String(req.query?.action || '') === 'broadcast-logs') {
+        const channel = String(req.query?.channel || '');
+        if (!['push', 'email'].includes(channel)) return json(res, 400, { error: 'Canal de registros inválido.' });
+        const logs = await supabaseFetch(`/rest/v1/admin_broadcast_logs?channel=eq.${channel}&select=id,channel,title,subject,message,sent_count,failed_count,sent_at&order=sent_at.desc&limit=200`);
+        return json(res, 200, { logs: logs || [] });
+      }
       const rows = await supabaseFetch('/rest/v1/affiliate_withdrawals?select=id,affiliate_id,amount,status,pix_key,pix_key_type,source,note,requested_at,processed_at,woovi_payment_id,woovi_correlation_id,woovi_status,woovi_fail_reason,woovi_end_to_end_id,transaction_receipt_url,affiliates(id,slug,name,email,whatsapp)&order=requested_at.desc&limit=1000');
       return json(res, 200, { withdrawals: rows || [] });
     }
@@ -43,6 +49,7 @@ module.exports = async function handler(req, res) {
         const body = String(req.body?.body || '').trim().slice(0, 500);
         if (!body) return json(res, 400, { error: 'Escreva a mensagem do aviso.' });
         const result = await sendToAll({ title, body, url: '/afiliado', tag: `admin-broadcast-${Date.now()}` });
+        await supabaseFetch('/rest/v1/admin_broadcast_logs', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ channel: 'push', title, message: body, sent_count: result.sent || 0, failed_count: result.failed || 0 }) }).catch(error => console.error('[Broadcast log push]', error.message));
         return json(res, 200, { ok: true, ...result, message: `Aviso enviado para ${result.sent} dispositivo(s).` });
       }
       if (action === 'email-broadcast') {
@@ -68,6 +75,7 @@ module.exports = async function handler(req, res) {
         }));
         try {
           const result = await sendBulkEmails({ emails });
+          await supabaseFetch('/rest/v1/admin_broadcast_logs', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ channel: 'email', subject, message: body, sent_count: result.length, failed_count: 0 }) }).catch(error => console.error('[Broadcast log email]', error.message));
           return json(res, 200, { ok: true, sent: result.length, failed: 0, total: affiliates.length, message: `E-mail enviado para ${result.length} de ${affiliates.length} afiliada(s).` });
         } catch (error) {
           console.error('[Affiliate email broadcast] envio interrompido', error.message);
