@@ -116,6 +116,7 @@ export default function AdminDashboard() {
   const [videoNote, setVideoNote] = useState('')
   const [videoBusyId, setVideoBusyId] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false)
   const [payingId, setPayingId] = useState(null)
   const [bulkPayingWithdrawals, setBulkPayingWithdrawals] = useState(false)
   const [bulkProgress, setBulkProgress] = useState(null)
@@ -1055,36 +1056,47 @@ export default function AdminDashboard() {
   return (
     <main className="min-h-screen bg-[#fffafc] px-5 py-8 md:px-10">
       <div className="mx-auto max-w-7xl">
-        <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[.28em] text-pink-500">She Afiliadas</p>
-            <h1 className="mt-1 text-3xl font-black text-zinc-950 md:text-4xl">Painel administrativo</h1>
-            <p className="mt-1 text-sm text-zinc-500">Visão geral das afiliadas e pagamentos de saque.</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {message && <span className="text-xs font-semibold text-zinc-500">{message}</span>}
-            <button onClick={refresh} disabled={refreshing} className="rounded-xl bg-pink-500 px-4 py-2.5 text-sm font-black text-white disabled:opacity-60">
-              {refreshing ? 'Atualizando…' : 'Atualizar'}
-            </button>
-          </div>
-        </header>
-
-        <nav aria-label="Navegação do painel administrativo" className="sticky top-0 z-30 mt-5 rounded-2xl border border-pink-100 bg-white/95 p-2 shadow-sm backdrop-blur-md">
-          <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap">
-            {[
-              ['Indicadores', 'admin-indicadores'],
-              ['Afiliadas Cadastradas', 'admin-afiliadas'],
-              ['Avisos por Push', 'admin-push'],
-              ['Configurações', 'admin-configuracoes'],
-              ['Revenda e Impulso', 'admin-revenda'],
-              ['Solicitação de Vídeo', 'admin-videos'],
-              ['Solicitação de Saque', 'admin-saques'],
-              ['Solicitação de Compra', 'admin-compras'],
-            ].map(([label, target]) => (
-              <a key={target} href={`#${target}`} className="shrink-0 rounded-xl px-3 py-2.5 text-xs font-black text-zinc-600 transition hover:bg-pink-50 hover:text-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-300 sm:text-sm">{label}</a>
-            ))}
-            <div className="ml-auto shrink-0 pl-2">
-              <button onClick={refresh} disabled={refreshing} className="rounded-xl bg-pink-500 px-4 py-2.5 text-sm font-black text-white disabled:opacity-60">{refreshing ? 'Atualizando…' : 'Atualizar'}</button>
+        <nav aria-label="Navegação do painel administrativo" className="sticky top-0 z-40 -mx-2 mb-6 rounded-2xl border border-white/70 bg-white/65 px-3 py-3 shadow-[0_8px_32px_rgba(236,72,153,.10)] backdrop-blur-xl md:mx-0 md:px-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <a href="#admin-indicadores" aria-label="She Painel - início" className="flex shrink-0 items-center gap-2 rounded-xl px-1 py-1 text-zinc-950 no-underline">
+              <span className="text-xl font-black tracking-[-.09em]">SHE<span className="text-pink-500">.</span></span>
+              <span className="border-l border-pink-200 pl-2 text-[10px] font-black uppercase tracking-[.18em] text-zinc-500 sm:text-xs">PAINEL</span>
+            </a>
+            <div className="relative">
+              <button type="button" aria-haspopup="menu" aria-expanded={adminMenuOpen} onClick={() => setAdminMenuOpen(open => !open)} className="inline-flex items-center gap-2 rounded-xl border border-pink-200/80 bg-white/70 px-3 py-2.5 text-xs font-black text-zinc-700 shadow-sm transition hover:bg-pink-50 hover:text-pink-700">
+                <span className="text-pink-500" aria-hidden="true"><svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg></span>
+                Menu <span aria-hidden="true" className={`text-pink-500 transition-transform ${adminMenuOpen ? 'rotate-180' : ''}`}>⌄</span>
+              </button>
+              {adminMenuOpen && <>
+                <button type="button" aria-label="Fechar menu" className="fixed inset-0 z-40 cursor-default" onClick={() => setAdminMenuOpen(false)} />
+                <div role="menu" className="absolute left-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-pink-100/90 bg-white/95 p-2 shadow-[0_16px_45px_rgba(30,10,20,.18)] backdrop-blur-xl">
+                  {[
+                    ['grid', 'Indicadores', 'admin-indicadores'],
+                    ['users', 'Afiliadas Cadastradas', 'admin-afiliadas'],
+                    ['bell', 'Avisos por Push', 'admin-push'],
+                    ['settings', 'Configurações', 'admin-configuracoes'],
+                    ['shop', 'Revenda e Impulso', 'admin-revenda'],
+                    ['video', 'Solicitação de Vídeo', 'admin-videos'],
+                    ['wallet', 'Solicitação de Saque', 'admin-saques'],
+                    ['package', 'Solicitação de Compra', 'admin-compras'],
+                  ].map(([icon, label, target]) => <a key={target} role="menuitem" href={`#${target}`} onClick={() => setAdminMenuOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-zinc-700 no-underline transition hover:bg-pink-50 hover:text-pink-700 focus:bg-pink-50 focus:outline-none">
+                    <span aria-hidden="true" className="flex h-5 w-5 shrink-0 items-center justify-center text-pink-500">
+                      {icon === 'grid' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+                      : icon === 'users' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 5v1"/></svg>
+                      : icon === 'bell' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
+                      : icon === 'settings' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.2.9-1.2 2.1-1.4-.5a8 8 0 0 1-1.7 1l-.2 1.5h-2.4l-.3-1.5a8 8 0 0 1-1.7-1l-1.4.5-1.2-2.1 1.2-.9a7 7 0 0 1 0-2l-1.2-.9 1.2-2.1 1.4.5a8 8 0 0 1 1.7-1l.3-1.5h2.4l.2 1.5a8 8 0 0 1 1.7 1l1.4-.5 1.2 2.1-1.2.9a7 7 0 0 1 0 2Z" transform="translate(-1 -1)"/></svg>
+                      : icon === 'shop' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 9h18l-2-5H5L3 9Z"/><path d="M5 9v11h14V9M9 20v-7h6v7"/></svg>
+                      : icon === 'video' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="5" width="13" height="14" rx="3"/><path d="m16 10 5-3v10l-5-3z"/></svg>
+                      : icon === 'wallet' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="6" width="18" height="14" rx="3"/><path d="M3 9V6a3 3 0 0 1 3-3h12M15 13h6"/></svg>
+                      : <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 7h18l-2 13H5L3 7Z"/><path d="M8 7a4 4 0 0 1 8 0"/></svg>}
+                    </span><span>{label}</span>
+                  </a>)}
+                </div>
+              </>}
+            </div>
+            <div className="ml-auto flex min-w-0 items-center gap-2">
+              {message && <span className="hidden max-w-48 truncate text-xs font-semibold text-zinc-500 lg:inline">{message}</span>}
+              <button onClick={refresh} disabled={refreshing} className="shrink-0 rounded-xl bg-pink-500 px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-pink-600 disabled:opacity-60 sm:text-sm">{refreshing ? 'Atualizando…' : 'Atualizar'}</button>
             </div>
           </div>
         </nav>
@@ -1438,44 +1450,7 @@ export default function AdminDashboard() {
         </section>
 
 
-        <section id="admin-videos" className="mt-6 scroll-mt-28 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Conteúdo das afiliadas</p>
-              <h2 className="mt-1 text-2xl font-black text-zinc-950">Solicitações de vídeos</h2>
-              <p className="mt-1 text-sm text-zinc-400">Analise os links enviados. Ao aprovar, a SHE poderá usar o vídeo em divulgação com tráfego pago usando o link da afiliada.</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <FilterPill active={videoFilter === 'pending'} onClick={() => setVideoFilter('pending')}>Pendentes · {videoSubmissions.filter(v => v.status === 'pending').length}</FilterPill>
-              <FilterPill active={videoFilter === 'approved'} onClick={() => setVideoFilter('approved')}>Aprovados · {videoSubmissions.filter(v => v.status === 'approved').length}</FilterPill>
-              <FilterPill active={videoFilter === 'rejected'} onClick={() => setVideoFilter('rejected')}>Rejeitados · {videoSubmissions.filter(v => v.status === 'rejected').length}</FilterPill>
-              <FilterPill active={videoFilter === 'all'} onClick={() => setVideoFilter('all')}>Todos · {videoSubmissions.length}</FilterPill>
-            </div>
-          </div>
 
-          <div className="mt-5 space-y-3">
-            {videoSubmissions.filter(video => videoFilter === 'all' || video.status === videoFilter).map(video => (
-              <div key={video.id} className="rounded-2xl border border-zinc-100 bg-zinc-50/70 p-4">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2"><p className="font-black text-zinc-950">{video.affiliates?.name || 'Afiliada'}</p><span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-zinc-500">ID {video.affiliate_id}</span><span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${video.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : video.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>{video.status === 'approved' ? 'Aprovado' : video.status === 'rejected' ? 'Rejeitado' : 'Pendente'}</span></div>
-                    <p className="mt-1 text-xs text-zinc-400">Enviado em {dateTime(video.created_at)} · Solicitação #{video.id}</p>
-                    <div className="mt-3 rounded-xl border border-zinc-200 bg-white px-3 py-2"><p className="break-all text-xs font-semibold text-zinc-600">{video.video_url}</p><p className="mt-1 text-[10px] font-black uppercase tracking-wider text-zinc-400">O link é exibido apenas como texto e não é aberto automaticamente.</p></div>
-                  </div>
-                  <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row">
-                    {video.status === 'pending' && <>
-                      <button type="button" onClick={() => reviewVideo(video, 'approved')} disabled={videoBusyId === video.id} className="rounded-xl bg-emerald-600 px-4 py-3 text-xs font-black text-white disabled:opacity-50">{videoBusyId === video.id ? 'Salvando…' : 'Aprovar'}</button>
-                      <button type="button" onClick={() => { setVideoNoteId(video.id); setVideoNote(video.note || '') }} disabled={videoBusyId === video.id} className="rounded-xl bg-red-500 px-4 py-3 text-xs font-black text-white disabled:opacity-50">Rejeitar</button>
-                    </>}
-                  </div>
-                </div>
-                {video.status === 'pending' && videoNoteId === video.id && <div className="mt-3 flex flex-col gap-2 sm:flex-row"><input autoFocus value={videoNote} onChange={e => setVideoNote(e.target.value)} placeholder="Observação para a afiliada" className="min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none focus:border-pink-400" /><button type="button" onClick={() => reviewVideo(video, 'rejected')} disabled={videoBusyId === video.id} className="rounded-xl bg-red-500 px-4 py-3 text-xs font-black text-white">Confirmar rejeição</button></div>}
-                {video.note && <p className="mt-3 rounded-xl bg-white px-3 py-2 text-xs font-semibold leading-5 text-zinc-600"><strong>Observação:</strong> {video.note}</p>}
-              </div>
-            ))}
-            {!videoSubmissions.filter(video => videoFilter === 'all' || video.status === videoFilter).length && <div className="rounded-2xl border border-dashed border-zinc-200 px-4 py-8 text-center text-sm text-zinc-400">Nenhuma solicitação de vídeo neste filtro.</div>}
-          </div>
-        </section>
 
 
 
@@ -2053,6 +2028,45 @@ export default function AdminDashboard() {
             </div>
             {p.tracking_url && ['shipped','approved'].includes(p.status) && <p className="mt-3 text-xs font-semibold text-sky-800">Rastreio salvo: <a href={p.tracking_url} target="_blank" rel="noreferrer" className="break-all underline">{p.tracking_url}</a></p>}<div className="mt-3 grid gap-2 text-xs text-zinc-700 sm:grid-cols-2"><p><strong>Nome:</strong> {p.full_name}</p><p><strong>CPF:</strong> {p.cpf}</p><p><strong>CEP:</strong> {p.cep}</p><p><strong>E-mail:</strong> {p.email}</p><p><strong>Telefone:</strong> {p.phone}</p><p className="sm:col-span-2"><strong>Endereço:</strong> {p.address}</p>{p.notes && <p className="sm:col-span-2"><strong>Observações:</strong> {p.notes}</p>}</div>
           </article>)}{!productPurchases.length && <div className="rounded-xl border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-400">Nenhuma compra solicitada ainda.</div>}{productPurchases.length > 0 && !productPurchases.some(p => { const query = productPurchaseSearch.trim().toLocaleLowerCase('pt-BR'); return !query || String(p.affiliate?.name || '').toLocaleLowerCase('pt-BR').includes(query) || String(p.affiliate_id ?? '').includes(query) }) && <div className="rounded-xl border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-400">Nenhuma solicitação encontrada para essa afiliada.</div>}</div></div>
+        </section>
+
+        <section id="admin-videos" className="mt-6 scroll-mt-28 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Conteúdo das afiliadas</p>
+              <h2 className="mt-1 text-2xl font-black text-zinc-950">Solicitações de vídeos</h2>
+              <p className="mt-1 text-sm text-zinc-400">Analise os links enviados. Ao aprovar, a SHE poderá usar o vídeo em divulgação com tráfego pago usando o link da afiliada.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <FilterPill active={videoFilter === 'pending'} onClick={() => setVideoFilter('pending')}>Pendentes · {videoSubmissions.filter(v => v.status === 'pending').length}</FilterPill>
+              <FilterPill active={videoFilter === 'approved'} onClick={() => setVideoFilter('approved')}>Aprovados · {videoSubmissions.filter(v => v.status === 'approved').length}</FilterPill>
+              <FilterPill active={videoFilter === 'rejected'} onClick={() => setVideoFilter('rejected')}>Rejeitados · {videoSubmissions.filter(v => v.status === 'rejected').length}</FilterPill>
+              <FilterPill active={videoFilter === 'all'} onClick={() => setVideoFilter('all')}>Todos · {videoSubmissions.length}</FilterPill>
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {videoSubmissions.filter(video => videoFilter === 'all' || video.status === videoFilter).map(video => (
+              <div key={video.id} className="rounded-2xl border border-zinc-100 bg-zinc-50/70 p-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2"><p className="font-black text-zinc-950">{video.affiliates?.name || 'Afiliada'}</p><span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-zinc-500">ID {video.affiliate_id}</span><span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${video.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : video.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>{video.status === 'approved' ? 'Aprovado' : video.status === 'rejected' ? 'Rejeitado' : 'Pendente'}</span></div>
+                    <p className="mt-1 text-xs text-zinc-400">Enviado em {dateTime(video.created_at)} · Solicitação #{video.id}</p>
+                    <div className="mt-3 rounded-xl border border-zinc-200 bg-white px-3 py-2"><p className="break-all text-xs font-semibold text-zinc-600">{video.video_url}</p><p className="mt-1 text-[10px] font-black uppercase tracking-wider text-zinc-400">O link é exibido apenas como texto e não é aberto automaticamente.</p></div>
+                  </div>
+                  <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row">
+                    {video.status === 'pending' && <>
+                      <button type="button" onClick={() => reviewVideo(video, 'approved')} disabled={videoBusyId === video.id} className="rounded-xl bg-emerald-600 px-4 py-3 text-xs font-black text-white disabled:opacity-50">{videoBusyId === video.id ? 'Salvando…' : 'Aprovar'}</button>
+                      <button type="button" onClick={() => { setVideoNoteId(video.id); setVideoNote(video.note || '') }} disabled={videoBusyId === video.id} className="rounded-xl bg-red-500 px-4 py-3 text-xs font-black text-white disabled:opacity-50">Rejeitar</button>
+                    </>}
+                  </div>
+                </div>
+                {video.status === 'pending' && videoNoteId === video.id && <div className="mt-3 flex flex-col gap-2 sm:flex-row"><input autoFocus value={videoNote} onChange={e => setVideoNote(e.target.value)} placeholder="Observação para a afiliada" className="min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none focus:border-pink-400" /><button type="button" onClick={() => reviewVideo(video, 'rejected')} disabled={videoBusyId === video.id} className="rounded-xl bg-red-500 px-4 py-3 text-xs font-black text-white">Confirmar rejeição</button></div>}
+                {video.note && <p className="mt-3 rounded-xl bg-white px-3 py-2 text-xs font-semibold leading-5 text-zinc-600"><strong>Observação:</strong> {video.note}</p>}
+              </div>
+            ))}
+            {!videoSubmissions.filter(video => videoFilter === 'all' || video.status === videoFilter).length && <div className="rounded-2xl border border-dashed border-zinc-200 px-4 py-8 text-center text-sm text-zinc-400">Nenhuma solicitação de vídeo neste filtro.</div>}
+          </div>
         </section>
 
         <footer className="mt-8 flex flex-col gap-3 rounded-2xl border border-pink-100 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
