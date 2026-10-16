@@ -1559,11 +1559,11 @@ export default function AdminDashboard() {
         <section id="admin-push" className="mt-6 scroll-mt-28 rounded-[1.5rem] border border-pink-200 bg-white p-6 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-pink-100 text-pink-700">🔔</div>
-            <div><h2 className="text-xl font-black text-zinc-950">Avisos administrativos por push</h2><p className="mt-1 text-sm text-zinc-500">Escreva um aviso e envie para todos os dispositivos com notificações ativas no app She Afiliadas.</p></div>
+            <div><h2 className="text-xl font-black text-zinc-950">Avisos administrativos por push</h2><p className="mt-1 text-sm text-zinc-500">Escreva um aviso e envie para todas as afiliadas com notificações push ativas no site She Afiliadas.</p></div>
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-pink-100 bg-gradient-to-r from-pink-50 to-white p-4">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">📱</div>
-            <div className="min-w-0 flex-1"><p className="text-xs font-bold uppercase tracking-wide text-pink-700">Push ativo no iOS</p><p className="mt-0.5 text-2xl font-black text-zinc-950">{pushEnabledIosAffiliates} <span className="text-sm font-semibold text-zinc-500">afiliada(s)</span></p><p className="mt-1 text-xs text-zinc-500">Contagem de afiliadas únicas com inscrição ativa registrada em iPhone ou iPad.</p></div>
+            <div className="min-w-0 flex-1"><p className="text-xs font-bold uppercase tracking-wide text-pink-700">Push ativo no iOS</p><p className="mt-0.5 text-2xl font-black text-zinc-950">{pushEnabledIosAffiliates} <span className="text-sm font-semibold text-zinc-500">afiliada(s)</span></p><p className="mt-1 text-xs text-zinc-500">Contagem de afiliadas únicas com inscrição ativa no iOS, incluindo a PWA salva na tela inicial do iPhone ou iPad.</p></div>
           </div>
           <form onSubmit={sendPushBroadcast} className="mt-4 grid gap-3">
             <label className="grid gap-1 text-xs font-bold text-zinc-600">Título da notificação<input maxLength={80} value={pushBroadcastTitle} onChange={e => setPushBroadcastTitle(e.target.value)} className="rounded-xl border border-zinc-200 px-3 py-3 text-sm font-semibold text-zinc-900 outline-none focus:border-pink-400" /></label>
