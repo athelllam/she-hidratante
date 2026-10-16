@@ -294,6 +294,8 @@ export default function AffiliateDashboard() {
   const [linkSlug, setLinkSlug] = useState('')
   const [linkBusy, setLinkBusy] = useState(false)
   const [linkMessage, setLinkMessage] = useState('')
+  const [welcomeLinkOpen, setWelcomeLinkOpen] = useState(false)
+  const [welcomeLinkCopyMessage, setWelcomeLinkCopyMessage] = useState('')
   const chartScrollRef = useRef(null)
 
   useEffect(() => {
@@ -575,6 +577,8 @@ export default function AffiliateDashboard() {
       setLinkSlug('')
       setLinkMessage('Seu link foi criado com sucesso.')
       await load({ sync: false })
+      setWelcomeLinkCopyMessage('')
+      setWelcomeLinkOpen(true)
     } catch (e) {
       setLinkMessage(e.message || 'Não foi possível criar seu link.')
     } finally {
@@ -701,6 +705,7 @@ export default function AffiliateDashboard() {
       }
       setAffiliate(current => current ? { ...current, team_parent_id: result.affiliate?.team_parent_id || result.result?.parentId || true } : current)
       setTeamJoinMessage('Você entrou na equipe com sucesso.')
+      setWelcomeLinkOpen(false)
       setTeamCode('')
       setTeamLookup(null)
       setTeamLookupMessage('')
@@ -1880,6 +1885,52 @@ export default function AffiliateDashboard() {
               <p>O nível fixo funciona como um piso do Bônus Mensal: mesmo que um novo mês comece com poucas vendas, você mantém o nível fixo que já conquistou até alcançar o próximo.</p>
             </div>
             <button type="button" onClick={() => setFixedHelpOpen(false)} className="mt-6 w-full rounded-xl bg-zinc-950 py-3 font-black text-white transition hover:bg-pink-500">Entendi</button>
+          </div>
+        </div>
+      )}
+
+      {welcomeLinkOpen && hasAffiliateLink && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-zinc-950/60 px-4 py-5 backdrop-blur-md" onMouseDown={event => { if (event.target === event.currentTarget) setWelcomeLinkOpen(false) }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="welcome-link-title" className="relative max-h-[94vh] w-full max-w-xl overflow-y-auto rounded-[2rem] border border-pink-100 bg-white shadow-[0_30px_100px_rgba(0,0,0,.32)]">
+            <div className="relative overflow-hidden bg-gradient-to-br from-pink-600 via-fuchsia-500 to-rose-400 px-6 pb-7 pt-8 text-center text-white sm:px-8">
+              <div className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-white/15 blur-2xl" />
+              <div className="relative mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-white/40 bg-white/20 text-4xl shadow-lg">♡</div>
+              <p className="relative mt-4 text-[10px] font-black uppercase tracking-[.25em] text-white/85">She Afiliadas</p>
+              <h2 id="welcome-link-title" className="relative mt-2 text-3xl font-black sm:text-4xl">Bem-vinda à SHE!</h2>
+              <p className="relative mx-auto mt-2 max-w-sm text-sm leading-6 text-white/95">Seu link de afiliada está pronto. Agora você pode começar a divulgar e construir sua jornada com a gente.</p>
+            </div>
+            <div className="space-y-5 p-5 sm:p-7">
+              <div className="rounded-2xl border border-pink-200 bg-gradient-to-r from-pink-50 to-rose-50 p-4">
+                <p className="text-[10px] font-black uppercase tracking-[.18em] text-pink-600">Seu link exclusivo</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <p className="min-w-0 flex-1 break-all text-sm font-black text-zinc-800">{publicUrl}</p>
+                  <button type="button" aria-label="Copiar link de afiliada" title="Copiar link" onClick={async () => { try { await navigator.clipboard.writeText(publicUrl); setWelcomeLinkCopyMessage('Link copiado!'); } catch { setWelcomeLinkCopyMessage('Não foi possível copiar automaticamente. Selecione e copie o link.'); } }} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-pink-200 bg-white text-pink-600 shadow-sm transition hover:bg-pink-100">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>
+                  </button>
+                </div>
+                {welcomeLinkCopyMessage && <p aria-live="polite" className="mt-2 text-[11px] font-bold text-pink-700">{welcomeLinkCopyMessage}</p>}
+                <p className="mt-2 text-xs leading-5 text-zinc-500">Envie esse link para alguém comprar um produto She Coisa de Mulher ou para uma pessoa se cadastrar como afiliada diretamente na sua equipe.</p>
+              </div>
+
+              <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-4">
+                <div className="flex items-start gap-3">
+                  <img src="/badge-bronze.svg" alt="Benefício Bronze" className="h-12 w-12 shrink-0 object-contain" />
+                  <div><h3 className="text-base font-black text-zinc-950">Comece entrando em uma equipe</h3><p className="mt-1 text-xs leading-5 text-zinc-600">Ao entrar em uma equipe, você recebe o benefício de Qualificação Bronze por 30 dias corridos. Sua afiliada mãe também pode orientar você nos primeiros passos.</p></div>
+                </div>
+                <form onSubmit={joinTeam} className="mt-4">
+                  <label htmlFor="welcome-team-code" className="block text-xs font-black text-zinc-800">Você tem o ID da afiliada que gostaria de acompanhar?</label>
+                  <input id="welcome-team-code" value={teamCode} onChange={e => { setTeamCode(e.target.value.replace(/\D/g, '').slice(0, 12)); setTeamLookup(null); setTeamLookupMessage(''); setTeamJoinMessage('') }} disabled={teamJoinBusy || Boolean(teamReservation)} inputMode="numeric" placeholder="Digite o ID da afiliada" className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-bold outline-none transition focus:border-pink-400 focus:ring-2 focus:ring-pink-100" />
+                  {teamCode && !teamReservation && <div className={`mt-2 rounded-xl border px-3 py-2.5 text-xs ${teamLookup ? 'border-pink-200 bg-pink-50 text-zinc-700' : 'border-zinc-100 bg-zinc-50 text-zinc-500'}`} aria-live="polite">{teamLookupBusy ? 'Buscando afiliada pelo ID…' : teamLookup ? <>Você entrará na equipe de <strong className="text-zinc-950">{teamLookup.name}</strong> <span className="text-zinc-400">(ID {teamLookup.id})</span>.</> : teamLookupMessage || 'Digite o ID para localizar a afiliada.'}</div>}
+                  {teamReservation && <p className="mt-2 rounded-xl border border-pink-200 bg-pink-50 px-3 py-2.5 text-xs text-zinc-700">Equipe encontrada: <strong>{teamReservation.parentName}</strong> (ID {teamReservation.parentId}).</p>}
+                  {teamJoinMessage && <p className="mt-2 text-xs font-semibold text-zinc-600">{teamJoinMessage}</p>}
+                  {teamBoostMessage && <p className="mt-2 text-xs font-semibold text-zinc-600">{teamBoostMessage}</p>}
+                  <button type="submit" disabled={teamJoinBusy || teamLookupBusy || !teamCode || !teamLookup || Number(teamLookup.id) !== Number(teamCode) || Boolean(teamReservation)} className="mt-3 w-full rounded-xl bg-pink-500 px-4 py-3 text-sm font-black text-white shadow-md shadow-pink-100 transition hover:bg-pink-600 disabled:cursor-not-allowed disabled:opacity-40">Revisar e entrar na equipe</button>
+                </form>
+                <button type="button" onClick={findTeam} disabled={teamBoostBusy || Boolean(teamReservation)} className="mt-2 w-full rounded-xl border border-pink-200 bg-white px-4 py-3 text-sm font-black text-pink-600 transition hover:bg-pink-50 disabled:cursor-not-allowed disabled:opacity-50">{teamBoostBusy ? 'Encontrando equipe…' : 'Não tenho um ID — encontrar equipe'}</button>
+                <button type="button" onClick={() => setWelcomeLinkOpen(false)} className="mt-2 w-full rounded-xl px-4 py-2.5 text-sm font-bold text-zinc-500 transition hover:bg-zinc-50">Agora não</button>
+                <p className="mt-3 text-center text-[10px] leading-4 text-zinc-400">Importante: depois da sua primeira venda aprovada, não será mais possível entrar em uma equipe. Você poderá continuar divulgando seu link normalmente.</p>
+              </div>
+            </div>
           </div>
         </div>
       )}
