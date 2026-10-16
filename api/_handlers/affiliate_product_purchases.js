@@ -106,67 +106,100 @@ function findNestedStringByKeys(value, keys, depth = 0) {
   return '';
 }
 
+function findTrackingCode(value, depth = 0) {
+  if (depth > 8 || value == null) return '';
+  if (typeof value === 'string') {
+    const match = value.toUpperCase().match(/\b[A-Z]{2}\d{9}[A-Z]{2}\b/);
+    return match ? match[0] : '';
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) { const found = findTrackingCode(item, depth + 1); if (found) return found; }
+    return '';
+  }
+  if (typeof value === 'object') {
+    const preferredKeys = ['tracking', 'tracking_code', 'trackingcode', 'tracking_number', 'trackingnumber', 'tracking_code_number', 'codigo_rastreio', 'codigo_rastreamento'];
+    for (const key of preferredKeys) {
+      if (Object.prototype.hasOwnProperty.call(value, key)) {
+        const found = findTrackingCode(value[key], depth + 1);
+        if (found) return found;
+      }
+    }
+    for (const item of Object.values(value)) { const found = findTrackingCode(item, depth + 1); if (found) return found; }
+  }
+  return '';
+}
+
 async function syncMelhorEnvioTracking(purchases) {
   const candidates = (purchases || []).filter(p => p.melhor_envio_shipment_id && !p.tracking_url);
-  if (!candidates.length) return;
+  const results = [];
+  if (!candidates.length) return results;
   let token;
   try { token = await getMelhorEnvioAccessToken(); }
   catch (e) {
     console.error('[She Melhor Envio] Não foi possível consultar rastreios: token indisponível.', { message: String(e?.message || '').slice(0, 180) });
-    return;
+    return candidates.map(p => ({ purchaseId: Number(p.id), found: false, reason: 'token_unavailable' }));
   }
   for (const purchase of candidates.slice(0, 20)) {
     const shipmentId = String(purchase.melhor_envio_shipment_id).trim();
+    const responses = [];
+    const attempts = [];
     try {
-      let responses = [];
       try {
-        responses.push(await melhorEnvioRequest('/me/shipment/tracking', token, {
+        const data = await melhorEnvioRequest('/me/shipment/tracking', token, {
           method: 'POST', body: JSON.stringify({ orders: [shipmentId] })
-        }));
+        });
+        responses.push(data); attempts.push({ endpoint: 'shipment/tracking', ok: true, keys: data && typeof data === 'object' ? Object.keys(data).slice(0, 20) : [] });
       } catch (e) {
-        console.error('[She Melhor Envio] Endpoint de rastreio falhou.', { shipmentId, status: e.upstreamStatus || e.statusCode || null, message: String(e.message || '').slice(0, 180) });
+        attempts.push({ endpoint: 'shipment/tracking', ok: false, status: e.upstreamStatus || e.statusCode || null });
+        console.error('[She Melhor Envio] Endpoint de rastreio falhou.', { purchaseId: Number(purchase.id), status: e.upstreamStatus || e.statusCode || null, message: String(e.message || '').slice(0, 180) });
       }
-      // Fallback: the order details endpoint can expose tracking even when the
-      // dedicated tracking endpoint returns a different response shape.
       try {
-        responses.push(await melhorEnvioRequest(`/me/orders/${encodeURIComponent(shipmentId)}`, token));
+        const data = await melhorEnvioRequest(`/me/orders/${encodeURIComponent(shipmentId)}`, token);
+        responses.push(data); attempts.push({ endpoint: 'orders/{id}', ok: true, keys: data && typeof data === 'object' ? Object.keys(data).slice(0, 20) : [] });
       } catch (e) {
-        console.error('[She Melhor Envio] Consulta dos detalhes da etiqueta falhou.', { shipmentId, status: e.upstreamStatus || e.statusCode || null, message: String(e.message || '').slice(0, 180) });
+        attempts.push({ endpoint: 'orders/{id}', ok: false, status: e.upstreamStatus || e.statusCode || null });
+        console.error('[She Melhor Envio] Consulta dos detalhes da etiqueta falhou.', { purchaseId: Number(purchase.id), status: e.upstreamStatus || e.statusCode || null, message: String(e.message || '').slice(0, 180) });
       }
-      const trackingCodeKeys = ['tracking', 'tracking_code', 'trackingcode', 'tracking_number', 'trackingnumber', 'tracking_code_number'];
+      // Search endpoint accepts an order ID or carrier tracking code and can return
+      // the released order record when the cart response ID differs from its order record.
+      try {
+        const data = await melhorEnvioRequest(`/me/orders/search?q=${encodeURIComponent(shipmentId)}`, token);
+        responses.push(data); attempts.push({ endpoint: 'orders/search', ok: true, keys: data && typeof data === 'object' ? Object.keys(data).slice(0, 20) : [] });
+      } catch (e) {
+        attempts.push({ endpoint: 'orders/search', ok: false, status: e.upstreamStatus || e.statusCode || null });
+        console.error('[She Melhor Envio] Pesquisa da etiqueta falhou.', { purchaseId: Number(purchase.id), status: e.upstreamStatus || e.statusCode || null, message: String(e.message || '').slice(0, 180) });
+      }
+
+      const trackingCodeKeys = ['tracking', 'tracking_code', 'trackingcode', 'tracking_number', 'trackingnumber', 'tracking_code_number', 'codigo_rastreio', 'codigo_rastreamento'];
       const trackingUrlKeys = ['tracking_url', 'tracking_link', 'trackingurl', 'trackinglink', 'tracking_page'];
       let trackingCode = '';
       let trackingUrl = '';
       for (const response of responses) {
-        if (!trackingCode) trackingCode = findNestedStringByKeys(response, trackingCodeKeys);
+        if (!trackingCode) trackingCode = findNestedStringByKeys(response, trackingCodeKeys) || findTrackingCode(response);
         if (!trackingUrl) trackingUrl = findNestedStringByKeys(response, trackingUrlKeys);
       }
-      // This workflow currently quotes Correios. Prefer the carrier's tracking
-      // page for Correios codes, rather than constructing an unverified ME URL.
       if (!trackingUrl && /^[A-Z]{2}\d{9}[A-Z]{2}$/i.test(trackingCode)) {
         trackingUrl = `https://rastreamento.correios.com.br/app/index.php?objetos=${encodeURIComponent(trackingCode)}`;
       }
-      const patch = { updated_at: new Date().toISOString() };
-      if (trackingCode) patch.melhor_envio_tracking_code = trackingCode;
-      if (trackingUrl && /^https?:\/\//i.test(trackingUrl)) patch.tracking_url = trackingUrl;
-      // Do not mark the purchase as shipped automatically: a tracking code can
-      // exist before the parcel is actually handed to the carrier. The admin
-      // confirms dispatch with the existing “Marcar como enviado” action.
-      if (trackingCode || trackingUrl) {
+      if (trackingCode || (trackingUrl && /^https?:\/\//i.test(trackingUrl))) {
+        const patch = { updated_at: new Date().toISOString() };
+        if (trackingCode) patch.melhor_envio_tracking_code = trackingCode;
+        if (trackingUrl && /^https?:\/\//i.test(trackingUrl)) patch.tracking_url = trackingUrl;
         await supabaseFetch(`/rest/v1/affiliate_product_purchases?id=eq.${Number(purchase.id)}`, {
           method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(patch)
         });
-        console.info('[She Melhor Envio] Rastreio sincronizado.', { purchaseId: Number(purchase.id), hasCode: Boolean(trackingCode), hasUrl: Boolean(trackingUrl) });
+        console.info('[She Melhor Envio] Rastreio sincronizado.', { purchaseId: Number(purchase.id), hasCode: Boolean(trackingCode), hasUrl: Boolean(trackingUrl), attempts });
+        results.push({ purchaseId: Number(purchase.id), found: true, trackingCode: trackingCode || null, trackingUrl: trackingUrl || null, attempts });
       } else {
-        console.info('[She Melhor Envio] Ainda sem código de rastreio na resposta da API.', {
-          purchaseId: Number(purchase.id), shipmentId,
-          responseKeys: responses.map(r => r && typeof r === 'object' ? Object.keys(r).slice(0, 20) : typeof r)
-        });
+        console.info('[She Melhor Envio] Código de rastreio não encontrado nas respostas da API.', { purchaseId: Number(purchase.id), shipmentId, attempts, responseKeys: responses.map(r => r && typeof r === 'object' ? Object.keys(r).slice(0, 20) : typeof r) });
+        results.push({ purchaseId: Number(purchase.id), found: false, attempts, responseKeys: responses.map(r => r && typeof r === 'object' ? Object.keys(r).slice(0, 20) : typeof r) });
       }
     } catch (e) {
       console.error('[She Melhor Envio] Falha ao sincronizar rastreio.', { purchaseId: Number(purchase.id), message: String(e?.message || '').slice(0, 220) });
+      results.push({ purchaseId: Number(purchase.id), found: false, reason: String(e?.message || 'sync_failed').slice(0, 180), attempts });
     }
   }
+  return results;
 }
 
 module.exports = async function handler(req, res) {
@@ -210,6 +243,18 @@ module.exports = async function handler(req, res) {
     if (req.query?.admin === '1') {
       await requireAdmin(req);
       const action = String(req.body?.action || '');
+      if (action === 'melhor_envio_sync_tracking') {
+        const id = Number(req.body?.id);
+        if (!Number.isSafeInteger(id) || id < 1) return json(res, 400, { error: 'Solicitação inválida.' });
+        const rows = await supabaseFetch(`/rest/v1/affiliate_product_purchases?id=eq.${id}&select=*&limit=1`);
+        const purchase = rows?.[0];
+        if (!purchase) return json(res, 404, { error: 'Solicitação não encontrada.' });
+        if (!purchase.melhor_envio_shipment_id) return json(res, 409, { error: 'Esta solicitação ainda não tem ID de etiqueta do Melhor Envio.' });
+        const results = await syncMelhorEnvioTracking([purchase]);
+        const refreshed = (await supabaseFetch(`/rest/v1/affiliate_product_purchases?id=eq.${id}&select=id,tracking_url,melhor_envio_tracking_code,melhor_envio_shipment_id,status&limit=1`))?.[0];
+        const result = results?.[0] || { purchaseId: id, found: false };
+        return json(res, 200, { ok: Boolean(refreshed?.tracking_url), purchase: refreshed || null, sync: result, message: refreshed?.tracking_url ? 'Rastreio encontrado e salvo.' : 'A API do Melhor Envio ainda não retornou um código reconhecível. Veja os detalhes de diagnóstico.' });
+      }
       if (action === 'melhor_envio_quote_batch') {
         let token;
         try { token = await getMelhorEnvioAccessToken(); }
