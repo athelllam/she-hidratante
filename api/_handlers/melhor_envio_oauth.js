@@ -6,7 +6,7 @@ const CALLBACK_PATH = '/api/melhor-envio/callback';
 const SCOPES = [
   'shipping-calculate', 'shipping-checkout', 'shipping-generate',
   'shipping-preview', 'shipping-print', 'shipping-tracking', 'shipping-companies',
-  'users-read'
+  'cart-read', 'cart-write', 'users-read'
 ];
 function envName() { return String(process.env.MELHOR_ENVIO_ENV || 'sandbox').toLowerCase() === 'production' ? 'production' : 'sandbox'; }
 function hostBase() { return envName() === 'sandbox' ? 'https://sandbox.melhorenvio.com.br' : 'https://melhorenvio.com.br'; }

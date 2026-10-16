@@ -33,20 +33,19 @@ async function createFreightCharge(purchase, affiliate) {
 const money = v => Math.round((Number(v) || 0) * 100) / 100;
 const validEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim());
 
-async function getMelhorEnvioAccessToken(forceRefresh = false) {
-  const rows = await supabaseFetch('/rest/v1/melhor_envio_credentials?id=eq.1&select=id,environment,access_token,refresh_token,expires_at&limit=1');
+async function getMelhorEnvioAccessToken() {
+  const rows = await supabaseFetch('/rest/v1/melhor_envio_credentials?id=eq.1&select=environment,access_token,refresh_token,expires_at&limit=1');
   const current = rows?.[0];
   const env = String(process.env.MELHOR_ENVIO_ENV || 'sandbox').toLowerCase() === 'production' ? 'production' : 'sandbox';
   if (!current || current.environment !== env) {
     const error = new Error(`Melhor Envio ainda não autorizado no ambiente ${env}. Acesse /api/melhor-envio/authorize no painel administrativo.`);
     error.statusCode = 503; throw error;
   }
-  // Renovar com antecedência evita que uma cotação comece com token quase expirado.
-  if (!forceRefresh && Date.parse(current.expires_at) > Date.now() + 10 * 60 * 1000) return current.access_token;
+  if (Date.parse(current.expires_at) > Date.now() + 5 * 60 * 1000) return current.access_token;
   const clientId = String(process.env.MELHOR_ENVIO_CLIENT_ID || '').trim();
   const clientSecret = String(process.env.MELHOR_ENVIO_CLIENT_SECRET || '').trim();
   if (!clientId || !clientSecret || !current.refresh_token) {
-    const error = new Error('Não foi possível renovar o token do Melhor Envio. Confira as credenciais e, se o refresh token expirou, autorize novamente.'); error.statusCode = 503; throw error;
+    const error = new Error('Token do Melhor Envio expirado. Configure as credenciais e refaça a autorização.'); error.statusCode = 503; throw error;
   }
   const host = env === 'sandbox' ? 'https://sandbox.melhorenvio.com.br' : 'https://melhorenvio.com.br';
   const response = await fetch(`${host}/oauth/token`, {
@@ -54,12 +53,57 @@ async function getMelhorEnvioAccessToken(forceRefresh = false) {
     body:new URLSearchParams({ grant_type:'refresh_token', refresh_token:current.refresh_token, client_id:clientId, client_secret:clientSecret })
   });
   const raw = await response.text(); let data; try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message:raw.slice(0,500) }; }
-  if (!response.ok || !data.access_token) { const error = new Error(data.message || data.error_description || data.error || `Não foi possível renovar o token do Melhor Envio (HTTP ${response.status}). Se o refresh token expirou, autorize novamente.`); error.statusCode = 502; throw error; }
+  if (!response.ok || !data.access_token) { const error = new Error(data.message || data.error_description || 'Não foi possível renovar o token do Melhor Envio. Refaça a autorização.'); error.statusCode = 502; throw error; }
   const expiresIn = Number(data.expires_in || 2592000);
   const updated = { environment:env, token_type:String(data.token_type || 'Bearer'), access_token:String(data.access_token), refresh_token:String(data.refresh_token || current.refresh_token), expires_at:new Date(Date.now()+expiresIn*1000).toISOString(), updated_at:new Date().toISOString() };
-  // O refresh token pode ser rotativo: persistir ambos juntos após cada renovação.
   await supabaseFetch('/rest/v1/melhor_envio_credentials?id=eq.1', { method:'PATCH', headers:{ Prefer:'return=minimal' }, body:JSON.stringify(updated) });
   return updated.access_token;
+}
+
+async function melhorEnvioRequest(path, token, options = {}) {
+  const env = String(process.env.MELHOR_ENVIO_ENV || 'sandbox').toLowerCase() === 'production' ? 'production' : 'sandbox';
+  const baseUrl = env === 'sandbox' ? 'https://sandbox.melhorenvio.com.br/api/v2' : 'https://www.melhorenvio.com.br/api/v2';
+  const response = await fetch(`${baseUrl}${path}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json',
+      'User-Agent': 'She Afiliadas (adm@shecoisademulher.com)', ...(options.headers || {})
+    }
+  });
+  const raw = await response.text();
+  let data; try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw.slice(0, 500) }; }
+  if (!response.ok) {
+    const e = new Error(data?.message || data?.error || `Melhor Envio respondeu HTTP ${response.status}`);
+    e.statusCode = response.status; throw e;
+  }
+  return data;
+}
+
+function pickServiceId(quote) {
+  const value = quote?.id ?? quote?.service_id ?? quote?.service?.id;
+  const id = Number(value);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
+async function syncMelhorEnvioTracking(purchases) {
+  const candidates = (purchases || []).filter(p => p.melhor_envio_shipment_id && !p.tracking_url);
+  if (!candidates.length) return;
+  let token;
+  try { token = await getMelhorEnvioAccessToken(); } catch { return; }
+  for (const purchase of candidates.slice(0, 20)) {
+    try {
+      const data = await melhorEnvioRequest('/me/shipment/tracking', token, { method: 'POST', body: JSON.stringify({ orders: [String(purchase.melhor_envio_shipment_id)] }) });
+      const item = Array.isArray(data) ? data[0] : (data?.data?.[0] || data?.[String(purchase.melhor_envio_shipment_id)] || data?.order || data);
+      const trackingCode = String(item?.tracking || item?.tracking_code || item?.trackingCode || item?.code || '').trim();
+      const trackingUrl = String(item?.tracking_url || item?.tracking_link || item?.trackingUrl || (trackingCode ? `https://www.melhorenvio.com.br/rastreio/${encodeURIComponent(trackingCode)}` : '')).trim();
+      const status = String(item?.status || item?.shipment_status || '').toLowerCase();
+      const patch = { updated_at: new Date().toISOString() };
+      if (trackingCode) patch.melhor_envio_tracking_code = trackingCode;
+      if (trackingUrl && /^https?:\/\//i.test(trackingUrl)) patch.tracking_url = trackingUrl;
+      if ((trackingCode || trackingUrl) && purchase.status === 'pending') { patch.status = 'shipped'; patch.shipped_at = new Date().toISOString(); }
+      if (Object.keys(patch).length > 1) await supabaseFetch(`/rest/v1/affiliate_product_purchases?id=eq.${Number(purchase.id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(patch) });
+    } catch { /* Sync is best-effort; normal panel loading must remain available. */ }
+  }
 }
 
 module.exports = async function handler(req, res) {
@@ -72,26 +116,30 @@ module.exports = async function handler(req, res) {
           supabaseFetch('/rest/v1/affiliate_product_purchases?select=*,affiliate:affiliates(id,name,email,whatsapp)&order=created_at.desc&limit=500'),
           supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=affiliate_hydrant_price,affiliate_stick_price&limit=1')
         ]);
+        await syncMelhorEnvioTracking(purchases || []);
+        const refreshedPurchases = (purchases || []).some(p => p.melhor_envio_shipment_id && !p.tracking_url) ? await supabaseFetch('/rest/v1/affiliate_product_purchases?select=*,affiliate:affiliates(id,name,email,whatsapp)&order=created_at.desc&limit=500') : purchases;
         const setting = settings?.[0];
         if (!setting || !(Number(setting.affiliate_hydrant_price) > 0) || !(Number(setting.affiliate_stick_price) > 0)) {
           const error = new Error('Preços não encontrados em affiliate_settings (id=1).');
           error.statusCode = 500;
           throw error;
         }
-        return json(res, 200, { purchases: purchases || [], prices: { hydrant: Number(setting.affiliate_hydrant_price), stick: Number(setting.affiliate_stick_price) } });
+        return json(res, 200, { purchases: refreshedPurchases || [], prices: { hydrant: Number(setting.affiliate_hydrant_price), stick: Number(setting.affiliate_stick_price) } });
       }
       const { affiliate } = await requireAffiliate(req);
       const [purchases, settings] = await Promise.all([
         supabaseFetch(`/rest/v1/affiliate_product_purchases?affiliate_id=eq.${affiliate.id}&select=*&order=created_at.desc&limit=100`),
         supabaseFetch('/rest/v1/affiliate_settings?id=eq.1&select=affiliate_hydrant_price,affiliate_stick_price&limit=1')
       ]);
+      await syncMelhorEnvioTracking(purchases || []);
+      const refreshedPurchases = (purchases || []).some(p => p.melhor_envio_shipment_id && !p.tracking_url) ? await supabaseFetch(`/rest/v1/affiliate_product_purchases?affiliate_id=eq.${affiliate.id}&select=*&order=created_at.desc&limit=100`) : purchases;
       const setting = settings?.[0];
       if (!setting || !(Number(setting.affiliate_hydrant_price) > 0) || !(Number(setting.affiliate_stick_price) > 0)) {
         const error = new Error('Preços não encontrados em affiliate_settings (id=1).');
         error.statusCode = 500;
         throw error;
       }
-      return json(res, 200, { purchases: purchases || [], prices: { hydrant: Number(setting.affiliate_hydrant_price), stick: Number(setting.affiliate_stick_price) } });
+      return json(res, 200, { purchases: refreshedPurchases || [], prices: { hydrant: Number(setting.affiliate_hydrant_price), stick: Number(setting.affiliate_stick_price) } });
     }
 
     if (req.method !== 'POST' && req.method !== 'PATCH') return json(res, 405, { error: 'Método não permitido.' });
@@ -111,28 +159,22 @@ module.exports = async function handler(req, res) {
         if ((purchases || []).length !== ids.length) return json(res, 400, { error: 'Uma ou mais solicitações não foram encontradas.' });
         const results = [];
         for (const purchase of purchases) {
-          if (purchase.status !== 'pending' || purchase.freight_paid !== true || purchase.tracking_url) {
-            results.push({ id: purchase.id, ok: false, error: 'Somente solicitações pendentes, com frete aprovado e sem rastreio podem ser cotadas.' });
+          if (purchase.status !== 'pending' || purchase.freight_paid !== true || purchase.tracking_url || purchase.melhor_envio_shipment_id) {
+            results.push({ id: purchase.id, ok: false, error: 'Somente solicitações pendentes, com frete aprovado e sem etiqueta/rastreio podem ser cotadas.' });
             continue;
           }
           const cep = String(purchase.cep || '').replace(/\D/g, '');
           if (cep.length !== 8) { results.push({ id: purchase.id, ok: false, error: 'CEP de destino inválido.' }); continue; }
           try {
-            const requestQuote = accessToken => fetch(`${baseUrl}/me/shipment/calculate`, {
+            const response = await fetch(`${baseUrl}/me/shipment/calculate`, {
               method: 'POST',
-              headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'She Afiliadas (suporte@shecoisademulher.com.br)' },
+              headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'She Afiliadas (suporte@shecoisademulher.com.br)' },
               body: JSON.stringify({
                 from: { postal_code: '30190000' },
                 to: { postal_code: cep },
                 products: [{ id: `she-${purchase.id}`, width: 25, height: 5, length: 19, weight: 0.15, insurance_value: Number(purchase.price || 0), quantity: 1 }],
               }),
             });
-            let response = await requestQuote(token);
-            // Se o Melhor Envio rejeitar o token antes do expires_at, renova e repete uma única vez.
-            if (response.status === 401) {
-              token = await getMelhorEnvioAccessToken(true);
-              response = await requestQuote(token);
-            }
             const raw = await response.text();
             let data; try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw.slice(0, 500) }; }
             if (!response.ok) throw new Error(data?.message || data?.error || `Melhor Envio respondeu HTTP ${response.status}`);
@@ -143,6 +185,47 @@ module.exports = async function handler(req, res) {
           } catch (error) { results.push({ id: purchase.id, ok: false, error: error.message || 'Falha ao cotar.' }); }
         }
         return json(res, 200, { results, originPostalCode: '30190000', package: { weightKg: 0.15, widthCm: 25, heightCm: 5, lengthCm: 19 } });
+      }
+      if (action === 'melhor_envio_add_cart') {
+        const id = Number(req.body?.id);
+        const serviceId = Number(req.body?.service_id);
+        if (!Number.isSafeInteger(id) || id < 1 || !Number.isSafeInteger(serviceId) || serviceId < 1) return json(res, 400, { error: 'Solicitação ou serviço de frete inválido.' });
+        const rows = await supabaseFetch(`/rest/v1/affiliate_product_purchases?id=eq.${id}&select=*&limit=1`);
+        const purchase = rows?.[0];
+        if (!purchase) return json(res, 404, { error: 'Solicitação não encontrada.' });
+        if (purchase.status !== 'pending' || purchase.freight_paid !== true || purchase.tracking_url) return json(res, 409, { error: 'A solicitação precisa estar pendente, com frete pago e sem rastreio.' });
+        if (purchase.melhor_envio_shipment_id) return json(res, 409, { error: 'Esta solicitação já foi adicionada ao carrinho do Melhor Envio.', shipment_id: purchase.melhor_envio_shipment_id });
+        const quoteList = Array.isArray(purchase.melhor_envio_quote?.quotes) ? purchase.melhor_envio_quote.quotes : [];
+        const quote = quoteList.find(q => pickServiceId(q) === serviceId);
+        if (!quote) return json(res, 400, { error: 'Cotação não encontrada para esse serviço. Faça uma nova cotação.' });
+        const token = await getMelhorEnvioAccessToken();
+        const cep = String(purchase.cep || '').replace(/\D/g, '');
+        const phone = String(purchase.phone || '').replace(/\D/g, '');
+        const cpf = String(purchase.cpf || '').replace(/\D/g, '');
+        const street = String(purchase.street || '').trim() || String(purchase.address || '').split(',')[0].trim();
+        const number = String(purchase.house_number || '').trim() || 'S/N';
+        const city = String(purchase.city || '').trim();
+        const state = String(purchase.state || '').trim().toUpperCase();
+        const district = String(purchase.neighborhood || '').trim();
+        if (cep.length !== 8 || cpf.length !== 11 || phone.length < 10 || !street || !city || !/^[A-Z]{2}$/.test(state) || !district) {
+          return json(res, 400, { error: 'O formulário desta solicitação não tem todos os dados necessários para gerar a etiqueta. Confira rua, número, bairro, cidade, UF, CEP, CPF e telefone.' });
+        }
+        const payload = {
+          service: serviceId,
+          from: { name: 'She Coisa de Mulher', email: 'adm@shecoisademulher.com', phone: '3132784332', document: '11076006698', address: 'Rua Augusto de Lima', number: '479', complement: '', district: 'Centro', city: 'Belo Horizonte', postal_code: '30190000', state_abbr: 'MG', state_register: 'ISENTO' },
+          to: { name: String(purchase.full_name || '').trim(), email: String(purchase.email || '').trim(), phone, document: cpf, address: street, number, complement: String(purchase.complement || '').trim(), district, city, postal_code: cep, state_abbr: state, country_id: 'BR', state_register: 'ISENTO' },
+          products: [{ name: 'AMOSTRA SHE', quantity: '1', unitary_value: '30.00' }],
+          volumes: [{ height: 5, width: 25, length: 19, weight: 0.15 }],
+          options: { insurance_value: 30, receipt: false, own_hand: false, reverse: false, non_commercial: true, platform: 'She Afiliadas', reminder: `AMOSTRA SHE - Solicitação #${id}`, tags: [{ tag: `SHE-AF-${id}`, url: null }] }
+        };
+        try {
+          const result = await melhorEnvioRequest('/me/cart', token, { method: 'POST', body: JSON.stringify(payload) });
+          const shipmentId = String(result?.id || result?.order?.id || result?.data?.id || result?.shipment?.id || '').trim();
+          if (!shipmentId) return json(res, 502, { error: 'O Melhor Envio respondeu, mas não retornou o ID da etiqueta. Confira o carrinho do Melhor Envio antes de tentar novamente.', response: result });
+          const patch = { melhor_envio_shipment_id: shipmentId, updated_at: new Date().toISOString() };
+          await supabaseFetch(`/rest/v1/affiliate_product_purchases?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(patch) });
+          return json(res, 200, { ok: true, id, shipment_id: shipmentId, message: 'Etiqueta adicionada ao carrinho do Melhor Envio. Finalize a compra no site do Melhor Envio.' });
+        } catch (e) { return json(res, Number(e.statusCode) || 502, { error: e.message || 'Não foi possível adicionar a etiqueta ao carrinho.' }); }
       }
       if (action === 'set_prices') {
         const hydrant = Number(req.body?.hydrant), stick = Number(req.body?.stick);
