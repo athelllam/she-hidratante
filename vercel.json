@@ -5,6 +5,18 @@
   ],
   "rewrites": [
     {
+      "source": "/api/melhor-envio/status",
+      "destination": "/api/melhor-envio/authorize?__handler=status"
+    },
+    {
+      "source": "/api/affiliate/track",
+      "destination": "/api/affiliate/dashboard?__handler=track"
+    },
+    {
+      "source": "/api/reseller/settings",
+      "destination": "/api/affiliate/yampi-sync?__handler=reseller-settings"
+    },
+    {
       "source": "/api/admin/product-purchases",
       "destination": "/api/admin/affiliates?__handler=product-purchases&admin=1"
     },

@@ -3,6 +3,9 @@ const { syncAffiliateOrders, getConfig } = require('../_lib/yampi');
 const { CART_TOKENS, loadPrices } = require('../_lib/cartPrices');
 
 module.exports = async function handler(req, res) {
+  if (String(req.query?.__handler || '') === 'reseller-settings') {
+    return require('../_handlers/reseller_settings')(req, res);
+  }
   // O GET de preços usa esta função já existente para não criar uma nova
   // Serverless Function. Ele é público, mas aceita somente os tokens dos
   // produtos que realmente aparecem nos carrinhos. Nenhuma credencial Yampi
