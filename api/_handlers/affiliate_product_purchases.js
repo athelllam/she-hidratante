@@ -33,19 +33,20 @@ async function createFreightCharge(purchase, affiliate) {
 const money = v => Math.round((Number(v) || 0) * 100) / 100;
 const validEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim());
 
-async function getMelhorEnvioAccessToken() {
-  const rows = await supabaseFetch('/rest/v1/melhor_envio_credentials?id=eq.1&select=environment,access_token,refresh_token,expires_at&limit=1');
+async function getMelhorEnvioAccessToken(forceRefresh = false) {
+  const rows = await supabaseFetch('/rest/v1/melhor_envio_credentials?id=eq.1&select=id,environment,access_token,refresh_token,expires_at&limit=1');
   const current = rows?.[0];
   const env = String(process.env.MELHOR_ENVIO_ENV || 'sandbox').toLowerCase() === 'production' ? 'production' : 'sandbox';
   if (!current || current.environment !== env) {
     const error = new Error(`Melhor Envio ainda não autorizado no ambiente ${env}. Acesse /api/melhor-envio/authorize no painel administrativo.`);
     error.statusCode = 503; throw error;
   }
-  if (Date.parse(current.expires_at) > Date.now() + 5 * 60 * 1000) return current.access_token;
+  // Renovar com antecedência evita que uma cotação comece com token quase expirado.
+  if (!forceRefresh && Date.parse(current.expires_at) > Date.now() + 10 * 60 * 1000) return current.access_token;
   const clientId = String(process.env.MELHOR_ENVIO_CLIENT_ID || '').trim();
   const clientSecret = String(process.env.MELHOR_ENVIO_CLIENT_SECRET || '').trim();
   if (!clientId || !clientSecret || !current.refresh_token) {
-    const error = new Error('Token do Melhor Envio expirado. Configure as credenciais e refaça a autorização.'); error.statusCode = 503; throw error;
+    const error = new Error('Não foi possível renovar o token do Melhor Envio. Confira as credenciais e, se o refresh token expirou, autorize novamente.'); error.statusCode = 503; throw error;
   }
   const host = env === 'sandbox' ? 'https://sandbox.melhorenvio.com.br' : 'https://melhorenvio.com.br';
   const response = await fetch(`${host}/oauth/token`, {
@@ -53,9 +54,10 @@ async function getMelhorEnvioAccessToken() {
     body:new URLSearchParams({ grant_type:'refresh_token', refresh_token:current.refresh_token, client_id:clientId, client_secret:clientSecret })
   });
   const raw = await response.text(); let data; try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message:raw.slice(0,500) }; }
-  if (!response.ok || !data.access_token) { const error = new Error(data.message || data.error_description || 'Não foi possível renovar o token do Melhor Envio. Refaça a autorização.'); error.statusCode = 502; throw error; }
+  if (!response.ok || !data.access_token) { const error = new Error(data.message || data.error_description || data.error || `Não foi possível renovar o token do Melhor Envio (HTTP ${response.status}). Se o refresh token expirou, autorize novamente.`); error.statusCode = 502; throw error; }
   const expiresIn = Number(data.expires_in || 2592000);
   const updated = { environment:env, token_type:String(data.token_type || 'Bearer'), access_token:String(data.access_token), refresh_token:String(data.refresh_token || current.refresh_token), expires_at:new Date(Date.now()+expiresIn*1000).toISOString(), updated_at:new Date().toISOString() };
+  // O refresh token pode ser rotativo: persistir ambos juntos após cada renovação.
   await supabaseFetch('/rest/v1/melhor_envio_credentials?id=eq.1', { method:'PATCH', headers:{ Prefer:'return=minimal' }, body:JSON.stringify(updated) });
   return updated.access_token;
 }
@@ -116,15 +118,21 @@ module.exports = async function handler(req, res) {
           const cep = String(purchase.cep || '').replace(/\D/g, '');
           if (cep.length !== 8) { results.push({ id: purchase.id, ok: false, error: 'CEP de destino inválido.' }); continue; }
           try {
-            const response = await fetch(`${baseUrl}/me/shipment/calculate`, {
+            const requestQuote = accessToken => fetch(`${baseUrl}/me/shipment/calculate`, {
               method: 'POST',
-              headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'She Afiliadas (suporte@shecoisademulher.com.br)' },
+              headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'She Afiliadas (suporte@shecoisademulher.com.br)' },
               body: JSON.stringify({
                 from: { postal_code: '30190000' },
                 to: { postal_code: cep },
                 products: [{ id: `she-${purchase.id}`, width: 25, height: 5, length: 19, weight: 0.15, insurance_value: Number(purchase.price || 0), quantity: 1 }],
               }),
             });
+            let response = await requestQuote(token);
+            // Se o Melhor Envio rejeitar o token antes do expires_at, renova e repete uma única vez.
+            if (response.status === 401) {
+              token = await getMelhorEnvioAccessToken(true);
+              response = await requestQuote(token);
+            }
             const raw = await response.text();
             let data; try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw.slice(0, 500) }; }
             if (!response.ok) throw new Error(data?.message || data?.error || `Melhor Envio respondeu HTTP ${response.status}`);
