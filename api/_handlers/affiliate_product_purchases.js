@@ -219,6 +219,9 @@ module.exports = async function handler(req, res) {
         }
         const payload = {
           service: serviceId,
+          // Diagnóstico Sandbox: testar se o endpoint exige agency apesar da documentação.
+          // O ID 1 é apenas um teste e pode não corresponder a uma agência compatível com origem MG.
+          agency: 1,
           from: { name: 'She Coisa de Mulher', email: 'adm@shecoisademulher.com', phone: '3132784332', document: '11076006698', address: 'Rua Augusto de Lima', number: '479', complement: '', district: 'Centro', city: 'Belo Horizonte', postal_code: '30190000', state_abbr: 'MG', state_register: 'ISENTO' },
           to: { name: String(purchase.full_name || '').trim(), email: String(purchase.email || '').trim(), phone, document: cpf, address: street, number, complement: String(purchase.complement || '').trim(), district, city, postal_code: cep, state_abbr: state, country_id: 'BR', state_register: 'ISENTO' },
           products: [{ name: 'AMOSTRA SHE', quantity: '1', unitary_value: '30.00' }],
