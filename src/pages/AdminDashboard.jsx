@@ -2012,7 +2012,7 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
-        <section id="admin-compras" className="mt-6 w-full min-w-full max-w-none self-stretch scroll-mt-28 rounded-[1.5rem] border border-pink-200 bg-white p-6 shadow-sm">
+        <section id="admin-compras" className="mt-6 scroll-mt-28 rounded-[1.5rem] border border-pink-200 bg-white p-6 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Operação</p><h2 className="mt-1 text-xl font-black text-zinc-950">Compras Afiliadas</h2><p className="mt-1 text-sm text-zinc-500">Gerencie solicitações, dados de entrega, envio e aprovação financeira.</p></div><div className="flex flex-wrap items-center gap-2"><button type="button" onClick={exportPendingProductPurchasesCsv} title="Baixar CSV das compras aguardando envio" className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs font-black text-emerald-800 hover:bg-emerald-100"><svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor"><path d="M4 3h10l6 6v12H4V3zm9 1.5V10h5.5L13 4.5zM7 13h10v1.5H7V13zm0 3h10v1.5H7V16zm0 3h7v1.5H7V19z"/></svg>CSV</button><span className="rounded-full bg-pink-50 px-3 py-1.5 text-xs font-black text-pink-700">{productPurchases.filter(p=>p.status==='pending').length} pendente(s)</span></div></div>
           <div className="mt-5">
             <label htmlFor="product-purchase-affiliate-search" className="mb-1.5 block text-xs font-bold text-zinc-600">Buscar solicitações por nome ou ID da afiliada</label>
@@ -2034,7 +2034,7 @@ export default function AdminDashboard() {
           </article>)}{!productPurchases.length && <div className="rounded-xl border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-400">Nenhuma compra solicitada ainda.</div>}{productPurchases.length > 0 && !productPurchases.some(p => { const query = productPurchaseSearch.trim().toLocaleLowerCase('pt-BR'); return !query || String(p.affiliate?.name || '').toLocaleLowerCase('pt-BR').includes(query) || String(p.affiliate_id ?? '').includes(query) }) && <div className="rounded-xl border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-400">Nenhuma solicitação encontrada para essa afiliada.</div>}</div></div>
         </section>
 
-        <section id="admin-videos" className="mt-6 w-full min-w-full max-w-none self-stretch scroll-mt-28 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
+        <section id="admin-videos" className="mt-6 scroll-mt-28 rounded-[1.5rem] border border-pink-100 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">Conteúdo das afiliadas</p>
