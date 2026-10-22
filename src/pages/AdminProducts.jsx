@@ -8,7 +8,7 @@ async function request(path, options = {}) {
   const response = await fetch(path, { credentials: 'include', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options })
   const data = await response.json().catch(() => ({}))
   if (response.status === 401) throw new Error('Sua sessão administrativa expirou. Entre novamente pelo painel Admin.')
-  if (!response.ok || data.ok === false) throw new Error(data.error || `Erro HTTP ${response.status}`)
+  if (!response.ok || data.ok === false) throw new Error(data.error || `Erro HTTP ${response.status} em ${path}. Verifique o roteamento da API e a migração Supabase.`)
   return data
 }
 

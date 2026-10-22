@@ -3,6 +3,7 @@ const { syncAffiliateOrders, getConfig } = require('../_lib/yampi');
 const { CART_TOKENS, loadPrices } = require('../_lib/cartPrices');
 
 module.exports = async function handler(req, res) {
+  if (String(req.query?.__handler || '') === 'she-cart-config') return require('../_handlers/cart_config')(req, res);
   if (String(req.query?.__handler || '') === 'reseller-settings') {
     return require('../_handlers/reseller_settings')(req, res);
   }

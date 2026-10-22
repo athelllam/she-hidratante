@@ -58,3 +58,29 @@ Configuração inicial:
 - Não remover `metadata[affiliate_id]` nem alterar `buildYampiCheckoutUrl` sem teste completo de atribuição.
 - Não voltar a hardcodar listas de produtos em cada página; novas páginas devem usar `DynamicSheCart`.
 - Se a API retornar preço ausente, erro de consulta ou configuração não encontrada, mostrar erro e não simular preço.
+
+
+## Vercel function limit and default images (October 2026)
+- `/api/admin/products` is rewritten in `vercel.json` to the EXISTING `/api/admin/affiliates` function using `__handler=she-products`. The early dispatch in `api/admin/affiliates.js` invokes `_handlers/admin_products.js`.
+- `/api/cart-config` is rewritten to the EXISTING `/api/affiliate/dashboard` function using `__handler=she-cart-config`. The early dispatch in `api/affiliate/dashboard.js` invokes `_handlers/cart_config.js`, without affiliate login for this public catalog endpoint.
+- NEVER add new `api/*.js` entrypoints for these routes; do not change existing webhook, withdrawal, affiliate or shipping routes.
+- Original default images live in `src/assets/cart` and are copied to `public/cart` for stable URLs. Six default catalog entries share four image files. Run `supabase/migration_dynamic_cart_products.sql` on first setup, and `supabase/migration_cart_images_existing.sql` to populate only missing images in an already seeded database.
+- Uploaded images CANNOT be written to `src/assets/cart` on deployed Vercel (immutable build). Admin uploads use Supabase Storage bucket `she-product-images`, preserving editable image URLs. For a future release, one can copy approved uploaded images back to source assets during development and update database URLs.
+- The page selector depends on successful GET `/api/admin/products`, so HTTP 404 hides existing database records. Check rewrite deployment before re-seeding.
+
+
+## Vercel function limit and default images (October 2026)
+- `/api/admin/products` is rewritten in `vercel.json` to the EXISTING `/api/admin/affiliates` function using `__handler=she-products`. The early dispatch in `api/admin/affiliates.js` invokes `_handlers/admin_products.js`.
+- `/api/cart-config` is rewritten to the EXISTING `/api/affiliate/dashboard` function using `__handler=she-cart-config`. The early dispatch in `api/affiliate/dashboard.js` invokes `_handlers/cart_config.js`, without affiliate login for this public catalog endpoint.
+- NEVER add new `api/*.js` entrypoints for these routes; do not change existing webhook, withdrawal, affiliate or shipping routes.
+- Original default images live in `src/assets/cart` and are copied to `public/cart` for stable URLs. Six default catalog entries share four image files. Run `supabase/migration_dynamic_cart_products.sql` on first setup, and `supabase/migration_cart_images_existing.sql` to populate only missing images in an already seeded database.
+- Uploaded images CANNOT be written to `src/assets/cart` on deployed Vercel (immutable build). Admin uploads use Supabase Storage bucket `she-product-images`, preserving editable image URLs. For a future release, one can copy approved uploaded images back to source assets during development and update database URLs.
+- The page selector depends on successful GET `/api/admin/products`, so HTTP 404 hides existing database records. Check rewrite deployment before re-seeding.
+
+
+## Correção de rotas e imagens (outubro de 2026)
+- Vercel: `/api/admin/products` reescreve para a função existente `/api/admin/affiliates?__handler=she-products`; `/api/cart-config` reescreve para `/api/affiliate/yampi-sync?__handler=she-cart-config`. Não criar novos arquivos de entrada de funções.
+- As imagens iniciais estão em `src/assets/cart` e são copiadas para `public/cart` para URLs públicas estáveis `/cart/*.webp`. Os upsells +1 reutilizam as imagens dos produtos base.
+- ATENÇÃO: a pasta de código da Vercel é somente leitura em produção. Edições de imagens pelo Admin são armazenadas no bucket `she-product-images` do Supabase, não podem alterar fisicamente `src/assets/cart`.
+- Rodar `supabase/migration_dynamic_cart_products.sql` em uma instalação nova; para uma instalação já existente rodar também `supabase/migration_cart_restore_images_pages.sql`. Não sobrescrever imagens editadas nem configurações já alteradas pelo usuário.
+- Ao criar nova página, registrar o slug em `she_cart_pages`, adicionar o componente `DynamicSheCart` à página e verificar preservação de affiliateId e checkout.

@@ -13,6 +13,10 @@ const { sendEmail, adminRecipients, adminVideoEmail, affiliateBoostJoinEmail } =
 const { sendToAffiliate } = require('../_lib/push');
 
 
+// Public cart configuration reuses this existing serverless function.
+// Do not require affiliate login for the public cart.
+// Public cart configuration reuses this existing serverless function.
+// Do not require affiliate login for the public cart.
 function getAdminPreviewId(req) {
   const url = new URL(req.url || '/', 'http://localhost');
   const raw = req.query?.adminPreviewId ?? url.searchParams.get('adminPreviewId');
@@ -101,6 +105,12 @@ function normalizeWhatsapp(value) {
 }
 
 module.exports = async function handler(req, res) {
+  if (String(req.query?.__handler || '') === 'she-cart-config') {
+    return require('../_handlers/cart_config')(req, res);
+  }
+  if (String(req.query?.__handler || '') === 'she-cart-config') {
+    return require('../_handlers/cart_config')(req, res);
+  }
   // Reuse the existing dashboard function for the benefits store endpoint.
   if (String(req.query?.__handler || '') === 'product-purchases') {
     return require('../_handlers/affiliate_product_purchases')(req, res);

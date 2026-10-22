@@ -5,6 +5,30 @@
   ],
   "rewrites": [
     {
+      "source": "/api/admin/products",
+      "destination": "/api/admin/affiliates?__handler=she-products"
+    },
+    {
+      "source": "/api/cart-config",
+      "destination": "/api/affiliate/dashboard?__handler=she-cart-config"
+    },
+    {
+      "source": "/api/admin/products",
+      "destination": "/api/admin/affiliates?__handler=she-products"
+    },
+    {
+      "source": "/api/cart-config",
+      "destination": "/api/affiliate/dashboard?__handler=she-cart-config"
+    },
+    {
+      "source": "/api/admin/products",
+      "destination": "/api/admin/affiliates?__handler=she-products"
+    },
+    {
+      "source": "/api/cart-config",
+      "destination": "/api/affiliate/yampi-sync?__handler=she-cart-config"
+    },
+    {
       "source": "/api/webhooks/melhor-envio",
       "destination": "/api/webhooks/yampi?provider=melhor-envio"
     },

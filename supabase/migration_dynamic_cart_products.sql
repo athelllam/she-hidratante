@@ -49,14 +49,14 @@ values ('she-product-images', 'she-product-images', true, 4194304, array['image/
 on conflict (id) do update set public = true, file_size_limit = 4194304, allowed_mime_types = array['image/webp'];
 
 -- Seed current product catalog by the existing checkout tokens. Re-running is safe.
-insert into public.she_cart_products (name, description, yampi_token, active) values
-('Hidratante', 'Hidrata profundamente a região íntima', 'EFH0YOIDTO', true),
-('Blister', 'Faça seus próprios ovinhos em casa', '7B6B7IL4ZM', true),
-('Stick', 'Uniformiza o tom, reduz manchas, hidrata e protege', 'GVVB8UXHJ8', true),
-('Hidratante +1', 'Hidratante íntimo adicional', '6G99ZYJTDE', true),
-('Stick +1', 'Stick clareador adicional', 'IWK5ZWCEUO', true),
-('Pocket Size', 'Leve para qualquer lugar e fique hidratada sempre', 'ORM1LRMTT5', true)
-on conflict (yampi_token) do update set name = excluded.name, description = excluded.description, updated_at = now();
+insert into public.she_cart_products (name, description, yampi_token, active, image_url) values
+('Hidratante', 'Hidrata profundamente a região íntima', 'EFH0YOIDTO', true, '/cart/hidratante.webp'),
+('Blister', 'Faça seus próprios ovinhos em casa', '7B6B7IL4ZM', true, '/cart/blister.webp'),
+('Stick', 'Uniformiza o tom, reduz manchas, hidrata e protege', 'GVVB8UXHJ8', true, '/cart/stick-clareador.webp'),
+('Hidratante +1', 'Hidratante íntimo adicional', '6G99ZYJTDE', true, '/cart/hidratante.webp'),
+('Stick +1', 'Stick clareador adicional', 'IWK5ZWCEUO', true, '/cart/stick-clareador.webp'),
+('Pocket Size', 'Leve para qualquer lugar e fique hidratada sempre', 'ORM1LRMTT5', true, '/cart/pocket-size.webp')
+on conflict (yampi_token) do update set image_url = coalesce(nullif(public.she_cart_products.image_url, ''), excluded.image_url);
 
 insert into public.she_cart_pages (name, slug) values ('Hidratante', 'hidratante'), ('Stick', 'stick')
 on conflict (slug) do update set name = excluded.name, updated_at = now();
@@ -64,7 +64,7 @@ on conflict (slug) do update set name = excluded.name, updated_at = now();
 -- Replace only mappings for these two known pages, keeping any future page configurations intact.
 with page_ids as (select id, slug from public.she_cart_pages where slug in ('hidratante','stick')),
 product_ids as (select id, yampi_token from public.she_cart_products)
-delete from public.she_cart_page_products m using page_ids p where m.page_id = p.id;
+-- Existing page mappings are preserved on subsequent runs.
 
 insert into public.she_cart_page_products (page_id, product_id, role, position)
 select p.id, pr.id, v.role, v.position
@@ -81,4 +81,5 @@ from (values
  ('stick','ORM1LRMTT5','upsell',3)
 ) as v(slug, token, role, position)
 join public.she_cart_pages p on p.slug = v.slug
-join public.she_cart_products pr on pr.yampi_token = v.token;
+join public.she_cart_products pr on pr.yampi_token = v.token
+on conflict (page_id, product_id, role) do nothing;

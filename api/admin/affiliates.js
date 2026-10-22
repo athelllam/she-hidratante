@@ -7,6 +7,13 @@ function json(res, status, body) { res.status(status).json(body); }
 function money(value) { return Math.round((Number(value) || 0) * 100) / 100; }
 
 module.exports = async function handler(req, res) {
+  if (String(req.query?.__handler || '') === 'she-products') return require('../_handlers/admin_products')(req, res);
+  if (String(req.query?.__handler || '') === 'she-products') {
+    return require('../_handlers/admin_products')(req, res);
+  }
+  if (String(req.query?.__handler || '') === 'she-products') {
+    return require('../_handlers/admin_products')(req, res);
+  }
   // Reuse this already-deployed function for product-purchase administration; do not create a new Vercel function.
   if (String(req.query?.__handler || '') === 'product-purchases') {
     req.query.admin = '1';
