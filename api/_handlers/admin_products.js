@@ -1,4 +1,5 @@
-const { requireAdmin, supabaseFetch, json } = require('../_lib/supabase');
+const { requireAdmin, supabaseFetch } = require('../_lib/admin');
+const { json } = require('../_lib/supabase');
 const { loadPrices } = require('../_lib/cartPrices');
 
 const PRODUCTS = '/rest/v1/she_cart_products';
