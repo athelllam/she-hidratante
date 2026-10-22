@@ -176,12 +176,55 @@ async function syncAllYampiOrders() {
   };
 }
 
+function orderItems(order) {
+  const candidates = [order?.items?.data, order?.items, order?.products?.data, order?.products, order?.order_items?.data, order?.order_items];
+  for (const value of candidates) if (Array.isArray(value)) return value;
+  return [];
+}
+function summarizeProducts(rows) {
+  const products = new Map();
+  for (const order of rows || []) {
+    if (!order.payment_approved || order.cancelled) continue;
+    const raw = order.raw_payload || {};
+    for (const item of orderItems(raw)) {
+      const product = item?.product?.data || item?.product || item?.product_data || {};
+      const sku = item?.sku?.data || item?.sku || {};
+      const name = String(item?.name || item?.product_name || product?.name || sku?.name || item?.title || 'Produto sem nome').trim();
+      const id = String(item?.product_id || product?.id || sku?.product_id || name);
+      const quantity = Math.max(0, Number(item?.quantity ?? item?.qty ?? item?.amount ?? 1) || 1);
+      const lineTotal = Number(item?.total ?? item?.value_total ?? item?.price_total ?? item?.subtotal ?? ((Number(item?.price ?? item?.value ?? 0) || 0) * quantity)) || 0;
+      const key = `${id}:${name}`;
+      const current = products.get(key) || { id, name, quantity: 0, revenue: 0 };
+      current.quantity += quantity;
+      current.revenue += lineTotal;
+      products.set(key, current);
+    }
+  }
+  return [...products.values()].sort((a,b)=>b.quantity-a.quantity).map(p=>({...p,revenue:Math.round(p.revenue*100)/100}));
+}
+async function accessSummary(month, start, end) {
+  const from = `${start}T00:00:00.000Z`;
+  const to = `${end}T00:00:00.000Z`;
+  try {
+    const [siteEvents, affiliateEvents] = await Promise.all([
+      supabaseFetch(`/rest/v1/she_site_events?created_at=gte.${encodeURIComponent(from)}&created_at=lt.${encodeURIComponent(to)}&select=visitor_id,session_id,created_at&limit=10000`),
+      supabaseFetch(`/rest/v1/affiliate_events?created_at=gte.${encodeURIComponent(from)}&created_at=lt.${encodeURIComponent(to)}&type=eq.access&select=visitor_id,created_at&limit=10000`),
+    ]);
+    const normalSessions = new Set((siteEvents || []).map(e=>e.session_id).filter(Boolean));
+    const affiliateSessions = new Set((affiliateEvents || []).map(e=>`${e.visitor_id || 'unknown'}:${String(e.created_at || '').slice(0,10)}`));
+    return { configured: true, normal_accesses: normalSessions.size, affiliate_accesses: affiliateSessions.size, total_accesses: normalSessions.size + affiliateSessions.size, source: 'She site tracking + affiliate tracking' };
+  } catch (e) {
+    if (e.statusCode === 404 || e.data?.code === 'PGRST205') return { configured: false, normal_accesses: 0, affiliate_accesses: 0, total_accesses: 0, message: 'Execute a migração atualizada do painel de negócios e aguarde novos acessos para começar a coleta.' };
+    throw e;
+  }
+}
+
 async function yampiSummary(month) {
   const start = `${month}-01T00:00:00.000Z`;
   const [year, mon] = month.split('-').map(Number);
   const end = new Date(Date.UTC(year, mon, 1)).toISOString();
   try {
-    const rows = await supabaseFetch(`${BUSINESS_ORDERS}?created_at=gte.${encodeURIComponent(start)}&created_at=lt.${encodeURIComponent(end)}&select=yampi_order_id,status,payment_approved,cancelled,total,created_at,affiliate_id&limit=10000`);
+    const rows = await supabaseFetch(`${BUSINESS_ORDERS}?created_at=gte.${encodeURIComponent(start)}&created_at=lt.${encodeURIComponent(end)}&select=yampi_order_id,status,payment_approved,cancelled,total,created_at,affiliate_id,raw_payload&limit=10000`);
     let gross = 0, refunds = 0, paid = 0, cancelledOrders = 0;
     for (const order of rows || []) {
       const total = money(order.total);
@@ -200,6 +243,7 @@ async function yampiSummary(month) {
       paid_orders: paid,
       order_count: (rows || []).length,
       cancelled_orders: cancelledOrders,
+      products: summarizeProducts(rows),
       source: 'she_business_orders',
     };
   } catch (e) {
@@ -220,12 +264,16 @@ module.exports = async function handler(req,res){
     if(view==='sync-yampi' && req.method==='POST') { const result = await syncAllYampiOrders(); return json(res,200,result); }
     if(view==='traffic' && req.method==='GET') { const meta=await metaInsights(month); return json(res,200,{ok:true,...meta}); }
     if(view==='business' && req.method==='GET') {
-      const bounds=monthBounds(month); const [settings,entries,yampi,meta,syncState]=await Promise.all([readSettings(),readEntries(bounds.start,bounds.end),yampiSummary(month),metaInsights(month),readBusinessSyncState()]);
+      const bounds=monthBounds(month); const [settings,entries,yampi,meta,syncState,accesses]=await Promise.all([readSettings(),readEntries(bounds.start,bounds.end),yampiSummary(month),metaInsights(month),readBusinessSyncState(),accessSummary(month,bounds.start,bounds.end)]);
       const manualExpenses=(entries||[]).filter(e=>e.kind==='expense' && e.status==='paid').reduce((s,e)=>s+money(e.amount),0);
       const manualIncome=(entries||[]).filter(e=>e.kind==='income' && e.status==='paid').reduce((s,e)=>s+money(e.amount),0);
       const gross=money(yampi.gross_revenue); const tax=gross*money(settings.tax_percent)/100; const fees=gross*money(settings.fee_percent)/100; const adSpend=money(meta.summary?.spend);
+      const variableCategories = new Set(['cmv','frete','custo do produto','embalagem','frete subsidiado','comissões','comissao','comissões de afiliadas','custo variável','custos variáveis']);
+      const manualVariableCosts=(entries||[]).filter(e=>e.kind==='expense' && e.status==='paid' && variableCategories.has(String(e.category||'').trim().toLowerCase())).reduce((sum,e)=>sum+money(e.amount),0);
       const net=gross-money(yampi.refunds)-tax-fees; const result=net-manualExpenses+manualIncome-adSpend;
-      return json(res,200,{ok:true,settings,entries:entries||[],yampi,syncState:{completed:Boolean(syncState.completed),scanned_orders:Number(syncState.scanned_orders||0),synced_orders:Number(syncState.synced_orders||0),updated_at:syncState.updated_at||null},metaConfigured:meta.configured,summary:{gross_revenue:gross,refunds:money(yampi.refunds),tax_amount:tax,fee_amount:fees,net_revenue:net,expenses:manualExpenses,income:manualIncome,ad_spend:adSpend,variable_costs:0,result}});
+      const contribution=gross-money(yampi.refunds)-tax-fees-manualVariableCosts-adSpend;
+      const conversion=accesses.total_accesses>0 ? (money(yampi.paid_orders)/accesses.total_accesses)*100 : 0;
+      return json(res,200,{ok:true,settings,entries:entries||[],yampi,accesses,conversion:{orders:money(yampi.paid_orders),accesses:accesses.total_accesses,percent:conversion},syncState:{completed:Boolean(syncState.completed),scanned_orders:Number(syncState.scanned_orders||0),synced_orders:Number(syncState.synced_orders||0),updated_at:syncState.updated_at||null},metaConfigured:meta.configured,summary:{gross_revenue:gross,refunds:money(yampi.refunds),tax_amount:tax,fee_amount:fees,net_revenue:net,expenses:manualExpenses,income:manualIncome,ad_spend:adSpend,variable_costs:manualVariableCosts,contribution_margin:contribution,contribution_margin_percent:gross>0?(contribution/gross)*100:0,result}});
     }
     if(view==='expenses' && req.method==='POST') {
       const b=req.body||{}; const kind=['income','expense'].includes(b.kind)?b.kind:null; const amount=Number(b.amount); const date=String(b.date||''); const competence=String(b.competence||'');

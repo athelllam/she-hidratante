@@ -23,6 +23,38 @@ const Gummies = lazy(() => import('./pages/Gummies'))
 const Ovinhos = lazy(() => import('./pages/Ovinhos'))
 
 
+
+const SITE_VISITOR_KEY = 'sheSiteVisitorId'
+const SITE_SESSION_KEY = 'sheSiteSessionId'
+function siteId(key) {
+  try {
+    let value = localStorage.getItem(key)
+    if (!value) { value = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`; localStorage.setItem(key, value) }
+    return value
+  } catch { return `${Date.now()}-${Math.random().toString(36).slice(2)}` }
+}
+function SiteAnalyticsTracker() {
+  const location = useLocation()
+  useEffect(() => {
+    const path = `${location.pathname || '/'}${location.search || ''}`.slice(0, 300)
+    // Não conta rotas administrativas nem a entrada de afiliada, já contabilizada no tracking próprio.
+    if (path.startsWith('/admin')) return
+    const routeName = (location.pathname || '/').replace(/^\/|\/$/g, '')
+    const knownSingleRoutes = new Set(['', 'home', 'hidratante', 'stick', 'gummies', 'ovinhos', 'programa-afiliadas', 'afiliado', 'revendedora', 'representantes', 'trabalhe-conosco', 'termos-afiliadas', 'politica-privacidade', 'termos-de-uso'])
+    if (routeName && !routeName.includes('/') && !knownSingleRoutes.has(routeName)) return
+    try { const remembered = localStorage.getItem('sheAffiliateSlug'); if (remembered && routeName === remembered) return } catch {}
+    let sessionId
+    try {
+      sessionId = sessionStorage.getItem(SITE_SESSION_KEY)
+      if (!sessionId) { sessionId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`; sessionStorage.setItem(SITE_SESSION_KEY, sessionId) }
+    } catch { sessionId = `${Date.now()}-${Math.random().toString(36).slice(2)}` }
+    const visitorId = siteId(SITE_VISITOR_KEY)
+    const eventId = `${sessionId}:${path}`
+    fetch('/api/site-track', { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true, body: JSON.stringify({ visitorId, sessionId, path, referrer: document.referrer || '', eventId }) }).catch(() => {})
+  }, [location.pathname, location.search])
+  return null
+}
+
 function ScrollToTop() {
   const location = useLocation()
 
@@ -96,6 +128,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
+      <SiteAnalyticsTracker />
       <Suspense fallback={<PageFallback />}>
         <Routes>
           <Route path="/" element={<Welcome />} />

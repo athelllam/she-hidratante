@@ -31,3 +31,12 @@ Configure na Vercel `META_ACCESS_TOKEN`, `META_AD_ACCOUNT_ID` (com ou sem prefix
 - O painel considera pedidos com pagamento aprovado; cancelamentos/estornos são exibidos como dedução quando o payload da Yampi identifica que houve pagamento.
 - Impostos e taxas percentuais são estimativas gerenciais. O CMV, frete, comissões e outros custos variáveis ainda precisam ser cadastrados/mapeados para que o resultado represente a margem real.
 - Compare um mês fechado com o relatório da Yampi antes de usar os números para decisões contábeis.
+
+## Indicadores adicionais do painel de negócios
+- **Margem de contribuição**: receita da Yampi menos cancelamentos/estornos, impostos e taxas percentuais configurados, custos variáveis lançados manualmente nas categorias reconhecidas (CMV, Frete, Embalagem, comissões etc.) e gasto de anúncios retornado pela Meta Ads. Para evitar distorções, mantenha os lançamentos de custos variáveis categorizados e confira se algum valor já está incluído em outra categoria.
+- **Acessos normais**: o site passa a registrar sessões e páginas visitadas após a publicação desta versão. Não há preenchimento retroativo para períodos anteriores à implantação do rastreamento.
+- **Acessos de afiliadas**: usa o rastreamento já existente do programa de afiliadas. A contagem é uma estimativa baseada nos eventos disponíveis e pode não coincidir exatamente com sessões do Google Analytics.
+- **Conversão geral**: pedidos pagos importados da Yampi divididos pelos acessos rastreados no mesmo mês. É diferente da conversão específica do checkout.
+- **Vendas por produto**: os itens são extraídos do payload já armazenado em cada pedido da Yampi. Pedidos antigos cujos payloads não contenham itens não poderão ser separados por produto até que sejam atualizados pela sincronização.
+
+**Importante:** a migração foi atualizada para criar `she_site_events`. Execute novamente o arquivo completo `supabase/migration_business_analytics.sql` no SQL Editor do Supabase (ele usa comandos seguros de criação/alteração) antes de publicar esta versão. Depois, faça deploy na Vercel. O tracking de acessos começa a coletar dados após o deploy; não é possível recuperar acessos passados sem outra fonte de analytics.
