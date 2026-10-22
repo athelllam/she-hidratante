@@ -35,7 +35,14 @@ module.exports = async function handler(req, res) {
         supabaseFetch(`${PAGES}?select=*&order=name.asc`),
         supabaseFetch(`${ITEMS}?select=*&order=position.asc`),
       ]);
-      return json(res, 200, { ok: true, products: products || [], pages: pages || [], mappings: mappings || [] });
+      let prices = {};
+      try { prices = await loadPrices((products || []).map(product => product.yampi_token).filter(Boolean)); }
+      catch (priceError) { console.error('[She Admin Products] Yampi price lookup failed:', priceError.message); }
+      const productsWithPrices = (products || []).map(product => ({
+        ...product,
+        yampi_price: prices[product.yampi_token] || null,
+      }));
+      return json(res, 200, { ok: true, products: productsWithPrices, pages: pages || [], mappings: mappings || [] });
     }
     if (req.method === 'POST') {
       const body = req.body || {};

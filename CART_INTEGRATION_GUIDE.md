@@ -84,3 +84,8 @@ Configuração inicial:
 - ATENÇÃO: a pasta de código da Vercel é somente leitura em produção. Edições de imagens pelo Admin são armazenadas no bucket `she-product-images` do Supabase, não podem alterar fisicamente `src/assets/cart`.
 - Rodar `supabase/migration_dynamic_cart_products.sql` em uma instalação nova; para uma instalação já existente rodar também `supabase/migration_cart_restore_images_pages.sql`. Não sobrescrever imagens editadas nem configurações já alteradas pelo usuário.
 - Ao criar nova página, registrar o slug em `she_cart_pages`, adicionar o componente `DynamicSheCart` à página e verificar preservação de affiliateId e checkout.
+
+## Regras atuais do painel de produtos (outubro de 2026)
+- Para cada produto em uma página, selecione apenas uma função: `main` (principal) OU `upsell`. O mesmo produto pode ter função diferente em outra página.
+- A listagem administrativa consulta os preços de catálogo da Yampi no servidor e exibe preço normal (`salePrice`) e preço promocional (`promotionalPrice`), quando disponível. O carrinho usa `effectivePrice` para mostrar o preço cobrado conforme a regra devolvida pela Yampi.
+- O painel ainda não altera preços no catálogo da Yampi. Alterar o preço real exigiria integrar uma operação de escrita da API da Yampi com permissões adequadas, validação e confirmação; até isso existir, faça alterações de preço no painel da própria Yampi. Não criar um preço visual separado no site, pois ele poderia divergir do checkout.
