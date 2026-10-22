@@ -181,20 +181,71 @@ function orderItems(order) {
   for (const value of candidates) if (Array.isArray(value)) return value;
   return [];
 }
-function summarizeProducts(rows) {
+function normalizeProductCode(value) { return String(value ?? '').trim().toUpperCase(); }
+function nestedObject(value) { return value?.data || value || {}; }
+function itemCodes(item) {
+  const product = nestedObject(item?.product || item?.product_data);
+  const sku = nestedObject(item?.sku);
+  const variant = nestedObject(item?.variant);
+  return [item?.product_token, item?.sku_token, item?.token, item?.code, item?.sku, item?.product?.token,
+    product?.token, product?.checkout_token, product?.code, sku?.token, sku?.code, sku?.sku,
+    variant?.token, variant?.sku_token].filter(v => typeof v === 'string' && v.trim()).map(normalizeProductCode);
+}
+async function loadBusinessProductCatalog() {
+  let internal = [];
+  try { internal = await supabaseFetch('/rest/v1/she_cart_products?select=id,name,yampi_token,image_url,active&order=name.asc'); }
+  catch (e) { if (!(e.statusCode === 404 || e.data?.code === 'PGRST205')) throw e; }
+  const byToken = new Map((internal || []).map(p => [normalizeProductCode(p.yampi_token), p]));
+  const byYampiId = new Map();
+  // Order line items often contain Yampi numeric product/SKU IDs instead of the
+  // checkout token saved in the product manager. Resolve those IDs via catalog.
+  try {
+    for (let page = 1; page <= 10; page += 1) {
+      const response = await yampiFetch(`/catalog/products?${new URLSearchParams({page:String(page),limit:'100',include:'skus'}).toString()}`);
+      const list = Array.isArray(response?.data?.data) ? response.data.data : Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : [];
+      for (const product of list) {
+        const prod = nestedObject(product);
+        const productTokens = [prod?.token, prod?.checkout_token, prod?.code].filter(Boolean).map(normalizeProductCode);
+        const linked = productTokens.map(t=>byToken.get(t)).find(Boolean);
+        const record = { name: linked?.name || prod?.name || prod?.title || null, image_url: linked?.image_url || prod?.image_url || prod?.image?.url || null, token: linked?.yampi_token || productTokens[0] || null };
+        if (prod?.id != null) byYampiId.set(String(prod.id), record);
+        const skus = Array.isArray(prod?.skus?.data) ? prod.skus.data : Array.isArray(prod?.skus) ? prod.skus : [];
+        for (const skuValue of skus) {
+          const sku = nestedObject(skuValue);
+          const skuTokens = [sku?.token, sku?.checkout_token, sku?.code, sku?.sku].filter(Boolean).map(normalizeProductCode);
+          const skuLinked = skuTokens.map(t=>byToken.get(t)).find(Boolean) || linked;
+          const skuRecord = { name: skuLinked?.name || sku?.name || record.name, image_url: skuLinked?.image_url || record.image_url, token: skuLinked?.yampi_token || skuTokens[0] || record.token };
+          if (sku?.id != null) byYampiId.set(String(sku.id), skuRecord);
+          if (sku?.product_id != null && !byYampiId.has(String(sku.product_id))) byYampiId.set(String(sku.product_id), record);
+        }
+      }
+      const pagination = response?.meta?.pagination || response?.pagination;
+      const totalPages = Number(pagination?.total_pages || pagination?.totalPages || 0);
+      if (!list.length || (totalPages && page >= totalPages) || list.length < 100) break;
+    }
+  } catch (e) { console.warn('[She Business Analytics] Yampi catalog lookup failed:', e.message); }
+  return { byToken, byYampiId };
+}
+function summarizeProducts(rows, catalog = { byToken: new Map(), byYampiId: new Map() }) {
   const products = new Map();
   for (const order of rows || []) {
     if (!order.payment_approved || order.cancelled) continue;
     const raw = order.raw_payload || {};
     for (const item of orderItems(raw)) {
-      const product = item?.product?.data || item?.product || item?.product_data || {};
-      const sku = item?.sku?.data || item?.sku || {};
-      const name = String(item?.name || item?.product_name || product?.name || sku?.name || item?.title || 'Produto sem nome').trim();
-      const id = String(item?.product_id || product?.id || sku?.product_id || name);
+      const product = nestedObject(item?.product || item?.product_data);
+      const sku = nestedObject(item?.sku);
+      const variant = nestedObject(item?.variant);
+      const numericIds = [item?.product_id, product?.id, sku?.product_id, sku?.id, item?.sku_id, variant?.id].filter(v => v != null).map(String);
+      const codes = itemCodes(item);
+      const internalMatch = codes.map(code => catalog.byToken.get(code)).find(Boolean);
+      const catalogMatch = numericIds.map(id => catalog.byYampiId.get(id)).find(Boolean);
+      const linkedProduct = internalMatch || (catalogMatch?.token ? catalog.byToken.get(normalizeProductCode(catalogMatch.token)) : null);
+      const name = String(linkedProduct?.name || catalogMatch?.name || item?.name || item?.product_name || product?.name || sku?.name || variant?.name || item?.title || 'Produto sem nome').trim();
+      const id = String(linkedProduct?.id || catalogMatch?.token || numericIds[0] || codes[0] || name);
       const quantity = Math.max(0, Number(item?.quantity ?? item?.qty ?? item?.amount ?? 1) || 1);
       const lineTotal = Number(item?.total ?? item?.value_total ?? item?.price_total ?? item?.subtotal ?? ((Number(item?.price ?? item?.value ?? 0) || 0) * quantity)) || 0;
       const key = `${id}:${name}`;
-      const current = products.get(key) || { id, name, quantity: 0, revenue: 0 };
+      const current = products.get(key) || { id, name, image_url: linkedProduct?.image_url || catalogMatch?.image_url || null, quantity: 0, revenue: 0 };
       current.quantity += quantity;
       current.revenue += lineTotal;
       products.set(key, current);
@@ -224,7 +275,10 @@ async function yampiSummary(month) {
   const [year, mon] = month.split('-').map(Number);
   const end = new Date(Date.UTC(year, mon, 1)).toISOString();
   try {
-    const rows = await supabaseFetch(`${BUSINESS_ORDERS}?created_at=gte.${encodeURIComponent(start)}&created_at=lt.${encodeURIComponent(end)}&select=yampi_order_id,status,payment_approved,cancelled,total,created_at,affiliate_id,raw_payload&limit=10000`);
+    const [rows, catalog] = await Promise.all([
+      supabaseFetch(`${BUSINESS_ORDERS}?created_at=gte.${encodeURIComponent(start)}&created_at=lt.${encodeURIComponent(end)}&select=yampi_order_id,status,payment_approved,cancelled,total,created_at,affiliate_id,raw_payload&limit=10000`),
+      loadBusinessProductCatalog(),
+    ]);
     let gross = 0, refunds = 0, paid = 0, cancelledOrders = 0;
     for (const order of rows || []) {
       const total = money(order.total);
@@ -243,7 +297,7 @@ async function yampiSummary(month) {
       paid_orders: paid,
       order_count: (rows || []).length,
       cancelled_orders: cancelledOrders,
-      products: summarizeProducts(rows),
+      products: summarizeProducts(rows, catalog),
       source: 'she_business_orders',
     };
   } catch (e) {
