@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from '
 import Welcome from './pages/Welcome'
 import AffiliateDashboard from './pages/AffiliateDashboard'
 import AdminDashboard from './pages/AdminDashboard'
+import AdminProducts from './pages/AdminProducts'
 import TrabalheConosco from './pages/TrabalheConosco'
 import Representantes from './pages/Representantes'
 import Revendedora from './pages/Revendedora'
@@ -106,6 +107,7 @@ export default function App() {
           <Route path="/afiliado/redefinir-senha/:token" element={<AffiliatePasswordReset />} />
           <Route path="/afiliado" element={<AffiliateDashboard />} />
           <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/produtos" element={<AdminProducts />} />
           <Route path="/trabalhe-conosco" element={<TrabalheConosco />} />
           <Route path="/representantes" element={<Representantes />} />
           <Route path="/revendedora" element={<Revendedora />} />

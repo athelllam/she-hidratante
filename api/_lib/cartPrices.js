@@ -164,7 +164,9 @@ async function fetchProductPages() {
 }
 
 async function loadPrices(tokens) {
-  const wanted = tokens.map(normalizeToken).filter((token) => CART_TOKENS.has(token));
+  // Dynamic product admin: accept valid checkout tokens from configured products.
+  // The client never receives Yampi credentials; this function only returns catalog prices.
+  const wanted = [...new Set(tokens.map(normalizeToken).filter((token) => /^[A-Z0-9_-]{5,50}$/.test(token)))];
   if (!wanted.length) return {};
 
   const products = await fetchProductPages();

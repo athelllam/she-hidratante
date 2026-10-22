@@ -2,6 +2,7 @@ import { AnimatePresence, motion, useMotionValue, useScroll, useTransform, useSp
 import { Link } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import { buildYampiCheckoutUrl } from '../utils/affiliateTracking'
+import DynamicSheCart from '../components/DynamicSheCart'
 import { getCartProductPrice, getCachedCartPrices, syncCartPrices } from '../utils/cartPrices'
 import hero from '../assets/stick/hero.webp'
 import stickModelo from '../assets/stick/stick-modelo.webp'
@@ -1742,7 +1743,7 @@ export default function Stick({ affiliateId = null, affiliate = null }) {
 
 </section>
 
-      <SheCart open={cartOpen} onClose={() => setCartOpen(false)} affiliateId={affiliateId} onPricesUpdated={updateNavbarProductPrice} />
+      <DynamicSheCart open={cartOpen} onClose={() => setCartOpen(false)} pageSlug="stick" affiliateId={affiliateId} onPricesUpdated={updateNavbarProductPrice} />
 
       <footer className="relative overflow-hidden bg-[#0b0b0d] text-white px-6 pt-16 pb-8 md:pt-24 md:pb-10">
         <div
