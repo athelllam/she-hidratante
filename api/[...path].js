@@ -14,6 +14,10 @@ const resellerSettings = require('./_handlers/reseller_settings');
 const webhookWoovi = require('./_handlers/webhook_woovi');
 const webhookYampi = require('./_handlers/webhook_yampi');
 const melhorEnvioOAuth = require('./_handlers/melhor_envio_oauth');
+// New cart/admin endpoints are dispatched here to avoid creating additional
+// Vercel Serverless Functions. Keep business logic in _handlers.
+const adminProducts = require('./_handlers/admin_products');
+const cartConfig = require('./_handlers/cart_config');
 
 function pathname(req) {
   let current = '/';
@@ -45,7 +49,9 @@ module.exports = async function router(req, res) {
 
   let handler = null;
 
-  if (path === '/api/admin/affiliates') handler = adminAffiliates;
+  if (path === '/api/admin/products') handler = adminProducts;
+  else if (path === '/api/cart-config') handler = cartConfig;
+  else if (path === '/api/admin/affiliates') handler = adminAffiliates;
   else if (path === '/api/admin/login') handler = adminLogin;
   else if (path === '/api/admin/data') handler = adminData;
   else if (path === '/api/admin/withdrawals') handler = adminWithdrawals;
