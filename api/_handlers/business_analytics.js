@@ -321,13 +321,16 @@ module.exports = async function handler(req,res){
       const bounds=monthBounds(month); const [settings,entries,yampi,meta,syncState,accesses]=await Promise.all([readSettings(),readEntries(bounds.start,bounds.end),yampiSummary(month),metaInsights(month),readBusinessSyncState(),accessSummary(month,bounds.start,bounds.end)]);
       const manualExpenses=(entries||[]).filter(e=>e.kind==='expense' && e.status==='paid').reduce((s,e)=>s+money(e.amount),0);
       const manualIncome=(entries||[]).filter(e=>e.kind==='income' && e.status==='paid').reduce((s,e)=>s+money(e.amount),0);
-      const gross=money(yampi.gross_revenue); const tax=gross*money(settings.tax_percent)/100; const fees=gross*money(settings.fee_percent)/100; const adSpend=money(meta.summary?.spend);
+      // Manual income entries (e.g. reseller, Mercado Livre and Amazon) are already net of marketplace fees/freight.
+      // Include them in revenue, but apply the Yampi/Appmax fee percentage only to Yampi revenue.
+      const yampiGross=money(yampi.gross_revenue); const gross=yampiGross+manualIncome;
+      const tax=gross*money(settings.tax_percent)/100; const fees=yampiGross*money(settings.fee_percent)/100; const adSpend=money(meta.summary?.spend);
       const variableCategories = new Set(['cmv','frete','custo do produto','embalagem','frete subsidiado','comissões','comissao','comissões de afiliadas','custo variável','custos variáveis']);
       const manualVariableCosts=(entries||[]).filter(e=>e.kind==='expense' && e.status==='paid' && variableCategories.has(String(e.category||'').trim().toLowerCase())).reduce((sum,e)=>sum+money(e.amount),0);
-      const net=gross-money(yampi.refunds)-tax-fees; const result=net-manualExpenses+manualIncome-adSpend;
+      const net=gross-money(yampi.refunds)-tax-fees; const result=net-manualExpenses-adSpend;
       const contribution=gross-money(yampi.refunds)-tax-fees-manualVariableCosts-adSpend;
       const conversion=accesses.total_accesses>0 ? (money(yampi.paid_orders)/accesses.total_accesses)*100 : 0;
-      return json(res,200,{ok:true,settings,entries:entries||[],yampi,accesses,conversion:{orders:money(yampi.paid_orders),accesses:accesses.total_accesses,percent:conversion},syncState:{completed:Boolean(syncState.completed),scanned_orders:Number(syncState.scanned_orders||0),synced_orders:Number(syncState.synced_orders||0),updated_at:syncState.updated_at||null},metaConfigured:meta.configured,summary:{gross_revenue:gross,refunds:money(yampi.refunds),tax_amount:tax,fee_amount:fees,net_revenue:net,expenses:manualExpenses,income:manualIncome,ad_spend:adSpend,variable_costs:manualVariableCosts,contribution_margin:contribution,contribution_margin_percent:gross>0?(contribution/gross)*100:0,result}});
+      return json(res,200,{ok:true,settings,entries:entries||[],yampi,accesses,conversion:{orders:money(yampi.paid_orders),accesses:accesses.total_accesses,percent:conversion},syncState:{completed:Boolean(syncState.completed),scanned_orders:Number(syncState.scanned_orders||0),synced_orders:Number(syncState.synced_orders||0),updated_at:syncState.updated_at||null},metaConfigured:meta.configured,summary:{gross_revenue:gross,yampi_gross_revenue:yampiGross,manual_revenue:manualIncome,refunds:money(yampi.refunds),tax_amount:tax,fee_amount:fees,net_revenue:net,expenses:manualExpenses,income:manualIncome,ad_spend:adSpend,variable_costs:manualVariableCosts,contribution_margin:contribution,contribution_margin_percent:gross>0?(contribution/gross)*100:0,result}});
     }
     if(view==='expenses' && req.method==='POST') {
       const b=req.body||{}; const kind=['income','expense'].includes(b.kind)?b.kind:null; const amount=Number(b.amount); const date=String(b.date||''); const competence=String(b.competence||'');
