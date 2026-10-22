@@ -5,6 +5,8 @@ import Welcome from './pages/Welcome'
 import AffiliateDashboard from './pages/AffiliateDashboard'
 import AdminDashboard from './pages/AdminDashboard'
 import AdminProducts from './pages/AdminProducts'
+import AdminTrafficDashboard from './pages/AdminTrafficDashboard'
+import AdminBusinessDashboard from './pages/AdminBusinessDashboard'
 import TrabalheConosco from './pages/TrabalheConosco'
 import Representantes from './pages/Representantes'
 import Revendedora from './pages/Revendedora'
@@ -108,6 +110,8 @@ export default function App() {
           <Route path="/afiliado" element={<AffiliateDashboard />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/produtos" element={<AdminProducts />} />
+          <Route path="/admin/trafego-pago" element={<AdminTrafficDashboard />} />
+          <Route path="/admin/negocio" element={<AdminBusinessDashboard />} />
           <Route path="/trabalhe-conosco" element={<TrabalheConosco />} />
           <Route path="/representantes" element={<Representantes />} />
           <Route path="/revendedora" element={<Revendedora />} />
