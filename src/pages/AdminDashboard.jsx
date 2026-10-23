@@ -1146,7 +1146,7 @@ export default function AdminDashboard() {
           <div className="flex min-w-0 items-center gap-3">
             <a href="#admin-indicadores" aria-label="She Painel - início" className="flex shrink-0 items-center gap-2 rounded-xl px-1 py-1 text-zinc-950 no-underline">
               <span className="text-xl font-black tracking-[-.09em]">SHE<span className="text-pink-500">.</span></span>
-              <span className="border-l border-pink-200 pl-2 text-[10px] font-black uppercase tracking-[.12em] text-zinc-500 sm:text-xs">PAINEL - AFILIADAS</span>
+              <span className="border-l border-pink-200 pl-2 text-[10px] font-black uppercase tracking-[.18em] text-zinc-500 sm:text-xs">PAINEL</span>
             </a>
             <div className="ml-auto flex min-w-0 items-center gap-2">
               {message && <span className="hidden max-w-48 truncate text-xs font-semibold text-zinc-500 lg:inline">{message}</span>}
@@ -1191,7 +1191,7 @@ export default function AdminDashboard() {
                   <a role="menuitem" href="/admin/produtos" onClick={() => setAdminMenuOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-zinc-700 no-underline transition hover:bg-pink-50 hover:text-pink-700 focus:bg-pink-50 focus:outline-none">
                     <span aria-hidden="true" className="flex h-5 w-5 shrink-0 items-center justify-center text-pink-500"><svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 8h8M8 12h5M8 16h8"/><path d="M17 11v5m-2.5-2.5h5"/></svg></span>Produtos e Upsell
                   </a>
-                  <a role="menuitem" href="/admin/trafego-pago" onClick={() => setAdminMenuOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-zinc-700 no-underline transition hover:bg-pink-50 hover:text-pink-700 focus:bg-pink-50 focus:outline-none"><span className="flex h-5 w-5 items-center justify-center text-pink-500"><svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 6-7"/></svg></span>Meta Ads</a>
+                  <a role="menuitem" href="/admin/trafego-pago" onClick={() => setAdminMenuOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-zinc-700 no-underline transition hover:bg-pink-50 hover:text-pink-700 focus:bg-pink-50 focus:outline-none"><span className="flex h-5 w-5 items-center justify-center text-pink-500"><svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 6-7"/></svg></span>Tráfego Pago</a>
                   <a role="menuitem" href="/admin/negocio" onClick={() => setAdminMenuOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-zinc-700 no-underline transition hover:bg-pink-50 hover:text-pink-700 focus:bg-pink-50 focus:outline-none"><span className="flex h-5 w-5 items-center justify-center text-pink-500"><svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M7 9h10M7 13h4M7 17h7"/></svg></span>Gestão do Negócio</a>
                 </div>
               </>}

@@ -83,6 +83,7 @@ export default function AffiliateProgram() {
   const navigate = useNavigate()
   const [settings, setSettings] = useState(null)
   const [loadingSettings, setLoadingSettings] = useState(true)
+  const [tutorialOpen, setTutorialOpen] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -148,7 +149,60 @@ export default function AffiliateProgram() {
 
   return (
     <div className="min-h-screen bg-[#fffafc] text-zinc-950 overflow-x-hidden">
-      <Navbar buttonLabel="Acessar" onBuy={() => navigate('/afiliado')} />
+      <Navbar
+        buttonLabel="Acessar"
+        onBuy={() => navigate('/afiliado')}
+        showTutorial
+        onTutorial={() => setTutorialOpen(true)}
+      />
+
+      {tutorialOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-zinc-950/70 p-3 sm:p-6 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="affiliate-tutorial-title"
+          onMouseDown={(event) => { if (event.target === event.currentTarget) setTutorialOpen(false) }}
+        >
+          <div className="relative w-full max-w-3xl overflow-hidden rounded-[1.5rem] sm:rounded-[2rem] border border-pink-100 bg-white shadow-2xl">
+            <div className="flex items-center justify-between gap-4 px-5 py-4 sm:px-7 sm:py-5">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[.2em] text-pink-500">She · Programa de afiliadas</p>
+                <h2 id="affiliate-tutorial-title" className="mt-1 text-xl sm:text-2xl font-black text-zinc-950">Tutorial para afiliadas</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTutorialOpen(false)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-pink-100 hover:text-pink-600"
+                aria-label="Fechar tutorial"
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m18 6-12 12M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="aspect-video w-full bg-black">
+              <iframe
+                className="h-full w-full"
+                src="https://www.youtube-nocookie.com/embed/Y6Ri5NyXFCA"
+                title="Tutorial do programa de afiliadas da She"
+                loading="lazy"
+                referrerPolicy="strict-origin-when-cross-origin"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            </div>
+            <div className="px-5 py-5 text-center sm:px-7 sm:py-6">
+              <p className="text-sm leading-6 text-zinc-500">Assista ao tutorial e conheça como funciona o programa de afiliadas da She.</p>
+              <Link
+                to="/afiliado"
+                onClick={() => setTutorialOpen(false)}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-500 px-6 py-4 text-base font-black text-white shadow-[0_12px_30px_rgba(236,72,153,.25)] transition hover:-translate-y-0.5 sm:w-auto sm:min-w-64"
+              >
+                Quero ser afiliada <ArrowIcon />
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main>
         <section className="relative pt-36 md:pt-44 pb-20 md:pb-28 px-5 overflow-hidden">

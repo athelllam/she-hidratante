@@ -16,9 +16,9 @@ const menuItem = 'flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-
 export default function AdminPanelNavbar({ currentPanel, onRefresh, refreshing = false, extraActions = null }) {
   const [open, setOpen] = useState(false)
   const links = [
-    { href: '/admin', label: 'Painel de Afiliadas', icon: 'admin', key: 'admin' },
+    { href: '/admin', label: 'Painel Admin', icon: 'admin', key: 'admin' },
     { href: '/admin/produtos', label: 'Produtos e Upsell', icon: 'products', key: 'products' },
-    { href: '/admin/trafego-pago', label: 'Meta Ads', icon: 'traffic', key: 'traffic' },
+    { href: '/admin/trafego-pago', label: 'Tráfego Pago', icon: 'traffic', key: 'traffic' },
     { href: '/admin/negocio', label: 'Gestão do Negócio', icon: 'dre', key: 'business' },
   ].filter(item => item.key !== currentPanel)
   const internal = currentPanel === 'business'
@@ -29,7 +29,7 @@ export default function AdminPanelNavbar({ currentPanel, onRefresh, refreshing =
   return <nav aria-label="Navegação do painel administrativo" className="sticky top-0 z-40 -mx-2 mb-6 rounded-2xl border border-white/70 bg-white/75 px-3 py-3 shadow-[0_8px_32px_rgba(236,72,153,.10)] backdrop-blur-xl md:mx-0 md:px-4">
     <div className="flex min-w-0 items-center gap-3">
       <a href={currentPanel === 'admin' ? '#admin-indicadores' : currentPanel === 'business' ? '#negocio-indicadores' : '#trafego-indicadores'} aria-label="SHE Painel - início" className="flex shrink-0 items-center gap-2 rounded-xl px-1 py-1 text-zinc-950 no-underline">
-        <span className="text-xl font-black tracking-[-.09em]">SHE<span className="text-pink-500">.</span></span><span className="border-l border-pink-200 pl-2 text-[10px] font-black uppercase tracking-[.12em] text-zinc-500 sm:text-xs">PAINEL - {currentPanel === 'admin' ? 'AFILIADAS' : currentPanel === 'traffic' ? 'META ADS' : 'NEGÓCIO'}</span>
+        <span className="text-xl font-black tracking-[-.09em]">SHE<span className="text-pink-500">.</span></span><span className="border-l border-pink-200 pl-2 text-[10px] font-black uppercase tracking-[.18em] text-zinc-500 sm:text-xs">PAINEL</span>
       </a>
       <div className="ml-auto flex min-w-0 items-center gap-2">
         <div className="relative">

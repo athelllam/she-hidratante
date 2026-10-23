@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 
 import logo from '../assets/she-logo.webp'
 
-export default function Navbar({ compact = false, onBuy, buttonLabel = 'Comprar', productPrice = null, productOldPrice = null }) {
+export default function Navbar({ compact = false, onBuy, buttonLabel = 'Comprar', productPrice = null, productOldPrice = null, showTutorial = false, onTutorial }) {
   const [hasReachedTenPercent, setHasReachedTenPercent] = useState(false)
   const [visitorName, setVisitorName] = useState('')
 
@@ -124,6 +124,19 @@ export default function Navbar({ compact = false, onBuy, buttonLabel = 'Comprar'
             </motion.div>
             </motion.div>
           </div>
+
+          {showTutorial && (
+            <motion.button
+              type="button"
+              onClick={onTutorial}
+              whileHover={{ scale: 1.03, y: -1 }}
+              whileTap={{ scale: 0.97 }}
+              className="shrink-0 rounded-xl border border-pink-200 bg-white/80 px-3 py-2.5 text-xs md:text-sm font-extrabold text-pink-600 shadow-sm transition hover:bg-pink-50 md:px-5"
+              aria-label="Abrir tutorial do programa de afiliadas"
+            >
+              Tutorial
+            </motion.button>
+          )}
 
         </div>
       </div>
