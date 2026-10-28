@@ -1351,8 +1351,8 @@ export default function Stick({ affiliateId = null, affiliate = null }) {
                 repeat: Infinity,
                 ease: 'easeInOut',
               }}
-              src={hero}
-              alt="Stick Clareador de Pele She"
+              src={stickModelo}
+              alt="Mulher segurando o Stick Clareador de Pele She"
               className="relative z-2 rounded-[3rem] shadow-[0_30px_80px_rgba(0,0,0,0.15)]"
               
             />
@@ -1429,8 +1429,8 @@ export default function Stick({ affiliateId = null, affiliate = null }) {
     className="max-w-5xl mx-auto overflow-hidden rounded-[3rem] shadow-[0_30px_80px_rgba(0,0,0,0.12)]"
   >
     <img
-      src={stickModelo}
-      alt="Mulher segurando o Stick Clareador de Pele She"
+      src={hero}
+      alt="Stick Clareador de Pele She"
       className="w-full h-auto"
     />
   </motion.div>
