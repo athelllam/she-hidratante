@@ -170,8 +170,8 @@ function details(order) {
     'tracking_url_customer', 'url_rastreio', 'track_url'
   ]) || trackingNested.url || trackingNested.tracking_url || trackingNested.tracking_link || trackingNested.link || null;
   const carrier = firstField(objects, ['shipping_company', 'carrier', 'shipping_name', 'delivery_method', 'shipping_method', 'carrier_name']) || trackingNested.carrier || trackingNested.shipping_company || null;
-  const cashbackBalance = firstField(objects, ['cashback_balance', 'available_cashback', 'cashback_available', 'wallet_balance', 'balance_cashback']);
-  const cashbackGenerated = firstField(objects, ['cashback_generated', 'cashback_amount', 'cashback_value', 'value_cashback', 'cashback_earned']);
+  const cashbackBalance = firstField(objects, ['cashback_balance', 'available_cashback', 'cashback_available', 'wallet_balance', 'balance_cashback', 'cashback_accumulated', 'accumulated_cashback', 'cashback_total', 'cashback_available_value', 'available_cashback_value']);
+  const cashbackGenerated = firstField(objects, ['cashback_generated', 'cashback_amount', 'cashback_value', 'value_cashback', 'cashback_earned', 'cashback_accumulated_value', 'accumulated_cashback_value', 'cashback_credit']);
   return {
     invoice: invoiceNumber || invoiceKey || invoiceUrl ? { number: invoiceNumber ? String(invoiceNumber) : null, key: invoiceKey ? String(invoiceKey) : null, url: safeUrl(invoiceUrl) } : null,
     tracking: trackingCode || trackingUrl ? { code: trackingCode ? String(trackingCode) : null, url: safeUrl(trackingUrl), carrier: carrier ? String(carrier) : null } : null,
@@ -194,7 +194,8 @@ function publicOrder(row, liveOrder = null) {
   const paymentMethod = firstField(objects.slice(0, 25), ['payment_method_name', 'payment_method', 'method_name', 'gateway_name', 'payment_type']);
   const shippingMethod = firstField(objects.slice(0, 25), ['shipping_method_name', 'shipping_method', 'delivery_method', 'shipping_name', 'delivery_name']);
   const customerEmail = firstField(objects, ['email', 'customer_email']);
-  const customerName = firstField(objects, ['customer_name', 'full_name', 'name']);
+  const customerRoot = unwrap(order?.customer || order?.client || order?.buyer) || {};
+  const customerName = customerRoot.name || customerRoot.full_name || customerRoot.first_name || firstField(objects.slice(0, 12), ['customer_name', 'full_name']);
   return {
     id: String(id || ''),
     number: String(order.number || order.code || row.order_number || id || ''),
@@ -220,13 +221,14 @@ function publicOrder(row, liveOrder = null) {
 
 async function tryCustomerCashback(order) {
   const objects = collectObjects(order);
-  const customer = objects.find(obj => obj && (obj.email || obj.document || obj.cpf) && (obj.id || obj.customer_id));
-  const customerId = customer?.id || customer?.customer_id || firstField(objects, ['customer_id']);
+  const customerRoot = unwrap(order?.customer || order?.client || order?.buyer) || {};
+  const customer = customerRoot.id ? customerRoot : objects.find(obj => obj && (obj.email || obj.document || obj.cpf) && (obj.customer_id || obj.id));
+  const customerId = customerRoot.id || customer?.customer_id || customer?.id || firstField(objects.slice(0, 20), ['customer_id']);
   if (!customerId) return null;
   try {
-    const response = await yampiFetch(`/customers/${encodeURIComponent(customerId)}`);
+    const response = await yampiFetch(`/customers/${encodeURIComponent(customerId)}?include=cashback,wallet,credits`);
     const customerData = unwrap(response) || {};
-    const balance = firstField(collectObjects(customerData), ['cashback_balance', 'available_cashback', 'cashback_available', 'wallet_balance', 'balance_cashback']);
+    const balance = firstField(collectObjects(customerData), ['cashback_balance', 'available_cashback', 'cashback_available', 'wallet_balance', 'balance_cashback', 'cashback_accumulated', 'accumulated_cashback', 'cashback_total', 'cashback_available_value', 'available_cashback_value']);
     return balance !== null && Number.isFinite(Number(balance)) ? Number(balance) : null;
   } catch (error) {
     // Some Yampi plans/API versions do not expose the customer's cashback wallet.
@@ -323,7 +325,8 @@ module.exports = async function customerOrders(req, res) {
       orders.push(...batch);
     }
     const balance = orders.map(o => o.cashback_balance).find(v => v !== null && v !== undefined);
-    return res.status(200).json({ ok: true, orders, cashback_balance: balance ?? null, cashback_balance_available: balance !== null && balance !== undefined });
+    const customerName = orders.map(order => order.customer_name).find(name => name && String(name).trim()) || null;
+    return res.status(200).json({ ok: true, customer_name: customerName, orders, cashback_balance: balance ?? null, cashback_balance_available: balance !== null && balance !== undefined });
   } catch (error) {
     console.error('[She Customer Orders]', error);
     return res.status(error.statusCode || 500).json({ error: 'Não foi possível consultar seus pedidos agora. Tente novamente mais tarde.' });
