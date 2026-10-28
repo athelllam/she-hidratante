@@ -99,12 +99,34 @@ function numericField(objects, keys) {
 }
 function orderFinancials(order) {
   const objects = collectObjects(order);
-  const subtotal = numericField(objects.slice(0, 20), ['subtotal', 'items_total', 'products_total', 'total_products', 'subtotal_value']);
-  const discount = numericField(objects.slice(0, 20), ['discount', 'discount_value', 'discount_amount', 'discounts_total', 'total_discount']);
-  const shipping = numericField(objects.slice(0, 20), ['shipping_value', 'shipping_amount', 'shipping_price', 'freight', 'freight_value', 'delivery_cost', 'delivery_price', 'shipment_value', 'shipping_total', 'total_shipping']);
-  const total = Number(getTotal(order) || 0);
+  // Prefer the order's own financial fields before searching nested objects,
+  // because product and transaction objects may contain unrelated amounts.
+  const root = order || {};
+  const nested = objects.slice(1);
+  const readAmount = (keys) => {
+    const rootValue = numericField([root], keys);
+    return rootValue !== null ? rootValue : numericField(nested, keys);
+  };
+  const subtotal = readAmount([
+    'value_products', 'products_value', 'value_subtotal', 'subtotal', 'items_total',
+    'products_total', 'total_products', 'subtotal_value', 'value_items', 'items_value'
+  ]);
+  const discount = readAmount([
+    'value_discount', 'discount_value', 'discount_amount', 'discounts_total',
+    'total_discount', 'discount', 'value_discounts'
+  ]);
+  const shipping = readAmount([
+    'value_shipment', 'shipment_value', 'value_shipping', 'shipping_value',
+    'shipping_amount', 'shipping_price', 'freight', 'freight_value', 'delivery_cost',
+    'delivery_price', 'shipping_total', 'total_shipping', 'value_freight'
+  ]);
+  const interest = readAmount([
+    'value_interest', 'interest_value', 'interest', 'installment_interest',
+    'installments_interest', 'value_juros', 'juros'
+  ]);
+  const total = Number(getTotal(order) || root.value_total || root.total || 0);
   const itemTotal = itemList(order).reduce((sum, item) => sum + Number(item.total || 0), 0);
-  return { subtotal: subtotal ?? (itemTotal || total), discount, shipping, total };
+  return { subtotal: subtotal ?? (itemTotal || total), discount, shipping, interest, total };
 }
 function statusLabel(order) {
   const status = unwrap(order?.status);
@@ -112,14 +134,30 @@ function statusLabel(order) {
 }
 function details(order) {
   const objects = collectObjects(order);
-  const invoiceObject = objects.find(obj => obj && typeof obj === 'object' && (obj.invoice_number || obj.nfe_number || obj.access_key || obj.invoice_url || obj.danfe_url || obj.chave_acesso)) || {};
-  const invoiceNumber = invoiceObject.invoice_number || invoiceObject.number_nf || invoiceObject.nfe_number || invoiceObject.invoiceNumber || invoiceObject.fiscal_number || null;
-  const invoiceKey = invoiceObject.invoice_key || invoiceObject.access_key || invoiceObject.nfe_key || invoiceObject.invoice_access_key || invoiceObject.chave_acesso || null;
-  const invoiceUrl = invoiceObject.invoice_url || invoiceObject.nfe_url || invoiceObject.danfe_url || invoiceObject.url_invoice || invoiceObject.invoice_pdf_url || invoiceObject.pdf_url || invoiceObject.xml_url || null;
-  const trackingCode = firstField(objects, ['tracking_code', 'tracking_number', 'trackingCode', 'tracking_number_code', 'code_tracking', 'codigo_rastreio']);
-  const trackingUrl = firstField(objects, ['tracking_url', 'tracking_link', 'trackingUrl', 'url_tracking', 'link_rastreio', 'tracking_page']);
-  const carrier = firstField(objects, ['shipping_company', 'carrier', 'shipping_name', 'delivery_method', 'shipping_method']);
-  // These are balance-like fields only; order-level cashback amounts are not treated as wallet balance.
+  const invoiceObject = objects.find(obj => obj && typeof obj === 'object' && (
+    obj.invoice_number || obj.number_nf || obj.nfe_number || obj.access_key || obj.invoice_key ||
+    obj.invoice_url || obj.danfe_url || obj.chave_acesso || obj.fiscal_document_number || obj.nfe
+  )) || {};
+  const invoiceNested = unwrap(order?.invoice || order?.fiscal_document || order?.nfe || order?.invoice_data) || {};
+  const invoiceNumber = invoiceObject.invoice_number || invoiceObject.number_nf || invoiceObject.nfe_number ||
+    invoiceObject.invoiceNumber || invoiceObject.fiscal_number || invoiceObject.fiscal_document_number ||
+    invoiceNested.number || invoiceNested.number_nf || invoiceNested.invoice_number || invoiceNested.nfe_number || null;
+  const invoiceKey = invoiceObject.invoice_key || invoiceObject.access_key || invoiceObject.nfe_key ||
+    invoiceObject.invoice_access_key || invoiceObject.chave_acesso || invoiceNested.key || invoiceNested.access_key || invoiceNested.chave || null;
+  const invoiceUrl = invoiceObject.invoice_url || invoiceObject.nfe_url || invoiceObject.danfe_url ||
+    invoiceObject.url_invoice || invoiceObject.invoice_pdf_url || invoiceObject.pdf_url || invoiceObject.xml_url ||
+    invoiceNested.url || invoiceNested.invoice_url || invoiceNested.nfe_url || invoiceNested.danfe_url || invoiceNested.pdf_url || null;
+
+  const trackingNested = unwrap(order?.tracking || order?.tracking_data || order?.shipment || order?.shipping_tracking || order?.delivery_tracking) || {};
+  const trackingCode = firstField(objects, [
+    'tracking_code', 'tracking_number', 'trackingCode', 'tracking_number_code', 'code_tracking',
+    'codigo_rastreio', 'tracking_code_number', 'shipment_tracking_code', 'object_code'
+  ]) || trackingNested.code || trackingNested.tracking_code || trackingNested.tracking_number || null;
+  const trackingUrl = firstField(objects, [
+    'tracking_url', 'tracking_link', 'trackingUrl', 'url_tracking', 'link_rastreio', 'tracking_page',
+    'tracking_url_customer', 'url_rastreio', 'track_url'
+  ]) || trackingNested.url || trackingNested.tracking_url || trackingNested.tracking_link || trackingNested.link || null;
+  const carrier = firstField(objects, ['shipping_company', 'carrier', 'shipping_name', 'delivery_method', 'shipping_method', 'carrier_name']) || trackingNested.carrier || trackingNested.shipping_company || null;
   const cashbackBalance = firstField(objects, ['cashback_balance', 'available_cashback', 'cashback_available', 'wallet_balance', 'balance_cashback']);
   const cashbackGenerated = firstField(objects, ['cashback_generated', 'cashback_amount', 'cashback_value', 'value_cashback', 'cashback_earned']);
   return {
@@ -151,10 +189,11 @@ function publicOrder(row, liveOrder = null) {
     date: created,
     status: statusLabel(order) || row.status || 'Status não informado',
     payment_approved: Boolean(row.payment_approved || /paid|approved|aprovado|pago/i.test(statusLabel(order))),
-    total: Number(row.total ?? financials.total ?? getTotal(order) ?? 0) || 0,
+    total: Number((liveOrder ? (getTotal(order) || financials.total) : (row.total ?? financials.total ?? getTotal(order))) || 0) || 0,
     subtotal: financials.subtotal,
     discount: financials.discount,
     shipping: financials.shipping,
+    interest: financials.interest,
     payment_method: paymentMethod ? String(paymentMethod) : null,
     shipping_method: shippingMethod ? String(shippingMethod) : null,
     customer_email: customerEmail ? String(customerEmail) : null,
@@ -200,7 +239,7 @@ module.exports = async function customerOrders(req, res) {
     const liveById = new Map();
     try {
       for (let page = 1; page <= 4; page += 1) {
-        const query = new URLSearchParams({ page: String(page), limit: '100', include: 'customer,items,transactions,metadata' });
+        const query = new URLSearchParams({ page: String(page), limit: '100', include: 'customer,items,transactions,metadata,shipping,invoice,tracking' });
         const response = await yampiFetch(`/orders?${query.toString()}`);
         const pageOrders = Array.isArray(response?.data?.data) ? response.data.data : Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : [];
         for (const order of pageOrders) {
@@ -239,21 +278,38 @@ module.exports = async function customerOrders(req, res) {
 
     // Prefer the latest list payload (which already contains the item names) and
     // fetch details for older cached orders. This is read-only: it never creates shipments.
-    const orders = await Promise.all(matches.slice(0, 100).map(async row => {
+    const selectedMatches = matches.slice(0, 60);
+    const orders = [];
+    // Keep API concurrency low to avoid Yampi rate limits and Vercel timeouts.
+    for (let offset = 0; offset < selectedMatches.length; offset += 5) {
+      const batch = await Promise.all(selectedMatches.slice(offset, offset + 5).map(async row => {
       let live = liveById.get(String(row.yampi_order_id)) || null;
-      const cachedItems = itemList(row.raw_payload || {});
-      if (!live && (!cachedItems.length || cachedItems.every(item => /^(produto she|produto sem identificação|produto)$/i.test(item.name)))) {
+      const cachedPayload = row.raw_payload || {};
+      const current = live || cachedPayload;
+      const cachedItems = itemList(current);
+      const currentDetails = details(current);
+      const currentFinancials = orderFinancials(current);
+      // The list endpoint often omits invoice/tracking and some financial fields.
+      // Fetch the specific order when those fields are missing; this is read-only.
+      const needsDetails = !cachedItems.length ||
+        cachedItems.some(item => /^(produto she|produto sem identificação|produto)$/i.test(item.name)) ||
+        currentFinancials.shipping === null || currentFinancials.discount === null ||
+        currentFinancials.interest === null || !currentDetails.invoice || !currentDetails.tracking;
+      if (needsDetails) {
         try {
-          const response = await yampiFetch(`/orders/${encodeURIComponent(row.yampi_order_id)}?include=customer,items,transactions,metadata`);
-          live = unwrap(response) || null;
+          const response = await yampiFetch(`/orders/${encodeURIComponent(row.yampi_order_id)}?include=customer,items,transactions,metadata,shipping,invoice,tracking`);
+          const full = unwrap(response) || null;
+          if (full) live = { ...(live || {}), ...full };
         } catch (error) {
           console.warn('[She Customer Orders] Não foi possível atualizar detalhes Yampi:', error.message);
         }
       }
-      const order = publicOrder(row, live || row.raw_payload || null);
+      const order = publicOrder(row, live || cachedPayload);
       if (order.cashback_balance === null && (live || row.raw_payload)) order.cashback_balance = await tryCustomerCashback(live || row.raw_payload);
       return order;
-    }));
+      }));
+      orders.push(...batch);
+    }
     const balance = orders.map(o => o.cashback_balance).find(v => v !== null && v !== undefined);
     return res.status(200).json({ ok: true, orders, cashback_balance: balance ?? null, cashback_balance_available: balance !== null && balance !== undefined });
   } catch (error) {

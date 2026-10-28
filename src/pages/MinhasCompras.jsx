@@ -58,10 +58,11 @@ export default function MinhasCompras() {
           <div className="space-y-3 py-4">{(order.items || []).length ? order.items.map((item, i) => <div key={`${order.id}-${i}`} className="flex items-start justify-between gap-4 text-sm"><div><p className="font-semibold text-zinc-800">{item.name}</p><p className="mt-1 text-xs text-zinc-400">Quantidade: {item.quantity}{item.sku ? ` · SKU: ${item.sku}` : ''}</p></div><p className="shrink-0 font-bold">{money(item.total ?? item.unit_price)}</p></div>) : <p className="text-sm text-zinc-500">Detalhes dos produtos indisponíveis neste momento.</p>}</div>
           <div className="border-t border-zinc-100 pt-4">
             <div className="flex items-center justify-between gap-4"><span className="text-sm text-zinc-500">Total do pedido</span><strong className="text-lg font-black">{money(order.total)}</strong></div>
-            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
               <div className="rounded-xl bg-zinc-50 p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-zinc-400">Produtos</p><p className="mt-1 text-sm font-bold">{money(order.subtotal)}</p></div>
               <div className="rounded-xl bg-zinc-50 p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-zinc-400">Frete</p><p className="mt-1 text-sm font-bold">{order.shipping == null ? 'Não informado' : money(order.shipping)}</p></div>
               <div className="rounded-xl bg-zinc-50 p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-zinc-400">Desconto</p><p className="mt-1 text-sm font-bold">{order.discount == null ? 'Não informado' : money(order.discount)}</p></div>
+              <div className="rounded-xl bg-zinc-50 p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-zinc-400">Juros</p><p className="mt-1 text-sm font-bold">{order.interest == null ? 'Não informado' : money(order.interest)}</p></div>
               <div className="rounded-xl bg-zinc-50 p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-zinc-400">Pagamento</p><p className="mt-1 text-sm font-bold">{order.payment_method || (order.payment_approved ? 'Aprovado' : 'Em processamento')}</p></div>
             </div>
             {order.shipping_method && <p className="mt-3 text-xs text-zinc-500">Entrega: {order.shipping_method}</p>}
