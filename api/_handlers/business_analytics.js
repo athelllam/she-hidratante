@@ -96,7 +96,7 @@ async function syncAllYampiOrders() {
   const maxPagesPerRun = Math.max(1, Math.min(10, Number(process.env.YAMPI_BUSINESS_SYNC_PAGES_PER_RUN || 8)));
 
   while (pagesThisRun < maxPagesPerRun) {
-    const params = new URLSearchParams({ scroll: 'true', limit: '100', include: 'metadata,transactions' });
+    const params = new URLSearchParams({ scroll: 'true', limit: '100', include: 'metadata,transactions,customer,items' });
     if (scrollId) params.set('scroll_id', scrollId);
     const response = await yampiFetch(`/orders?${params.toString()}`);
     const orders = Array.isArray(response?.data?.data) ? response.data.data : Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : [];

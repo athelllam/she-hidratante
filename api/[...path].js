@@ -20,6 +20,7 @@ const adminProducts = require('./_handlers/admin_products');
 const cartConfig = require('./_handlers/cart_config');
 const businessAnalytics = require('./_handlers/business_analytics');
 const siteTrack = require('./_handlers/site_track');
+const customerOrders = require('./_handlers/customer_orders');
 
 function pathname(req) {
   let current = '/';
@@ -51,7 +52,8 @@ module.exports = async function router(req, res) {
 
   let handler = null;
 
-  if (path === '/api/business-analytics') handler = businessAnalytics;
+  if (path === '/api/customer-orders') handler = customerOrders;
+  else if (path === '/api/business-analytics') handler = businessAnalytics;
   else if (path === '/api/site-track') handler = siteTrack;
   else if (path === '/api/admin/products') handler = adminProducts;
   else if (path === '/api/cart-config') handler = cartConfig;

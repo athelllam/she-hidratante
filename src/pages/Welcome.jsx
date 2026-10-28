@@ -19,6 +19,7 @@ export default function Welcome({ affiliateSlug = null, affiliate = null }) {
   useEffect(() => { if (affiliateSlug) rememberAffiliate(affiliateSlug) }, [affiliateSlug])
   const [name, setName] = useState('')
   const [isLoading, setIsLoading] = useState(true)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
     const savedName = localStorage.getItem('sheVisitorName')
@@ -65,6 +66,17 @@ export default function Welcome({ affiliateSlug = null, affiliate = null }) {
 
   return (
     <>
+      <div className="fixed right-4 top-4 z-50 sm:right-6 sm:top-6">
+        <button type="button" aria-expanded={menuOpen} aria-label="Abrir menu" onClick={() => setMenuOpen(v => !v)} className="flex items-center gap-2 rounded-full border border-pink-100 bg-white/95 px-4 py-2.5 text-sm font-bold text-zinc-800 shadow-lg backdrop-blur hover:border-pink-300">
+          <span className="text-pink-500">☰</span> Menu <span className="text-xs text-pink-500">{menuOpen ? '⌃' : '⌄'}</span>
+        </button>
+        {menuOpen && <div className="absolute right-0 mt-2 w-60 overflow-hidden rounded-2xl border border-pink-100 bg-white p-2 shadow-2xl">
+          <button onClick={() => { setMenuOpen(false); handleChoice('/hidratante') }} className="w-full rounded-xl px-3 py-3 text-left text-sm font-semibold hover:bg-pink-50">Hidratante Íntimo</button>
+          <button onClick={() => { setMenuOpen(false); handleChoice('/stick') }} className="w-full rounded-xl px-3 py-3 text-left text-sm font-semibold hover:bg-pink-50">Stick Clareador de Pele</button>
+          <div className="my-1 border-t border-pink-100" />
+          <button onClick={() => { setMenuOpen(false); navigate('/minhas-compras') }} className="w-full rounded-xl px-3 py-3 text-left text-sm font-bold text-pink-600 hover:bg-pink-50">Minhas Compras</button>
+        </div>}
+      </div>
       <main className="min-h-screen bg-[#fffafc] flex items-center justify-center px-4 py-4 sm:px-5 sm:py-6">
         <div className="fixed inset-0 pointer-events-none overflow-hidden">
           <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[620px] h-[420px] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(251,207,232,0.42)_0%,rgba(251,207,232,0)_70%)]" />

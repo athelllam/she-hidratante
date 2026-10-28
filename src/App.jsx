@@ -15,6 +15,7 @@ import AffiliatePasswordReset from './pages/AffiliatePasswordReset'
 import AffiliateProgram from './pages/AffiliateProgram'
 import PoliticaPrivacidade from './pages/PoliticaPrivacidade'
 import TermosDeUso from './pages/TermosDeUso'
+import MinhasCompras from './pages/MinhasCompras'
 
 const Home = lazy(() => import('./pages/Home'))
 const Hidratante = lazy(() => import('./pages/Hidratante'))
@@ -133,6 +134,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Welcome />} />
           <Route path="/home" element={<Home />} />
+          <Route path="/minhas-compras" element={<MinhasCompras />} />
           <Route path="/hidratante" element={<Hidratante />} />
           <Route path="/stick" element={<Stick />} />
           <Route path="/gummies" element={<Gummies />} />
