@@ -77,7 +77,7 @@ export default function Welcome({ affiliateSlug = null, affiliate = null }) {
           <button onClick={() => { setMenuOpen(false); navigate('/minhas-compras') }} className="w-full rounded-xl px-3 py-3 text-left text-sm font-bold text-pink-600 hover:bg-pink-50">Minhas Compras</button>
         </div>}
       </div>
-      <main className="min-h-screen bg-[#fffafc] flex items-center justify-center px-4 py-4 sm:px-5 sm:py-6">
+      <main className="she-welcome-page min-h-screen bg-[#fffafc] flex items-center justify-center px-4 py-4 sm:px-5 sm:py-6">
         <div className="fixed inset-0 pointer-events-none overflow-hidden">
           <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[620px] h-[420px] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(251,207,232,0.42)_0%,rgba(251,207,232,0)_70%)]" />
           <div className="absolute bottom-[-180px] left-[-100px] w-[420px] h-[420px] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(255,228,230,0.42)_0%,rgba(255,228,230,0)_70%)]" />
@@ -168,6 +168,45 @@ export default function Welcome({ affiliateSlug = null, affiliate = null }) {
           </div>
         </section>
       </main>
+      <style>{`
+        /* A welcome deve ocupar a viewport sem criar scroll no documento.
+           Os espaçamentos diminuem conforme a altura disponível, para evitar cortes em celulares. */
+        .she-welcome-page {
+          height: 100vh;
+          height: 100dvh;
+          min-height: 0;
+          overflow: hidden;
+          box-sizing: border-box;
+          padding-top: max(12px, env(safe-area-inset-top));
+          padding-bottom: max(12px, env(safe-area-inset-bottom));
+        }
+        .she-welcome-card {
+          max-height: calc(100dvh - 24px);
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          scrollbar-width: none;
+          padding-top: clamp(12px, 3.2dvh, 48px);
+          padding-bottom: clamp(12px, 3.2dvh, 48px);
+        }
+        .she-welcome-card::-webkit-scrollbar { display: none; }
+        .she-welcome-card > div:first-child { margin-bottom: clamp(8px, 1.8dvh, 24px); }
+        .she-welcome-card > div:first-child img { width: clamp(76px, 13dvh, 208px); }
+        .she-welcome-card h1 { font-size: clamp(1.45rem, 4.8dvh, 3rem); }
+        .she-welcome-card p { line-height: 1.35; }
+        .she-welcome-card input { padding-top: clamp(8px, 1.5dvh, 12px); padding-bottom: clamp(8px, 1.5dvh, 12px); }
+        .she-welcome-card #she-options { margin-top: clamp(10px, 2dvh, 24px); gap: clamp(8px, 1.8dvh, 20px); }
+        .she-welcome-card #she-options button { padding-top: clamp(9px, 1.6dvh, 16px); padding-bottom: clamp(9px, 1.6dvh, 16px); }
+        @media (max-height: 650px) {
+          .she-welcome-card { border-radius: 22px; }
+          .she-welcome-card > div:first-child { margin-bottom: 8px; }
+          .she-welcome-card .mt-5 { margin-top: 10px; }
+          .she-welcome-card .mt-3 { margin-top: 8px; }
+          .she-welcome-card #she-options > div > p { margin-bottom: 5px; }
+          .she-welcome-card .text-center > p { font-size: 12px; }
+          .she-welcome-card > p:last-of-type { margin-top: 10px; }
+          .she-welcome-card > div:last-child { margin-top: 10px; }
+        }
+      `}</style>
     </>
   )
 }
