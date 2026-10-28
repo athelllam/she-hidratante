@@ -102,7 +102,7 @@ export default function Welcome({ affiliateSlug = null, affiliate = null }) {
 
           <div className="mt-5 sm:mt-6">
             <label htmlFor="she-name" className="block text-xs font-semibold text-zinc-500 mb-2 ml-1">
-              Qual seu apelido?
+              Qual seu nome?
             </label>
 
             <input
