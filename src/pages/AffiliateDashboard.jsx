@@ -74,6 +74,45 @@ async function api(path, options = {}) {
   return data
 }
 
+function friendlyAffiliateRegistrationError(message, form) {
+  const raw = String(message || '').replace(/.*?HTTP \d{3}\):?\s*/i, '').trim()
+  const lower = raw.toLowerCase()
+  const cpf = String(form?.cpf || '').replace(/\D/g, '')
+  const email = String(form?.email || '').trim()
+  const password = String(form?.password || '')
+
+  if (/cpf/.test(lower) || /documento/.test(lower)) {
+    if (/já está cadastrado|ja esta cadastrado|already (been )?registered|duplicate/.test(lower)) {
+      return 'Este CPF já está cadastrado. Confira os dados ou entre na sua conta.'
+    }
+    return 'O CPF informado parece incorreto. Confira os números e digite um CPF válido.'
+  }
+  if (/e-?mail|email/.test(lower)) {
+    if (/já cadastrado|ja cadastrado|already registered|already exists|user exists/.test(lower)) {
+      return 'Este e-mail já está cadastrado. Tente entrar na sua conta ou use outro e-mail válido.'
+    }
+    return 'Não foi possível cadastrar esse e-mail. Confira se está escrito corretamente e tente um e-mail válido.'
+  }
+  if (/password|senha|weak password|characters|caracteres/.test(lower)) {
+    if (password.length < 8 || /at least 8|mínimo de 8|minimum.*8|too short|shorter than/.test(lower)) {
+      return 'A senha precisa ter pelo menos 8 caracteres. Escolha uma senha mais longa e tente novamente.'
+    }
+    if (/leaked|compromised|pwned|common password|senha.*comum/.test(lower)) {
+      return 'Essa senha não é segura o suficiente. Escolha outra senha, evitando combinações muito comuns.'
+    }
+    return 'Não foi possível cadastrar essa senha. Use uma senha com pelo menos 8 caracteres e tente outra combinação.'
+  }
+  if (/whatsapp|telefone/.test(lower)) return 'Confira o número do WhatsApp e tente novamente.'
+  if (/nome/.test(lower)) return 'Informe seu nome para continuar o cadastro.'
+  if (/fetch|network|failed to|servidor|temporariamente|internal server/.test(lower)) {
+    return 'Não foi possível concluir o cadastro agora. Confira sua conexão e tente novamente em instantes.'
+  }
+  if (cpf.length !== 11) return 'Confira o CPF informado e digite um CPF válido.'
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Digite um e-mail válido para continuar.'
+  if (password.length < 8) return 'A senha precisa ter pelo menos 8 caracteres.'
+  return 'Não foi possível concluir seu cadastro. Confira os dados e tente novamente.'
+}
+
 function levelTone(key) {
   if (key === 'gold') return 'from-amber-200 via-yellow-100 to-amber-50'
   if (key === 'silver') return 'from-zinc-200 via-white to-zinc-100'
@@ -560,7 +599,7 @@ export default function AffiliateDashboard() {
       setWelcomeMotherPending(true)
       await load({ sync: true })
     } catch (e) {
-      setError(e.message)
+      setError(friendlyAffiliateRegistrationError(e.message, form))
     } finally { setBusy(false) }
   }
 
