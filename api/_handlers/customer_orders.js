@@ -68,16 +68,43 @@ function unwrap(value) {
   return current && typeof current === 'object' ? current : null;
 }
 function itemList(order) {
-  const candidates = [order?.items?.data, order?.items, order?.products?.data, order?.products, order?.order_items?.data, order?.order_items];
+  const candidates = [order?.items?.data, order?.items, order?.products?.data, order?.products, order?.order_items?.data, order?.order_items, order?.lines?.data, order?.lines];
   const list = candidates.find(Array.isArray) || [];
   return list.map(item => {
-    const product = unwrap(item?.product) || {};
-    const variant = unwrap(item?.variant) || {};
-    const qty = Number(item?.quantity ?? item?.qty ?? 1) || 1;
-    const price = Number(item?.price ?? item?.value ?? item?.unit_price ?? item?.total ?? 0) || 0;
-    const title = item?.name || item?.title || product?.name || variant?.name || 'Produto She';
-    return { name: String(title).slice(0, 160), quantity: qty, unit_price: price, total: Number((price * qty).toFixed(2)) };
+    const product = unwrap(item?.product || item?.product_data || item?.catalog_product) || {};
+    const sku = unwrap(item?.sku || item?.variant || item?.variation) || {};
+    const skuProduct = unwrap(sku?.product || sku?.product_data) || {};
+    const productNested = unwrap(product?.product || product?.data) || product;
+    const qty = Number(item?.quantity ?? item?.qty ?? item?.amount ?? item?.pivot?.quantity ?? 1) || 1;
+    const unitPrice = Number(item?.price ?? item?.unit_price ?? item?.price_unit ?? item?.value ?? item?.original_price ?? item?.sku?.price ?? 0) || 0;
+    const lineTotal = Number(item?.total ?? item?.value_total ?? item?.price_total ?? item?.subtotal ?? item?.total_price ?? item?.amount_total ?? (unitPrice * qty)) || 0;
+    // Yampi sometimes sends a generic line-item name (e.g. "Produto She") while
+    // the actual catalog title is nested under product/SKU. Prefer the specific title.
+    const candidatesNames = [
+      productNested?.name, productNested?.title, product?.name, product?.title,
+      skuProduct?.name, skuProduct?.title, sku?.product_name, sku?.name, sku?.title,
+      item?.product_name, item?.title, item?.name,
+    ].map(v => String(v || '').trim()).filter(Boolean);
+    const generic = /^(produto she|produto|item)$/i;
+    const title = candidatesNames.find(name => !generic.test(name)) || candidatesNames[0] || 'Produto sem identificação';
+    return { name: title.slice(0, 160), quantity: qty, unit_price: unitPrice || (qty ? lineTotal / qty : lineTotal), total: Number(lineTotal.toFixed(2)), sku: sku?.sku || sku?.code || item?.sku_code || null };
   });
+}
+function numericField(objects, keys) {
+  const value = firstField(objects, keys);
+  if (value === null) return null;
+  const normalized = typeof value === 'string' ? value.replace(/R\$\s?/i, '').replace(/\./g, '').replace(',', '.') : value;
+  const number = Number(normalized);
+  return Number.isFinite(number) ? number : null;
+}
+function orderFinancials(order) {
+  const objects = collectObjects(order);
+  const subtotal = numericField(objects.slice(0, 20), ['subtotal', 'items_total', 'products_total', 'total_products', 'subtotal_value']);
+  const discount = numericField(objects.slice(0, 20), ['discount', 'discount_value', 'discount_amount', 'discounts_total', 'total_discount']);
+  const shipping = numericField(objects.slice(0, 20), ['shipping_value', 'shipping_amount', 'shipping_price', 'freight', 'freight_value', 'delivery_cost', 'delivery_price', 'shipment_value', 'shipping_total', 'total_shipping']);
+  const total = Number(getTotal(order) || 0);
+  const itemTotal = itemList(order).reduce((sum, item) => sum + Number(item.total || 0), 0);
+  return { subtotal: subtotal ?? (itemTotal || total), discount, shipping, total };
 }
 function statusLabel(order) {
   const status = unwrap(order?.status);
@@ -112,13 +139,26 @@ function publicOrder(row, liveOrder = null) {
   const id = row.yampi_order_id || order.id || order.number;
   const created = getCreatedAt(order) || row.created_at || null;
   const items = itemList(order);
+  const financials = orderFinancials(order);
+  const objects = collectObjects(order);
+  const paymentMethod = firstField(objects.slice(0, 25), ['payment_method_name', 'payment_method', 'method_name', 'gateway_name', 'payment_type']);
+  const shippingMethod = firstField(objects.slice(0, 25), ['shipping_method_name', 'shipping_method', 'delivery_method', 'shipping_name', 'delivery_name']);
+  const customerEmail = firstField(objects, ['email', 'customer_email']);
+  const customerName = firstField(objects, ['customer_name', 'full_name', 'name']);
   return {
     id: String(id || ''),
     number: String(order.number || order.code || row.order_number || id || ''),
     date: created,
     status: statusLabel(order) || row.status || 'Status não informado',
-    payment_approved: Boolean(row.payment_approved),
-    total: Number(row.total ?? getTotal(order) ?? 0) || 0,
+    payment_approved: Boolean(row.payment_approved || /paid|approved|aprovado|pago/i.test(statusLabel(order))),
+    total: Number(row.total ?? financials.total ?? getTotal(order) ?? 0) || 0,
+    subtotal: financials.subtotal,
+    discount: financials.discount,
+    shipping: financials.shipping,
+    payment_method: paymentMethod ? String(paymentMethod) : null,
+    shipping_method: shippingMethod ? String(shippingMethod) : null,
+    customer_email: customerEmail ? String(customerEmail) : null,
+    customer_name: customerName ? String(customerName) : null,
     items,
     invoice: info.invoice,
     tracking: info.tracking,
@@ -153,21 +193,65 @@ module.exports = async function customerOrders(req, res) {
     const cpf = digits(req.body?.cpf);
     if (!validCpf(cpf)) return res.status(400).json({ error: 'Informe um CPF válido.' });
     const rows = await supabaseFetch(`${BUSINESS_ORDERS}?select=yampi_order_id,order_number,status,payment_approved,cancelled,total,created_at,raw_payload&order=created_at.desc&limit=10000`);
-    const matches = (rows || []).filter(row => customerCpf(row.raw_payload) === cpf && !row.cancelled);
+
+    // The finance sync is intentionally batched to respect Vercel execution limits.
+    // Query the newest Yampi pages directly as well, so recent orders are visible
+    // in Minhas Compras even while a long historical sync is still running.
+    const liveById = new Map();
+    try {
+      for (let page = 1; page <= 4; page += 1) {
+        const query = new URLSearchParams({ page: String(page), limit: '100', include: 'customer,items,transactions,metadata' });
+        const response = await yampiFetch(`/orders?${query.toString()}`);
+        const pageOrders = Array.isArray(response?.data?.data) ? response.data.data : Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : [];
+        for (const order of pageOrders) {
+          const id = order?.id ?? order?.number ?? order?.order_id ?? order?.code;
+          if (id != null && customerCpf(order) === cpf) liveById.set(String(id), order);
+        }
+        const pagination = response?.meta?.pagination || response?.pagination || response?.data?.meta?.pagination;
+        const totalPages = Number(pagination?.total_pages || pagination?.totalPages || 0);
+        if (!pageOrders.length || pageOrders.length < 100 || (totalPages && page >= totalPages)) break;
+      }
+    } catch (error) {
+      console.warn('[She Customer Orders] Não foi possível buscar pedidos recentes diretamente na Yampi:', error.message);
+    }
+
+    const rowsById = new Map();
+    for (const row of rows || []) {
+      if (row.cancelled || customerCpf(row.raw_payload) !== cpf) continue;
+      rowsById.set(String(row.yampi_order_id), row);
+    }
+    for (const [id, live] of liveById) {
+      const existing = rowsById.get(id) || {};
+      rowsById.set(id, {
+        ...existing,
+        yampi_order_id: id,
+        order_number: live.number || live.code || existing.order_number || id,
+        status: getStatus(live) || existing.status,
+        payment_approved: existing.payment_approved || /paid|approved|aprovado|pago/i.test(getStatus(live)),
+        cancelled: /cancel|refund|estorn|chargeback/i.test(getStatus(live)),
+        total: getTotal(live) || existing.total || 0,
+        created_at: getCreatedAt(live) || existing.created_at,
+        raw_payload: live,
+      });
+    }
+    const matches = [...rowsById.values()].filter(row => !row.cancelled).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
     if (!matches.length) return res.status(200).json({ ok: true, orders: [], cashback_balance: null, message: 'Não encontramos pedidos para esse CPF. Se a compra foi recente, tente novamente em alguns minutos.' });
 
-    // Refresh details from Yampi for each matching order so invoice/tracking/status
-    // added later by the Bling integration are reflected without creating shipments.
-    const orders = await Promise.all(matches.slice(0, 50).map(async row => {
-      let live = null;
-      try {
-        const response = await yampiFetch(`/orders/${encodeURIComponent(row.yampi_order_id)}?include=customer,items,transactions,metadata`);
-        live = unwrap(response) || null;
-      } catch (error) {
-        console.warn('[She Customer Orders] Não foi possível atualizar detalhes Yampi:', error.message);
+    // Prefer the latest list payload (which already contains the item names) and
+    // fetch details for older cached orders. This is read-only: it never creates shipments.
+    const orders = await Promise.all(matches.slice(0, 100).map(async row => {
+      let live = liveById.get(String(row.yampi_order_id)) || null;
+      const cachedItems = itemList(row.raw_payload || {});
+      if (!live && (!cachedItems.length || cachedItems.every(item => /^(produto she|produto sem identificação|produto)$/i.test(item.name)))) {
+        try {
+          const response = await yampiFetch(`/orders/${encodeURIComponent(row.yampi_order_id)}?include=customer,items,transactions,metadata`);
+          live = unwrap(response) || null;
+        } catch (error) {
+          console.warn('[She Customer Orders] Não foi possível atualizar detalhes Yampi:', error.message);
+        }
       }
-      const order = publicOrder(row, live);
-      if (order.cashback_balance === null && live) order.cashback_balance = await tryCustomerCashback(live);
+      const order = publicOrder(row, live || row.raw_payload || null);
+      if (order.cashback_balance === null && (live || row.raw_payload)) order.cashback_balance = await tryCustomerCashback(live || row.raw_payload);
       return order;
     }));
     const balance = orders.map(o => o.cashback_balance).find(v => v !== null && v !== undefined);
