@@ -121,12 +121,24 @@ function orderFinancials(order) {
     'delivery_price', 'shipping_total', 'total_shipping', 'value_freight'
   ]);
   const interest = readAmount([
-    'value_interest', 'interest_value', 'interest', 'installment_interest',
-    'installments_interest', 'value_juros', 'juros'
+    'value_interest', 'interest_value', 'interest_amount', 'amount_interest', 'interest',
+    'installment_interest', 'installments_interest', 'installment_fee', 'installments_fee',
+    'value_installment_interest', 'value_interest_installments', 'value_juros', 'juros'
   ]);
   const total = Number(getTotal(order) || root.value_total || root.total || 0);
   const itemTotal = itemList(order).reduce((sum, item) => sum + Number(item.total || 0), 0);
-  return { subtotal: subtotal ?? (itemTotal || total), discount, shipping, interest, total };
+  const resolvedSubtotal = subtotal ?? (itemTotal || total);
+  // The Yampi order API may omit the explicit interest field even when the
+  // order detail screen shows installment interest. If all other components
+  // are available, derive the interest as the residual of the final total.
+  // total = products + shipping - discount + interest. Never infer it when
+  // shipping/discount are missing, as that could mislabel another difference.
+  let resolvedInterest = interest;
+  if (resolvedInterest === null && subtotal !== null && shipping !== null && discount !== null && total > 0) {
+    const derived = Number((total - subtotal - shipping + discount).toFixed(2));
+    if (derived >= 0 && derived <= total) resolvedInterest = derived;
+  }
+  return { subtotal: resolvedSubtotal, discount, shipping, interest: resolvedInterest, total };
 }
 function statusLabel(order) {
   const status = unwrap(order?.status);
