@@ -15,6 +15,8 @@ export default function AdminCommunication() {
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const [yampiBusy, setYampiBusy] = useState(false)
+  const [yampiPage, setYampiPage] = useState(1)
+  const [yampiHasMore, setYampiHasMore] = useState(true)
   const [file, setFile] = useState(null)
   const [search, setSearch] = useState('')
   const [sourceFilter, setSourceFilter] = useState('all')
@@ -51,8 +53,10 @@ export default function AdminCommunication() {
   async function syncYampi() {
     setYampiBusy(true); setMessage(''); setError('')
     try {
-      const result = await request('/api/business-analytics?view=sync-yampi', { method: 'POST', body: JSON.stringify({}) })
-      setMessage(`Sincronização Yampi: ${result.scanned_this_run || 0} pedidos analisados neste lote. ${result.message || ''} Os contatos novos e existentes foram mesclados à base, sem duplicar e respeitando descadastros.`)
+      const result = await request('/api/business-analytics?view=sync-yampi-contacts', { method: 'POST', body: JSON.stringify({ page: yampiPage }) })
+      setYampiPage(result.next_page || 1)
+      setYampiHasMore(Boolean(result.has_more))
+      setMessage(`Yampi — página ${result.page}: ${result.orders_read} pedidos lidos, ${result.contacts_processed} contatos processados, ${result.skipped} sem dados de contato${result.failed ? ` e ${result.failed} falhas` : ''}. ${result.message} Os contatos são mesclados sem duplicidade e respeitando descadastros.`)
       await load()
     } catch (e) { setError(e.message) } finally { setYampiBusy(false) }
   }
@@ -76,7 +80,7 @@ export default function AdminCommunication() {
   return <main className="min-h-screen bg-[#fffafc] px-5 py-8 md:px-10"><div className="mx-auto max-w-7xl">
     <a href="/admin" className="text-sm font-bold text-pink-600">← Voltar ao Painel Admin</a>
     <header className="mt-5 flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-widest text-pink-500">SHE · Administração</p><h1 className="mt-1 text-3xl font-black text-zinc-950">Painel de Comunicação</h1><p className="mt-2 text-sm text-zinc-600">Base unificada de contatos para futuras comunicações por e-mail e SMS.</p></div><div className="rounded-2xl bg-white px-5 py-3 shadow-sm"><div className="text-xs font-bold text-zinc-500">Contatos cadastrados</div><div className="text-2xl font-black text-zinc-900">{contacts.length}</div></div></header>
-    <section className="mt-7 rounded-2xl border border-pink-100 bg-white p-5 shadow-sm"><h2 className="font-black text-zinc-900">Sincronizar clientes da Yampi</h2><p className="mt-1 text-sm text-zinc-600">Busca os pedidos pela integração Yampi já configurada e adiciona ou atualiza os dados dos clientes nesta base. A sincronização é feita em lotes; clique novamente até concluir o histórico.</p><div className="mt-4 flex flex-wrap items-center gap-3"><button onClick={syncYampi} disabled={yampiBusy || busy} className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">{yampiBusy ? 'Sincronizando Yampi…' : 'Sincronizar clientes Yampi'}</button><span className="text-xs text-zinc-500">Usa a mesma integração de pedidos do Painel Admin; não altera atribuição de afiliadas nem comissões.</span></div></section>
+    <section className="mt-7 rounded-2xl border border-pink-100 bg-white p-5 shadow-sm"><h2 className="font-black text-zinc-900">Sincronizar clientes da Yampi</h2><p className="mt-1 text-sm text-zinc-600">Busca somente os dados de clientes dos pedidos Yampi, em páginas de até 100. Não executa nem altera a sincronização financeira. Clique novamente para avançar até concluir o histórico.</p><div className="mt-4 flex flex-wrap items-center gap-3"><button onClick={syncYampi} disabled={yampiBusy || busy} className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">{yampiBusy ? 'Importando clientes…' : `Importar clientes Yampi (página ${yampiPage})`}</button><span className="text-xs text-zinc-500">Importação independente da rotina financeira; não altera pedidos financeiros, atribuição de afiliadas nem comissões. {yampiHasMore ? 'Há páginas para importar.' : 'Última importação concluída; clique novamente para reiniciar a partir da página 1.'}</span></div></section>
     <section className="mt-5 rounded-2xl border border-pink-100 bg-white p-5 shadow-sm"><h2 className="font-black text-zinc-900">Importar base Formspree</h2><p className="mt-1 text-sm text-zinc-600">Selecione o arquivo JSON exportado do Formspree. A importação identifica contatos pelo e-mail ou telefone e evita duplicidades.</p><div className="mt-4 flex flex-wrap items-center gap-3"><input type="file" accept=".json,application/json" onChange={e => setFile(e.target.files?.[0] || null)} className="max-w-full text-sm"/><button onClick={importFile} disabled={!file || busy} className="rounded-xl bg-pink-500 px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">{busy ? 'Importando…' : 'Importar contatos'}</button></div>
       <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-xs leading-relaxed text-emerald-900">Autorização de marketing confirmada pelo administrador para os contatos importados, por e-mail e SMS. O registro é separado por canal e respeita descadastros já registrados. Esta tela ainda não dispara campanhas.</p>
       {message && <p className="mt-3 text-sm font-semibold text-emerald-700">{message}</p>}{error && <p className="mt-3 text-sm font-semibold text-red-600">{error}</p>}

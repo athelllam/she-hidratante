@@ -107,6 +107,54 @@ async function syncYampiCustomerContact(order) {
   }
 }
 
+// Comunicação: sincroniza somente dados de clientes, sem executar a rotina
+// financeira, sem gravar em she_business_orders e sem tocar em affiliate_id.
+async function syncYampiCustomerContactsPage(pageNumber = 1) {
+  const config = getYampiConfig();
+  if (!config.configured) {
+    const err = new Error('Integração Yampi não configurada no Vercel. Confira YAMPI_USER_TOKEN e YAMPI_USER_SECRET_KEY.');
+    err.statusCode = 503;
+    throw err;
+  }
+
+  const page = Math.max(1, Math.min(100000, Number(pageNumber) || 1));
+  const params = new URLSearchParams({ page: String(page), limit: '100', include: 'customer' });
+  const response = await yampiFetch(`/orders?${params.toString()}`);
+  const orders = Array.isArray(response?.data?.data) ? response.data.data
+    : Array.isArray(response?.data) ? response.data
+    : Array.isArray(response) ? response : [];
+
+  let imported = 0;
+  let skipped = 0;
+  let failed = 0;
+  for (const order of orders) {
+    try {
+      const customer = customerFromYampiOrder(order);
+      const hasEmail = Boolean(String(customer?.email || order?.customer_email || '').trim());
+      const hasPhone = Boolean(String(customer?.phone?.full_number || customer?.phone || customer?.cellphone || customer?.mobile || order?.customer_phone || '').trim());
+      if (!hasEmail && !hasPhone) { skipped += 1; continue; }
+      await syncYampiCustomerContact(order);
+      imported += 1;
+    } catch (error) {
+      failed += 1;
+      console.warn('[She Communication] Falha ao importar contato Yampi:', error.message);
+    }
+  }
+
+  const pagination = response?.meta?.pagination || response?.data?.meta?.pagination || response?.pagination || response?.meta || {};
+  const currentPage = Number(pagination?.current_page || pagination?.currentPage || page);
+  const totalPages = Number(pagination?.total_pages || pagination?.totalPages || pagination?.last_page || pagination?.lastPage || 0);
+  const hasMore = totalPages > 0 ? currentPage < totalPages : orders.length === 100;
+  return {
+    ok: true, page: currentPage, next_page: hasMore ? currentPage + 1 : 1,
+    has_more: hasMore, orders_read: orders.length, contacts_processed: imported,
+    skipped, failed, total_pages: totalPages || null,
+    message: hasMore
+      ? `Lote ${currentPage} concluído. Clique novamente para importar a próxima página.`
+      : `Importação concluída. ${currentPage} página(s) processada(s) nesta sequência.`
+  };
+}
+
 async function syncAllYampiOrders() {
   const config = getYampiConfig();
   if (!config.configured) {
@@ -360,6 +408,7 @@ module.exports = async function handler(req,res){
     await requireAdmin(req);
     const view=String(req.query?.view||''); const month=String(req.query?.month||new Date().toISOString().slice(0,7));
     if(view==='sync-yampi' && req.method==='POST') { const result = await syncAllYampiOrders(); return json(res,200,result); }
+    if(view==='sync-yampi-contacts' && req.method==='POST') { const result = await syncYampiCustomerContactsPage(req.body?.page || req.query?.page || 1); return json(res,200,result); }
     if(view==='traffic' && req.method==='GET') { const meta=await metaInsights(month); return json(res,200,{ok:true,...meta}); }
     if(view==='business' && req.method==='GET') {
       const bounds=monthBounds(month); const [settings,entries,yampi,meta,syncState,accesses]=await Promise.all([readSettings(),readEntries(bounds.start,bounds.end),yampiSummary(month),metaInsights(month),readBusinessSyncState(),accessSummary(month,bounds.start,bounds.end)]);
