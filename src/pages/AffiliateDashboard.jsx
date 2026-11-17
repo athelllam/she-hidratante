@@ -1114,6 +1114,7 @@ export default function AffiliateDashboard() {
                     : icon === 'video' ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="3" y="5" width="13" height="14" rx="3"/><path d="m16 10 5-3v10l-5-3z"/><path d="m8 9 4 3-4 3z" fill="currentColor" stroke="none"/></svg>
                     : <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M3 9h18l-2-5H5L3 9Z"/><path d="M5 9v11h14V9M9 20v-7h6v7"/></svg>}
                   </span><span>{label}</span></button>)}
+                  <div className="my-1 h-px bg-pink-100"/>
                 </div>
               </>}
             </div>

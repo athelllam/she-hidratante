@@ -7,6 +7,7 @@ const Icon = ({ type }) => {
   if (type === 'launch') return <svg {...common}><path d="M12 3v18M3 12h18"/><circle cx="12" cy="12" r="9"/></svg>
   if (type === 'traffic') return <svg {...common}><path d="M3 3v18h18M7 14l4-4 3 3 6-7"/></svg>
   if (type === 'products') return <svg {...common}><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 8h8M8 12h5M8 16h8M17 11v5m-2.5-2.5h5"/></svg>
+  if (type === 'mail') return <svg {...common}><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 7 9-7"/></svg>
   if (type === 'admin') return <svg {...common}><path d="M4 5h16v14H4zM8 9h8M8 13h5"/></svg>
   return <svg {...common}><path d="M3 7h18l-2 13H5L3 7Z"/><path d="M8 7a4 4 0 0 1 8 0"/></svg>
 }
@@ -38,6 +39,8 @@ export default function AdminPanelNavbar({ currentPanel, onRefresh, refreshing =
             {internal.map(item => <a key={item.href} role="menuitem" href={item.href} onClick={() => setOpen(false)} className={menuItem}><span className="flex h-5 w-5 shrink-0 items-center justify-center text-pink-500"><Icon type={item.icon}/></span>{item.label}</a>)}
             {internal.length > 0 && <div className="my-1 h-px bg-pink-100"/>}
             {links.map(item => <a key={item.href} role="menuitem" href={item.href} onClick={() => setOpen(false)} className={menuItem}><span className="flex h-5 w-5 shrink-0 items-center justify-center text-pink-500"><Icon type={item.icon}/></span>{item.label}</a>)}
+            <div className="my-1 h-px bg-pink-100"/>
+            <a role="menuitem" href="/admin/comunicacao" onClick={() => setOpen(false)} className={menuItem}><span className="flex h-5 w-5 shrink-0 items-center justify-center text-pink-500"><Icon type="mail"/></span>Painel de Comunicação</a>
           </div></>}
         </div>
         {extraActions}

@@ -1193,6 +1193,10 @@ export default function AdminDashboard() {
                   </a>
                   <a role="menuitem" href="/admin/trafego-pago" onClick={() => setAdminMenuOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-zinc-700 no-underline transition hover:bg-pink-50 hover:text-pink-700 focus:bg-pink-50 focus:outline-none"><span className="flex h-5 w-5 items-center justify-center text-pink-500"><svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 6-7"/></svg></span>Tráfego Pago</a>
                   <a role="menuitem" href="/admin/negocio" onClick={() => setAdminMenuOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-zinc-700 no-underline transition hover:bg-pink-50 hover:text-pink-700 focus:bg-pink-50 focus:outline-none"><span className="flex h-5 w-5 items-center justify-center text-pink-500"><svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M7 9h10M7 13h4M7 17h7"/></svg></span>Gestão do Negócio</a>
+                  <div className="my-1 h-px bg-pink-100" />
+                  <a role="menuitem" href="/admin/comunicacao" onClick={() => setAdminMenuOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-zinc-700 no-underline transition hover:bg-pink-50 hover:text-pink-700 focus:bg-pink-50 focus:outline-none">
+                    <span aria-hidden="true" className="flex h-5 w-5 shrink-0 items-center justify-center text-pink-500"><svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 5h18v14H3z"/><path d="m3 7 9 7 9-7"/></svg></span>Painel de Comunicação
+                  </a>
                 </div>
               </>}
             </div>

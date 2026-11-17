@@ -70,6 +70,43 @@ async function saveBusinessSyncState(state) {
   });
 }
 
+
+function customerFromYampiOrder(order) {
+  const candidates = [order?.customer?.data, order?.customer, order?.buyer?.data, order?.buyer, order?.client?.data, order?.client, order?.billing_address?.data, order?.billing_address];
+  return candidates.find(value => value && typeof value === 'object' && !Array.isArray(value)) || {};
+}
+function normalizeContactPhone(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (!digits) return null;
+  return digits.startsWith('55') ? `+${digits}` : `+55${digits}`;
+}
+function mergeCommunicationSource(current, incoming) {
+  const values = new Set(String(current || '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean));
+  values.add(incoming);
+  return ['formspree', 'yampi'].filter(value => values.has(value)).join(',') || 'unknown';
+}
+async function syncYampiCustomerContact(order) {
+  const customer = customerFromYampiOrder(order);
+  const name = String(customer?.name || [customer?.first_name, customer?.last_name].filter(Boolean).join(' ') || order?.customer_name || '').trim();
+  const email = String(customer?.email || order?.customer_email || '').trim().toLowerCase();
+  const phone = normalizeContactPhone(customer?.phone?.full_number || customer?.phone || customer?.cellphone || customer?.mobile || order?.customer_phone);
+  if (!email && !phone) return;
+  const query = email
+    ? `/rest/v1/communication_contacts?email=eq.${encodeURIComponent(email)}&select=id,source,email_unsubscribed_at,sms_unsubscribed_at&limit=1`
+    : `/rest/v1/communication_contacts?phone=eq.${encodeURIComponent(phone)}&select=id,source,email_unsubscribed_at,sms_unsubscribed_at&limit=1`;
+  const existing = await supabaseFetch(query);
+  const now = new Date().toISOString();
+  const fields = { name: name || null, email: email || null, phone, source_submitted_at: getCreatedAt(order) || now, updated_at: now };
+  if (existing?.[0]?.id) {
+    const current = existing[0];
+    await supabaseFetch(`/rest/v1/communication_contacts?id=eq.${existing[0].id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ ...fields, source: mergeCommunicationSource(current.source, 'yampi'), email_marketing_consent: current.email_unsubscribed_at ? false : true, sms_marketing_consent: current.sms_unsubscribed_at ? false : true, consent_status: 'confirmed_by_admin', consent_source: 'admin_confirmation_2026-11-17', consent_recorded_at: now }) });
+  } else {
+    try {
+      await supabaseFetch('/rest/v1/communication_contacts', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ ...fields, source: 'yampi', email_marketing_consent: true, sms_marketing_consent: true, consent_status: 'confirmed_by_admin', consent_source: 'admin_confirmation_2026-11-17', consent_recorded_at: now, created_at: now }) });
+    } catch (error) { if (error.statusCode !== 409 && error.statusCode !== 400) throw error; }
+  }
+}
+
 async function syncAllYampiOrders() {
   const config = getYampiConfig();
   if (!config.configured) {
@@ -142,6 +179,13 @@ async function syncAllYampiOrders() {
         body: JSON.stringify(records),
       });
       upsertedThisRun += records.length;
+    }
+
+    // Customer contacts are synchronized independently from affiliate attribution.
+    // This loop deliberately does not filter on affiliate_id and never writes affiliate_orders.
+    for (const order of orders) {
+      try { await syncYampiCustomerContact(order); }
+      catch (contactError) { console.warn('[She Communication] Yampi contact sync skipped:', contactError.message); }
     }
 
     scannedThisRun += orders.length;
