@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#fffafc">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Obrigada pela sua compra | SHE</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --pink: #ec4899;
+      --rose: #f43f5e;
+      --ink: #292323;
+      --muted: #806b75;
+      --line: #f3e4eb;
+      --soft: #fff4f8;
+    }
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 28px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow-x: hidden;
+      background:
+        radial-gradient(ellipse at 50% 0%, rgba(251, 207, 232, .42), transparent 48%),
+        radial-gradient(ellipse at 0% 100%, rgba(255, 228, 230, .38), transparent 42%),
+        #fffafc;
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .card {
+      position: relative;
+      width: 100%;
+      max-width: 540px;
+      padding: 42px 42px 32px;
+      overflow: hidden;
+      text-align: center;
+      background: rgba(255,255,255,.88);
+      border: 1px solid rgba(255,255,255,.95);
+      border-radius: 30px;
+      box-shadow: 0 30px 100px rgba(80, 35, 57, .10);
+      backdrop-filter: blur(18px);
+    }
+    .brand {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      text-decoration: none;
+      color: inherit;
+    }
+    .brand-name {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 43px;
+      line-height: 1;
+      font-weight: 500;
+      letter-spacing: 7px;
+      padding-left: 7px;
+    }
+    .brand-caption {
+      margin-top: 8px;
+      color: #c16c91;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 3.5px;
+    }
+    .success {
+      width: 74px;
+      height: 74px;
+      display: grid;
+      place-items: center;
+      margin: 34px auto 22px;
+      border-radius: 50%;
+      color: #db4f8b;
+      background: linear-gradient(145deg, #fff0f6, #fce4ee);
+      box-shadow: 0 8px 25px rgba(236,72,153,.10);
+    }
+    .success svg { width: 36px; height: 36px; }
+    h1 {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(29px, 6vw, 38px);
+      line-height: 1.15;
+      font-weight: 500;
+      letter-spacing: -.6px;
+    }
+    .subtitle {
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.65;
+    }
+    .divider {
+      height: 1px;
+      margin: 30px 0;
+      background: linear-gradient(90deg, transparent, var(--line), transparent);
+    }
+    .package-icon {
+      width: 39px;
+      height: 39px;
+      margin: 0 auto 13px;
+      color: #d66d99;
+    }
+    h2 {
+      margin: 0 0 10px;
+      font-size: 17px;
+      line-height: 1.4;
+      font-weight: 700;
+    }
+    .message {
+      max-width: 410px;
+      margin: 0 auto;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.8;
+    }
+    .email-note {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin: 28px 0;
+      padding: 18px;
+      border: 1px solid #f8e5ed;
+      border-radius: 17px;
+      background: var(--soft);
+      text-align: left;
+    }
+    .email-icon {
+      flex: 0 0 27px;
+      width: 27px;
+      height: 27px;
+      color: #d64f8b;
+    }
+    .email-note strong {
+      display: block;
+      margin: 1px 0 5px;
+      color: #583b49;
+      font-size: 14px;
+    }
+    .email-note p {
+      margin: 0;
+      color: #866d79;
+      font-size: 13px;
+      line-height: 1.65;
+    }
+    .whatsapp {
+      min-height: 56px;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 11px;
+      padding: 15px 20px;
+      border-radius: 18px;
+      background: #25d366;
+      color: #fff;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 700;
+      box-shadow: 0 10px 24px rgba(37,211,102,.20);
+      transition: transform .18s ease, background .18s ease, box-shadow .18s ease;
+    }
+    .whatsapp:hover {
+      transform: translateY(-2px);
+      background: #20bf5b;
+      box-shadow: 0 13px 28px rgba(37,211,102,.25);
+    }
+    .whatsapp:focus-visible {
+      outline: 3px solid #176b39;
+      outline-offset: 4px;
+    }
+    .whatsapp svg { flex: 0 0 23px; width: 23px; height: 23px; }
+    footer {
+      margin-top: 27px;
+      color: #ad929f;
+      font-size: 12px;
+    }
+    footer span { color: #db6c9b; }
+    @media (max-width: 520px) {
+      body { padding: 16px 12px; }
+      .card { padding: 34px 22px 27px; border-radius: 24px; }
+      .success { margin-top: 29px; }
+      .email-note { padding: 15px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <a class="brand" href="https://shecoisademulher.com" aria-label="SHE Coisa de Mulher">
+      <span class="brand-name">SHE</span>
+      <span class="brand-caption">COISA DE MULHER</span>
+    </a>
+
+    <div class="success" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="m5 12.5 4.5 4.5L19 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+
+    <h1>Obrigada pela sua compra!</h1>
+    <p class="subtitle">É um prazer ter você com a gente.</p>
+
+    <div class="divider"></div>
+
+    <div class="package-icon" aria-hidden="true">
+      <svg viewBox="0 0 32 32" fill="none">
+        <path d="m16 3 12 6.5v13L16 29 4 22.5v-13L16 3Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+        <path d="m4.5 9.7 11.5 6.5 11.5-6.5M16 16.2V29M10 6.2l12 6.6" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <h2>Seu pedido está em andamento!</h2>
+    <p class="message">
+      Assim que seu pedido for enviado, você receberá no e-mail cadastrado
+      o link para acompanhar a entrega em tempo real.
+    </p>
+
+    <aside class="email-note">
+      <svg class="email-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/>
+        <path d="m4 7 8 6 8-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div>
+        <strong>Fique de olho no seu e-mail</strong>
+        <p>Enviaremos o rastreamento assim que sua compra for despachada. Confira também a caixa de spam.</p>
+      </div>
+    </aside>
+
+    <a
+      class="whatsapp"
+      href="https://wa.me/553132784332?text=Ol%C3%A1%21%20Acabei%20de%20realizar%20uma%20compra%20na%20SHE%20e%20preciso%20de%20ajuda."
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path fill="currentColor" d="M16 3a12.8 12.8 0 0 0-10.9 19.5L3.4 29l6.7-1.7A12.8 12.8 0 1 0 16 3Zm0 23.3c-2 0-3.9-.5-5.6-1.6l-.4-.2-4 1 1.1-3.9-.3-.4A10.5 10.5 0 1 1 16 26.3Zm5.8-7.9c-.3-.2-1.8-.9-2.1-1s-.5-.2-.7.2-.8 1-1 1.2-.4.2-.7.1a8.6 8.6 0 0 1-2.5-1.5 9.3 9.3 0 0 1-1.7-2.1c-.2-.3 0-.5.1-.7l.5-.5c.2-.2.2-.4.3-.6.1-.2 0-.4 0-.6s-.7-1.7-1-2.3c-.2-.5-.5-.4-.7-.4h-.6c-.2 0-.6.1-.9.4s-1.2 1.2-1.2 2.8 1.2 3.2 1.4 3.4c.2.2 2.4 3.7 5.8 5 .8.3 1.4.5 1.9.6.8.2 1.5.2 2 .1.6-.1 1.8-.7 2-1.4.3-.7.3-1.3.2-1.4-.1-.2-.3-.3-.6-.5Z"/>
+      </svg>
+      <span>Precisa de ajuda? Fale conosco</span>
+    </a>
+
+    <footer>Com carinho, equipe SHE. <span>♡</span></footer>
+  </main>
+</body>
+</html>

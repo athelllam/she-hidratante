@@ -1,0 +1,77 @@
+/* Página de agradecimento SHE — estilos isolados para não interferir no restante do site. */
+.she-thankyou-page {
+  box-sizing: border-box;
+  min-height: 100vh;
+  width: 100%;
+  padding: 40px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff9f7;
+  color: #392b2a;
+  font-family: inherit;
+}
+.she-thankyou-page *, .she-thankyou-page *::before, .she-thankyou-page *::after {
+  box-sizing: border-box;
+}
+.she-thankyou-card {
+  width: 100%;
+  max-width: 520px;
+  padding: 38px 34px;
+  text-align: center;
+  background: #fff;
+  border: 1px solid #f0e5e2;
+  border-radius: 22px;
+  box-shadow: 0 12px 45px rgba(90, 55, 50, .06);
+}
+.she-thankyou-brand { display: flex; flex-direction: column; align-items: center; }
+.she-thankyou-logo {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 38px;
+  line-height: 1.1;
+  letter-spacing: 5px;
+  color: #292323;
+}
+.she-thankyou-brandline { margin-top: 5px; color: #a77b78; font-size: 10px; letter-spacing: 3px; }
+.she-thankyou-check {
+  width: 68px; height: 68px; margin: 35px auto 20px;
+  display: grid; place-items: center; border-radius: 50%;
+  background: #f5e9e6; color: #986b68;
+}
+.she-thankyou-check svg { width: 35px; height: 35px; }
+.she-thankyou-card h1 {
+  margin: 0; color: #392b2a; font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(26px, 5vw, 34px); font-weight: 500; line-height: 1.2;
+}
+.she-thankyou-subtitle { margin: 12px 0 0; color: #806b68; font-size: 15px; line-height: 1.6; }
+.she-thankyou-divider { height: 1px; margin: 28px 0; background: #eee3e0; }
+.she-thankyou-package { width: 38px; height: 38px; margin: 0 auto 10px; color: #a77b78; }
+.she-thankyou-package svg { width: 100%; height: 100%; }
+.she-thankyou-message h2 { margin: 0 0 10px; color: #392b2a; font-size: 17px; font-weight: 650; }
+.she-thankyou-message p {
+  max-width: 390px; margin: 0 auto; color: #806b68; font-size: 14px; line-height: 1.75;
+}
+.she-thankyou-email {
+  display: flex; align-items: flex-start; gap: 13px; margin: 28px 0;
+  padding: 18px; border-radius: 12px; background: #f5eae7; text-align: left;
+}
+.she-thankyou-email-icon { flex: 0 0 25px; color: #986b68; }
+.she-thankyou-email-icon svg { display: block; width: 24px; height: 24px; }
+.she-thankyou-email strong { display: block; margin: 1px 0 5px; color: #594542; font-size: 14px; }
+.she-thankyou-email p { margin: 0; color: #806b68; font-size: 13px; line-height: 1.65; }
+.she-thankyou-whatsapp {
+  min-height: 54px; display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 15px 18px; border-radius: 50px; background: #25d366; color: #fff;
+  text-decoration: none; font-size: 14px; font-weight: 650;
+  transition: background 180ms ease, transform 180ms ease;
+}
+.she-thankyou-whatsapp:hover { background: #1fbd5b; color: #fff; transform: translateY(-2px); }
+.she-thankyou-whatsapp:focus-visible { outline: 3px solid #176b39; outline-offset: 4px; }
+.she-thankyou-whatsapp svg { flex: 0 0 23px; width: 23px; height: 23px; }
+.she-thankyou-footer { margin-top: 28px; color: #a18d89; font-size: 12px; }
+.she-thankyou-footer span { color: #a77b78; }
+@media (max-width: 480px) {
+  .she-thankyou-page { padding: 20px 12px; }
+  .she-thankyou-card { padding: 30px 22px; border-radius: 18px; }
+  .she-thankyou-email { padding: 15px; }
+}
