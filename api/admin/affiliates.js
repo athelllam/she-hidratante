@@ -7,6 +7,11 @@ function json(res, status, body) { res.status(status).json(body); }
 function money(value) { return Math.round((Number(value) || 0) * 100) / 100; }
 
 module.exports = async function handler(req, res) {
+  // Serve the Communication panel through this existing admin function to
+  // reuse the same-origin admin session and stay within Vercel's function cap.
+  if (String(req.query?.__handler || '') === 'communication') {
+    return require('../_handlers/admin_communication')(req, res);
+  }
   if (String(req.query?.__handler || '') === 'she-products') return require('../_handlers/admin_products')(req, res);
   if (String(req.query?.__handler || '') === 'she-products') {
     return require('../_handlers/admin_products')(req, res);

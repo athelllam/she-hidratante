@@ -24,7 +24,7 @@ export default function AdminCommunication() {
   async function load() {
     setLoading(true); setError('')
     try {
-      const data = await request('/api/admin/communication')
+      const data = await request('/api/admin/affiliates?__handler=communication')
       setContacts(data.contacts || []); setAuthorized(true)
     } catch (e) {
       if (e.message.includes('401') || e.message.toLowerCase().includes('autentic')) setAuthorized(false)
@@ -40,7 +40,7 @@ export default function AdminCommunication() {
       const raw = JSON.parse(await file.text())
       const submissions = Array.isArray(raw) ? raw : raw.submissions
       if (!Array.isArray(submissions)) throw new Error('O JSON não contém uma lista "submissions".')
-      const result = await request('/api/admin/communication', { method: 'POST', body: JSON.stringify({ submissions }) })
+      const result = await request('/api/admin/affiliates?__handler=communication', { method: 'POST', body: JSON.stringify({ submissions }) })
       setMessage(`Importação concluída: ${result.inserted} novos, ${result.updated} atualizados e ${result.duplicates} duplicados ignorados.`)
       setFile(null); await load()
     } catch (e) { setError(e.message) } finally { setBusy(false) }
