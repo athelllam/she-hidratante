@@ -29,3 +29,4 @@ alter table public.communication_contacts enable row level security;
 -- Compatibility for projects where the first version of this migration was already applied.
 alter table public.communication_contacts add column if not exists consent_source text;
 alter table public.communication_contacts add column if not exists consent_recorded_at timestamptz;
+

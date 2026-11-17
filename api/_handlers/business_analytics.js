@@ -91,10 +91,12 @@ async function syncYampiCustomerContact(order) {
   const email = String(customer?.email || order?.customer_email || '').trim().toLowerCase();
   const phone = normalizeContactPhone(customer?.phone?.full_number || customer?.phone || customer?.cellphone || customer?.mobile || order?.customer_phone);
   if (!email && !phone) return;
-  const query = email
-    ? `/rest/v1/communication_contacts?email=eq.${encodeURIComponent(email)}&select=id,source,email_unsubscribed_at,sms_unsubscribed_at&limit=1`
-    : `/rest/v1/communication_contacts?phone=eq.${encodeURIComponent(phone)}&select=id,source,email_unsubscribed_at,sms_unsubscribed_at&limit=1`;
-  const existing = await supabaseFetch(query);
+  const matchFilters = [];
+  if (email) matchFilters.push(`email.eq.${email}`);
+  if (phone) matchFilters.push(`phone.eq.${phone}`);
+  const matchParams = new URLSearchParams({ select: 'id,source,email_unsubscribed_at,sms_unsubscribed_at', limit: '1' });
+  if (matchFilters.length) matchParams.set('or', `(${matchFilters.join(',')})`);
+  const existing = await supabaseFetch(`/rest/v1/communication_contacts?${matchParams.toString()}`);
   const now = new Date().toISOString();
   const fields = { name: name || null, email: email || null, phone, source_submitted_at: getCreatedAt(order) || now, updated_at: now };
   if (existing?.[0]?.id) {
@@ -149,9 +151,7 @@ async function syncYampiCustomerContactsPage(pageNumber = 1) {
     ok: true, page: currentPage, next_page: hasMore ? currentPage + 1 : 1,
     has_more: hasMore, orders_read: orders.length, contacts_processed: imported,
     skipped, failed, total_pages: totalPages || null,
-    message: hasMore
-      ? `Lote ${currentPage} concluído. Clique novamente para importar a próxima página.`
-      : `Importação concluída. ${currentPage} página(s) processada(s) nesta sequência.`
+    message: hasMore ? 'Há mais páginas.' : 'Histórico percorrido.'
   };
 }
 
