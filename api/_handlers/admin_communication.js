@@ -4,6 +4,7 @@ const { sendBulkEmails } = require('../_lib/email');
 
 function clean(value) { return String(value ?? '').trim(); }
 function emailKey(value) { return clean(value).toLowerCase(); }
+function nameKey(value) { return clean(value).replace(/[,*%()]/g, ' ').replace(/\s+/g, ' ').trim(); }
 function phoneKey(value) {
   const digits = clean(value).replace(/\D/g, '');
   if (!digits) return '';
@@ -30,6 +31,34 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET' && action === 'campaigns') {
       const rows = await supabaseFetch('/rest/v1/communication_campaigns?select=*&order=updated_at.desc&limit=100');
       return json(res, 200, { campaigns: rows || [] });
+    }
+    if (req.method === 'POST' && action === 'create_manual_contact') {
+      const name = clean(req.body?.name);
+      const email = emailKey(req.body?.email);
+      const phone = phoneKey(req.body?.phone);
+      if (!name || (!email && !phone)) return json(res, 400, { error: 'Informe o nome e pelo menos e-mail ou telefone.' });
+      const filters = [`name.ilike.${nameKey(name)}`];
+      if (email) filters.push(`email.eq.${email}`);
+      if (phone) filters.push(`phone.eq.${phone}`);
+      const params = new URLSearchParams({ select: 'id,name,email,phone,source', limit: '20' });
+      params.set('or', `(${filters.join(',')})`);
+      const matches = await supabaseFetch(`/rest/v1/communication_contacts?${params.toString()}`);
+      if (matches?.length) return json(res, 409, { error: 'Esse cliente já existe' });
+      // Cadastro manual: o administrador confirma que o contato já autorizou os dois canais.
+      const emailConsent = true;
+      const smsConsent = true;
+      const now = new Date().toISOString();
+      const rows = await supabaseFetch('/rest/v1/communication_contacts', {
+        method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({
+          name, email: email || null, phone: phone || null, source: 'manual',
+          email_marketing_consent: emailConsent, sms_marketing_consent: smsConsent,
+          consent_status: (emailConsent || smsConsent) ? 'confirmed_by_admin' : 'unknown',
+          consent_source: (emailConsent || smsConsent) ? 'manual_admin_registration' : null,
+          consent_recorded_at: (emailConsent || smsConsent) ? now : null,
+          created_at: now, updated_at: now,
+        }),
+      });
+      return json(res, 201, { ok: true, contact: rows?.[0] || null, message: 'Cliente cadastrado com sucesso.' });
     }
     if (req.method !== 'POST') return json(res, 405, { error: 'Método não permitido.' });
     if (req.method === 'POST' && action === 'save_campaign') {
