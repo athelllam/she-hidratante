@@ -1,6 +1,32 @@
 const STORAGE_KEY = 'sheAffiliateSlug'
 const VISITOR_KEY = 'sheAffiliateVisitorId'
 
+// Identificadores de atribuição Meta. Mantemos os valores disponíveis durante
+// a navegação no site e os encaminhamos ao checkout como metadados.
+function readCookie(name) {
+  try {
+    const prefix = `${name}=`
+    const item = document.cookie.split('; ').find(value => value.startsWith(prefix))
+    return item ? decodeURIComponent(item.slice(prefix.length)) : ''
+  } catch { return '' }
+}
+
+export function getMetaAttribution() {
+  try {
+    const params = new URLSearchParams(window.location.search)
+    const fbclid = params.get('fbclid') || sessionStorage.getItem('sheMetaFbclid') || ''
+    if (params.get('fbclid')) sessionStorage.setItem('sheMetaFbclid', params.get('fbclid'))
+
+    let fbc = readCookie('_fbc')
+    if (!fbc && fbclid) {
+      fbc = `fb.1.${Date.now()}.${fbclid}`
+      try { document.cookie = `_fbc=${encodeURIComponent(fbc)}; path=/; max-age=7776000; SameSite=Lax` } catch {}
+    }
+    const fbp = readCookie('_fbp')
+    return { fbclid, fbc, fbp }
+  } catch { return { fbclid: '', fbc: '', fbp: '' } }
+}
+
 function getVisitorId() {
   try {
     let id = localStorage.getItem(VISITOR_KEY)
@@ -49,7 +75,19 @@ export function withAffiliateMetadata(url, affiliateId) {
 
 export function buildYampiCheckoutUrl({ tokens, affiliateId }) {
   const base = `https://seguro.shecoisademulher.com/r/${tokens.join(',')}`
-  return withAffiliateMetadata(base, affiliateId)
+  const checkoutUrl = withAffiliateMetadata(base, affiliateId)
+
+  try {
+    const target = new URL(checkoutUrl)
+    const { fbclid, fbc, fbp } = getMetaAttribution()
+    // A Yampi integração pode consumir esses metadados no pedido/CAPI.
+    if (fbclid) target.searchParams.set('metadata[fbclid]', fbclid)
+    if (fbc) target.searchParams.set('metadata[fbc]', fbc)
+    if (fbp) target.searchParams.set('metadata[fbp]', fbp)
+    return target.toString()
+  } catch {
+    return checkoutUrl
+  }
 }
 
 export function rememberAffiliate(slug) {

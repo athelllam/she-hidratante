@@ -38,6 +38,9 @@ function siteId(key) {
 function SiteAnalyticsTracker() {
   const location = useLocation()
   useEffect(() => {
+    // Dispara PageView em cada rota do site, inclusive navegação SPA.
+    // A inicialização do Pixel ocorre uma única vez no index.html.
+    if (typeof window.fbq === 'function') window.fbq('track', 'PageView')
     const path = `${location.pathname || '/'}${location.search || ''}`.slice(0, 300)
     // Não conta rotas administrativas nem a entrada de afiliada, já contabilizada no tracking próprio.
     if (path.startsWith('/admin')) return

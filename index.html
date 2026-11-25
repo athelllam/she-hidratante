@@ -12,6 +12,20 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/pwa-icon-192.png" />
     <title>She Afiliadas</title>
 
+    <!-- Meta Pixel SHE: mesmo conjunto de dados usado na Yampi -->
+    <script>
+      !function(f,b,e,v,n,t,s)
+      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)}(window, document,'script',
+      'https://connect.facebook.net/en_US/fbevents.js');
+      fbq('init', '1291963238925775');
+      // PageView é disparado pelo React Router para evitar duplicidade em navegação SPA.
+    </script>
+
     <script type="text/javascript">
         (function(c,l,a,r,i,t,y){
             c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
