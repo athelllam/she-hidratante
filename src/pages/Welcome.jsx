@@ -102,18 +102,6 @@ export default function Welcome({ affiliateSlug = null, affiliate = null }) {
             <img src={logo} alt="She" className="w-32 sm:w-36 md:w-52 opacity-90" loading="eager" />
           </div>
 
-          <div className="text-center">
-            <h1 className="text-[2rem] sm:text-3xl md:text-5xl font-black tracking-tight text-zinc-950 leading-[1.05]">
-              O que a trouxe
-              <br />
-              até aqui?
-            </h1>
-
-            <p className="mt-3 sm:mt-4 text-sm md:text-base text-zinc-500">
-              Antes de continuar, queremos conhecer você.
-            </p>
-          </div>
-
           <div className="mt-5 sm:mt-6">
             <label htmlFor="she-name" className="block text-xs font-semibold text-zinc-500 mb-2 ml-1">
               Qual seu nome?
@@ -194,9 +182,8 @@ export default function Welcome({ affiliateSlug = null, affiliate = null }) {
         }
         .she-welcome-card::-webkit-scrollbar { display: none; }
         .she-welcome-card > div:first-child { margin-bottom: clamp(8px, 1.8dvh, 24px); }
-        .she-welcome-card > div:first-child img:last-child { width: clamp(76px, 13dvh, 208px); }
-        .she-welcome-card > div:first-child img:first-child { width: clamp(190px, 30dvh, 300px); max-height: 76px; object-fit: contain; }
-        .she-welcome-card h1 { font-size: clamp(1.45rem, 4.8dvh, 3rem); }
+        .she-welcome-card > div:first-child img:last-child { width: clamp(130px, 22dvh, 280px); }
+        .she-welcome-card > div:first-child img:first-child { width: clamp(280px, 48dvh, 520px); max-width: 100%; max-height: 150px; object-fit: contain; }
         .she-welcome-card p { line-height: 1.35; }
         .she-welcome-card input { padding-top: clamp(8px, 1.5dvh, 12px); padding-bottom: clamp(8px, 1.5dvh, 12px); }
         .she-welcome-card #she-options { margin-top: clamp(10px, 2dvh, 24px); gap: clamp(8px, 1.8dvh, 20px); }
@@ -208,7 +195,7 @@ export default function Welcome({ affiliateSlug = null, affiliate = null }) {
           .she-welcome-card .mt-5 { margin-top: 10px; }
           .she-welcome-card .mt-3 { margin-top: 8px; }
           .she-welcome-card #she-options > div > p { margin-bottom: 5px; }
-          .she-welcome-card .text-center > p { font-size: 12px; }
+          
           .she-welcome-card > p:last-of-type { margin-top: 10px; }
           .she-welcome-card > div:last-child { margin-top: 10px; }
         }
