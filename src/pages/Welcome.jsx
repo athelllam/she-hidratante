@@ -2,15 +2,20 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { rememberAffiliate } from '../utils/affiliateTracking'
 import logo from '../assets/she-logo.webp'
+import hidratanteImage from '../assets/cart/hidratante.webp'
+import stickImage from '../assets/cart/stick-clareador.webp'
+import blackFridayImage from '../assets/black-friday-gold.png'
 
 const options = [
   {
     label: 'Tenho ressecamento, dor, candidíase.',
     path: '/hidratante',
+    image: hidratanteImage,
   },
   {
     label: 'Desejo clarear a pele, manchas, cicatrizes, melasma.',
     path: '/stick',
+    image: stickImage,
   },
 ]
 
@@ -70,11 +75,19 @@ export default function Welcome({ affiliateSlug = null, affiliate = null }) {
         <button type="button" aria-expanded={menuOpen} aria-label="Abrir menu" onClick={() => setMenuOpen(v => !v)} className="flex items-center gap-2 rounded-full border border-pink-100 bg-white/95 px-4 py-2.5 text-sm font-bold text-zinc-800 shadow-lg backdrop-blur hover:border-pink-300">
           <span className="text-pink-500">☰</span> Menu <span className="text-xs text-pink-500">{menuOpen ? '⌃' : '⌄'}</span>
         </button>
-        {menuOpen && <div className="absolute right-0 mt-2 w-60 overflow-hidden rounded-2xl border border-pink-100 bg-white p-2 shadow-2xl">
-          <button onClick={() => { setMenuOpen(false); handleChoice('/hidratante') }} className="w-full rounded-xl px-3 py-3 text-left text-sm font-semibold hover:bg-pink-50">Hidratante Íntimo</button>
-          <button onClick={() => { setMenuOpen(false); handleChoice('/stick') }} className="w-full rounded-xl px-3 py-3 text-left text-sm font-semibold hover:bg-pink-50">Stick Clareador de Pele</button>
-          <div className="my-1 border-t border-pink-100" />
-          <button onClick={() => { setMenuOpen(false); navigate('/minhas-compras') }} className="w-full rounded-xl px-3 py-3 text-left text-sm font-bold text-pink-600 hover:bg-pink-50">Minhas Compras</button>
+        {menuOpen && <div className="absolute right-0 mt-2 w-[min(19rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-pink-100 bg-white p-2 shadow-2xl">
+          <button onClick={() => { setMenuOpen(false); handleChoice('/hidratante') }} className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-sm font-semibold text-zinc-800 transition hover:bg-pink-50">
+            <img src={hidratanteImage} alt="Hidratante Íntimo" className="h-12 w-10 shrink-0 rounded-lg border border-pink-100 bg-white object-contain" />
+            <span>Hidratante Íntimo</span>
+          </button>
+          <button onClick={() => { setMenuOpen(false); handleChoice('/stick') }} className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-sm font-semibold text-zinc-800 transition hover:bg-pink-50">
+            <img src={stickImage} alt="Stick Clareador de Pele" className="h-12 w-10 shrink-0 rounded-lg border border-pink-100 bg-white object-contain" />
+            <span>Stick Clareador de Pele</span>
+          </button>
+          <div className="my-2 border-t border-pink-200" />
+          <a href="/programa-afiliadas" onClick={() => setMenuOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm font-bold text-pink-600 transition hover:bg-pink-50">Afiliadas</a>
+          <a href="/revendedora" onClick={() => setMenuOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm font-bold text-pink-600 transition hover:bg-pink-50">Revendedoras</a>
+          <button onClick={() => { setMenuOpen(false); navigate('/minhas-compras') }} className="mt-1 w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-zinc-600 transition hover:bg-pink-50">Minhas Compras</button>
         </div>}
       </div>
       <main className="she-welcome-page min-h-screen bg-[#fffafc] flex items-center justify-center px-4 py-4 sm:px-5 sm:py-6">
@@ -84,7 +97,8 @@ export default function Welcome({ affiliateSlug = null, affiliate = null }) {
         </div>
 
         <section className="she-welcome-card relative z-10 w-full max-w-xl rounded-[1.75rem] md:rounded-[2.5rem] bg-white/80 backdrop-blur-xl border border-white shadow-[0_30px_100px_rgba(0,0,0,0.10)] px-5 py-6 sm:px-6 sm:py-8 md:px-10 md:py-12">
-          <div className="flex justify-center mb-5 sm:mb-6">
+          <div className="flex flex-col items-center mb-5 sm:mb-6">
+            <img src={blackFridayImage} alt="Black Friday" className="mb-2 w-56 max-w-[82%] sm:w-64 md:w-72 drop-shadow-sm" loading="eager" />
             <img src={logo} alt="She" className="w-32 sm:w-36 md:w-52 opacity-90" loading="eager" />
           </div>
 
@@ -125,23 +139,26 @@ export default function Welcome({ affiliateSlug = null, affiliate = null }) {
           <div id="she-options" className="mt-5 space-y-5">
             {options.map((option, index) => (
               <div key={option.label}>
-                <p className="mb-2 px-1 text-center text-[11px] font-black uppercase tracking-[.16em] text-pink-500">
+                <p className="mb-2 px-1 text-center text-xs sm:text-sm font-black uppercase tracking-[.13em] text-pink-500">
                   {index === 0 ? 'Hidratante Íntimo' : 'Stick Clareador de Pele'}
                 </p>
                 <button
                   type="button"
                   onClick={() => handleChoice(option.path)}
-                  className={`w-full text-left rounded-2xl px-4 py-3.5 md:py-4 border transition-all duration-300 active:scale-[0.985] ${
+                  className={`w-full text-left rounded-2xl p-2.5 sm:p-3 border transition-all duration-300 active:scale-[0.985] ${
                     index === 0
                       ? 'border-pink-200 bg-pink-50/70 hover:bg-pink-50 hover:border-pink-300'
                       : 'border-zinc-200 bg-white hover:bg-zinc-50 hover:border-zinc-300'
                   }`}
                 >
-                  <span className="flex items-center justify-between gap-4">
-                    <span className="text-sm md:text-[15px] font-semibold leading-snug text-zinc-900">
-                      {option.label}
+                  <span className="flex items-center gap-3 sm:gap-4">
+                    <img src={option.image} alt={index === 0 ? 'Hidratante Íntimo SHE' : 'Stick Clareador SHE'} className="h-[4.25rem] w-[3.35rem] sm:h-[4.75rem] sm:w-[3.75rem] shrink-0 rounded-xl border border-white/90 bg-white object-contain shadow-sm" loading="eager" />
+                    <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                      <span className="text-[15px] sm:text-base md:text-[17px] font-semibold leading-snug text-zinc-900">
+                        {option.label}
+                      </span>
+                      <span className="text-zinc-400 text-xl shrink-0">→</span>
                     </span>
-                    <span className="text-zinc-400 text-lg shrink-0">→</span>
                   </span>
                 </button>
               </div>
@@ -152,20 +169,7 @@ export default function Welcome({ affiliateSlug = null, affiliate = null }) {
             Sua experiência será personalizada de acordo com sua escolha.
           </p>
 
-          <div className="mt-5 flex items-center justify-between px-1">
-            <a
-              href="/programa-afiliadas"
-              className="text-xs font-medium text-zinc-400 transition-colors hover:text-zinc-600"
-            >
-              Afiliadas
-            </a>
-            <a
-              href="/revendedora"
-              className="text-xs font-medium text-zinc-400 transition-colors hover:text-zinc-600"
-            >
-              Revendedora
-            </a>
-          </div>
+
         </section>
       </main>
       <style>{`
@@ -190,12 +194,14 @@ export default function Welcome({ affiliateSlug = null, affiliate = null }) {
         }
         .she-welcome-card::-webkit-scrollbar { display: none; }
         .she-welcome-card > div:first-child { margin-bottom: clamp(8px, 1.8dvh, 24px); }
-        .she-welcome-card > div:first-child img { width: clamp(76px, 13dvh, 208px); }
+        .she-welcome-card > div:first-child img:last-child { width: clamp(76px, 13dvh, 208px); }
+        .she-welcome-card > div:first-child img:first-child { width: clamp(190px, 30dvh, 300px); max-height: 76px; object-fit: contain; }
         .she-welcome-card h1 { font-size: clamp(1.45rem, 4.8dvh, 3rem); }
         .she-welcome-card p { line-height: 1.35; }
         .she-welcome-card input { padding-top: clamp(8px, 1.5dvh, 12px); padding-bottom: clamp(8px, 1.5dvh, 12px); }
         .she-welcome-card #she-options { margin-top: clamp(10px, 2dvh, 24px); gap: clamp(8px, 1.8dvh, 20px); }
-        .she-welcome-card #she-options button { padding-top: clamp(9px, 1.6dvh, 16px); padding-bottom: clamp(9px, 1.6dvh, 16px); }
+        .she-welcome-card #she-options button { padding-top: clamp(10px, 1.8dvh, 18px); padding-bottom: clamp(10px, 1.8dvh, 18px); }
+        .she-welcome-card #she-options img { height: clamp(58px, 8.5dvh, 76px); width: clamp(46px, 6.5dvh, 60px); }
         @media (max-height: 650px) {
           .she-welcome-card { border-radius: 22px; }
           .she-welcome-card > div:first-child { margin-bottom: 8px; }
